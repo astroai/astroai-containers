@@ -2,6 +2,8 @@
 
 Lean CANFAR session images for astronomy and ML development. Published to `images.canfar.net/astroai/`.
 
+Licensed under [BSD-2-Clause](LICENSE).
+
 ## Sessions
 
 | Image | Use for | Skaha type |

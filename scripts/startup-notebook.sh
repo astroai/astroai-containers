@@ -9,10 +9,10 @@ source /cadc/common-init.sh
 SESSION_ID="${1:-${JUPYTER_TOKEN:-}}"
 PORT=8888
 
-BASE_URL=""
+BASE_URL_ARGS=()
 if [[ -n "${SESSION_ID}" ]]; then
     # Match platform start-jupyterlab.sh (no leading slash)
-    BASE_URL="--ServerApp.base_url=session/notebook/${SESSION_ID}"
+    BASE_URL_ARGS=(--ServerApp.base_url="session/notebook/${SESSION_ID}")
 fi
 
 exec jupyter lab \
@@ -22,4 +22,4 @@ exec jupyter lab \
     --ServerApp.token='' \
     --ServerApp.password='' \
     --ServerApp.root_dir="${PWD}" \
-    ${BASE_URL}
+    "${BASE_URL_ARGS[@]}"
