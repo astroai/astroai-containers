@@ -116,9 +116,10 @@ The image keeps a small **apt** layer: platform essentials and monitoring tools 
 | `less`, `file`, `vim-tiny` | Logs and quick edits |
 | `acl` | CANFAR `/arc` file permissions |
 
-**Not in the image:** `build-essential`, `cmake`, Fortran, CUDA libs, Astropy, PyTorch, etc.
+**Not in the image:** `node`/`npm`, `build-essential`, `cmake`, Fortran, CUDA libs, Astropy, PyTorch, etc.
 
 ```bash
+pixi add nodejs                                # npm-based CLIs and Lab source extensions
 pixi add cmake cxx-compiler fortran-compiler   # only if you compile extensions
 pixi add cfitsio                               # instead of libcfitsio-dev
 ```
@@ -190,9 +191,9 @@ astroai-env-save myproject --full --to /arc/projects/mygroup/env-saves/myproject
 
 ## AI coding tools
 
-The image does **not** ship AI CLIs — the landscape changes too fast to pin in a container. Install what you need into **`~/.local/bin` on `/arc`** (persistent per user). `PATH` already includes `~/.local/bin`.
+The image does **not** ship AI CLIs or Node.js — the landscape changes too fast to pin in a container. Install what you need into **`~/.local/bin` on `/arc`** (persistent per user), or use a **pixi project on `/scratch`** when you want a reproducible Node/npm toolchain. `PATH` already includes `~/.local/bin`.
 
-Examples (check each project's site for the current installer):
+**curl/bash installers** (no Node required):
 
 ```bash
 # Cursor agent
@@ -210,7 +211,9 @@ UV_TOOL_BIN_DIR="${HOME}/.local/bin" \
 uv tool install aider-chat
 ```
 
-Each CLI needs its own API key or account. Re-run the installer when a tool publishes an update, or manage versions yourself under `~/.local`.
+**npm-based agents** need Node first — see [Node.js and npm](#nodejs-and-npm) below.
+
+Each CLI needs its own API key or account. Re-run the installer when a tool publishes an update, or manage versions yourself under `~/.local` or in your pixi project.
 
 ## Package managers
 
@@ -221,6 +224,33 @@ pixi init
 pixi add numpy astropy pytorch cuda-version=12
 pixi run python script.py
 ```
+
+### Node.js and npm
+
+The image has **no system `node` or `npm`**. JupyterLab itself runs without Node (prebuilt pip wheel). You only need Node for:
+
+- **npm-based AI agents** and other JS CLIs
+- **JupyterLab source extensions** installed from npm (rare — prefer prebuilt `pip` extensions)
+
+Use a pixi project on **`/scratch`** (same pattern as Python stacks). Package cache still lands under `~/.pixi` on `/arc`:
+
+```bash
+cd /scratch
+pixi init node-tools
+cd node-tools
+pixi add nodejs
+
+pixi run node --version
+pixi run npm --version
+
+# Example: npm-based CLI (check upstream for the current package name)
+pixi run npm install -g @anthropic-ai/claude-code
+pixi run claude --help
+```
+
+`npm` cache defaults to `~/.cache/npm` on `/arc` (`NPM_CONFIG_CACHE`). Prune with `astroai-cache-prune --all-safe` if it grows.
+
+To persist the Node toolchain across sessions, keep `pixi.toml` / `pixi.lock` in git and `astroai-env-save` the project — same as Python workflows. Binaries installed with `npm install -g` inside the pixi env live under `.pixi/` on `/scratch` (wiped when scratch expires); prefer curl installers to `~/.local` for long-lived personal CLIs, or re-run `pixi install` after `astroai-env-resume`.
 
 ### uv (recommended for pip/venv workflows)
 
@@ -249,7 +279,13 @@ OpenVSCode Server on port **5000**. Integrated terminal uses bash. Extensions pe
 
 JupyterLab on port **8888** (Notebook session type). Starts in `/scratch` via `common-init.sh`. Proxy base URL: `session/notebook/<session-id>`.
 
-Add Lab extensions in the project if needed: `pixi add jupyterlab-git`
+The image ships `jupyter lab` via pip — **no Node required** to run Lab. Add extensions with `pip` when possible:
+
+```bash
+pixi add jupyterlab-git    # prebuilt extension, no Node
+```
+
+Source extensions from npm need Node — add `nodejs` to a pixi project on `/scratch` (see [Node.js and npm](#nodejs-and-npm)).
 
 ### marimo
 
@@ -273,7 +309,8 @@ Skaha typically sets:
 | `git clone` SSH fails | Add your key to `~/.ssh` on `/arc`. |
 | GPU not visible | Did you pick a GPU node? Run `nvidia-smi`. |
 | `import torch` no CUDA | GPU node + `cuda-version` / GPU torch via pixi. |
-| AI CLI not found | Install into `~/.local/bin` (see AI coding tools in RUNTIME.md). |
+| AI CLI not found | Install into `~/.local/bin` or a pixi `nodejs` project on `/scratch` (see RUNTIME.md). |
+| `node` / `npm` not found | Not in the image — `pixi add nodejs` in a project on `/scratch`. |
 | pip build fails | Add compilers/libs with pixi, not system apt. |
 | `/arc` quota pressure | `astroai-home-usage`; `astroai-cache-prune --all-safe`. |
 | Jupyter 404 behind proxy | Notebook session must use port **8888** and `/skaha/startup.sh` — see [OPERATORS.md](OPERATORS.md). |
