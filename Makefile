@@ -1,12 +1,13 @@
-.PHONY: help build-all build/% push/% clean clean-all
+.PHONY: help build-all build/% push-all push/% clean clean-all
 
 SHELL := bash
 OWNER ?= astroai
 REGISTRY ?= images.canfar.net
 TAG ?= $(shell date -u +%y.%m)
+BUILD_TAG ?= local
 PYTHON_VERSION ?= 3.13
 
-export OWNER REGISTRY TAG
+export OWNER REGISTRY PYTHON_VERSION
 
 ALL_IMAGES := base webterm notebook vscode marimo
 IMAGE_PREFIX := $(REGISTRY)/$(OWNER)
@@ -16,22 +17,25 @@ help:
 	@echo "========================="
 	@echo "  make build-all          build full stack"
 	@echo "  make build/vscode       build one image (+ parents)"
-	@echo "  make push/vscode        tag and push to Harbor"
+	@echo "  make push-all           tag and push all images to Harbor"
+	@echo "  make push/vscode        tag and push one image to Harbor"
 	@echo "  make clean              remove local $(IMAGE_PREFIX)/* images"
 	@echo "  make clean-all          clean + prune buildx cache"
 	@echo ""
-	@echo "  OWNER=$(OWNER)  REGISTRY=$(REGISTRY)  TAG=$(TAG)"
+	@echo "  OWNER=$(OWNER)  REGISTRY=$(REGISTRY)  BUILD_TAG=$(BUILD_TAG)  TAG=$(TAG)"
 
 build-all: ## build all session images
-	docker buildx bake
+	TAG=$(BUILD_TAG) docker buildx bake
 
 build/%:
-	docker buildx bake $(notdir $@)
+	TAG=$(BUILD_TAG) docker buildx bake $(notdir $@)
+
+push-all: $(addprefix push/,$(ALL_IMAGES))
 
 push/%:
-	docker tag $(REGISTRY)/$(OWNER)/$(notdir $@):local $(REGISTRY)/$(OWNER)/$(notdir $@):$(TAG)
+	docker tag $(REGISTRY)/$(OWNER)/$(notdir $@):$(BUILD_TAG) $(REGISTRY)/$(OWNER)/$(notdir $@):$(TAG)
 	docker push $(REGISTRY)/$(OWNER)/$(notdir $@):$(TAG)
-	docker tag $(REGISTRY)/$(OWNER)/$(notdir $@):local $(REGISTRY)/$(OWNER)/$(notdir $@):latest
+	docker tag $(REGISTRY)/$(OWNER)/$(notdir $@):$(BUILD_TAG) $(REGISTRY)/$(OWNER)/$(notdir $@):latest
 	docker push $(REGISTRY)/$(OWNER)/$(notdir $@):latest
 
 clean: ## remove locally built AstroAI images

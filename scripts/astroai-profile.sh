@@ -43,4 +43,7 @@ alias la="ls -A"
 if [[ -n "${BASH_VERSION:-}" ]]; then
     command -v uv >/dev/null 2>&1 && eval "$(uv generate-shell-completion bash)"
     command -v pixi >/dev/null 2>&1 && eval "$(pixi completion --shell bash)"
+    command -v gh >/dev/null 2>&1 && eval "$(gh completion -s bash)"
+    command -v rg >/dev/null 2>&1 && eval "$(rg --generate complete-bash)"
+    command -v fzf >/dev/null 2>&1 && eval "$(fzf --bash)"
 fi

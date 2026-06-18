@@ -138,7 +138,9 @@ The image keeps a small **apt** layer: platform essentials and monitoring tools 
 
 | Tool | Why in the image |
 |------|------------------|
-| `git`, `git-lfs`, `openssh-client` | Clone and push over SSH |
+| `git`, `git-lfs`, `openssh-client`, `gh`, `delta` | Clone, push, PRs/issues, readable diffs |
+| `rg`, `fd`, `bat`, `tree`, `fzf` | Fast search, find, and browse code |
+| `tldr` | Quick command examples (`tldr git`) |
 | `uv`, `pixi` | Per-project Python environments |
 | `htop`, `nvtop`, `procps` | CPU/GPU monitoring |
 | `zstd`, `xz-utils`, `bzip2`, `pigz`, `zip`, `unzip` | Archives |
@@ -222,7 +224,25 @@ astroai-env-save myproject --full --to /arc/projects/mygroup/env-saves/myproject
 
 ## AI coding tools
 
-The image does **not** ship AI CLIs or Node.js — the landscape changes too fast to pin in a container. Install what you need into **`~/.local/bin` on `/arc`** (persistent per user), or use a **pixi project on `/scratch`** when you want a reproducible Node/npm toolchain. `PATH` already includes `~/.local/bin`.
+The image ships **dev CLIs** that pair well with AI assistants (`gh`, `rg`, `fd`, `bat`, `fzf`, `delta`, `tldr`) but does **not** ship AI agent binaries or Node.js — those change too fast to pin. Install agents into **`~/.local/bin` on `/arc`** (persistent per user), or use a **pixi project on `/scratch`** when you want a reproducible Node/npm toolchain. `PATH` already includes `~/.local/bin`.
+
+**GitHub CLI** (after `gh auth login` with a token or browser flow if your portal allows it):
+
+```bash
+gh repo clone owner/repo
+gh pr list
+gh issue view 42
+gh pr diff 17
+```
+
+**Code search** (what most agents use under the hood):
+
+```bash
+rg "def train" --type py
+fd Dockerfile
+bat scripts/astroai-help.sh
+tree -L 2 /scratch/myproject
+```
 
 **curl/bash installers** (no Node required):
 

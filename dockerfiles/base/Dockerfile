@@ -19,11 +19,16 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
     acl \
     bash-completion \
+    bat \
     bzip2 \
     ca-certificates \
     curl \
+    fd-find \
     file \
+    fzf \
+    gh \
     git \
+    git-delta \
     git-lfs \
     htop \
     jq \
@@ -33,7 +38,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-client \
     pigz \
     procps \
+    ripgrep \
     rsync \
+    tealdeer \
+    tree \
     unzip \
     vim-tiny \
     wget \
@@ -43,7 +51,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i '/en_US.UTF-8 UTF-8/s/^# //g' /etc/locale.gen \
     && locale-gen en_US.UTF-8 \
-    && git lfs install --system
+    && git lfs install --system \
+    && ln -sf /usr/bin/batcat /usr/local/bin/bat \
+    && ln -sf /usr/bin/fdfind /usr/local/bin/fd \
+    && git config --system core.pager delta \
+    && git config --system interactive.diffFilter 'delta --color-only' \
+    && git config --system delta.navigate-repbinds true
 
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \

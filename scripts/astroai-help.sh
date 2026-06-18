@@ -23,6 +23,10 @@ Project workflow
   pixi install / uv sync      deps into project (not system image)
   git push                    before session ends — scratch is wiped
 
+Dev CLIs (pre-installed)
+  gh, rg, fd, bat, fzf, delta, tldr   GitHub + fast search/browse
+  gh auth login               one-time GitHub token setup
+
 Docs: less /opt/astroai/RUNTIME.md  (or see docs/RUNTIME.md in repo)
 
 Storage
