@@ -20,6 +20,17 @@ kind=""
 [[ -f pyproject.toml && -z "${kind}" ]] && kind="uv"
 [[ -n "${kind}" ]] && echo "project: ${kind} ($(basename "${PWD}"))" || echo "project: none (cd /scratch && pixi init)"
 
+if command -v uv >/dev/null 2>&1; then
+    uv_py_dir="$(uv python dir 2>/dev/null || true)"
+    if [[ -n "${uv_py_dir}" ]]; then
+        if [[ "${uv_py_dir}" == /usr/local/* ]]; then
+            echo "uv:    python dir ${uv_py_dir} (root-only — run: source /etc/profile.d/astroai.sh)"
+        else
+            echo "uv:    python dir ${uv_py_dir}"
+        fi
+    fi
+fi
+
 if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree &>/dev/null; then
     echo "git:   $(git branch --show-current 2>/dev/null) $(git status -sb 2>/dev/null | head -1)"
 fi

@@ -11,6 +11,11 @@ export XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
 
 # Python package managers
 export UV_CACHE_DIR="${UV_CACHE_DIR:-${XDG_CACHE_HOME}/uv}"
+# Unconditional overrides — image ENV points at /usr/local (root-only); ${VAR:-} would not replace it.
+export UV_PYTHON_INSTALL_DIR="${XDG_DATA_HOME}/uv/python"
+export UV_PYTHON_BIN_DIR="${HOME}/.local/bin"
+export UV_TOOL_DIR="${XDG_DATA_HOME}/uv/tools"
+export UV_TOOL_BIN_DIR="${HOME}/.local/bin"
 export PIP_CACHE_DIR="${PIP_CACHE_DIR:-${XDG_CACHE_HOME}/pip}"
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 

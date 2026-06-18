@@ -19,7 +19,7 @@ Home hygiene (shared CephFS)
   astroai-cache-prune --all-safe   clear pip/uv/pixi caches
 
 Project workflow
-  cd /scratch && git clone …  active code on SSD
+  cd /scratch && gh repo clone …   active code on SSD
   pixi install / uv sync      deps into project (not system image)
   git push                    before session ends — scratch is wiped
 

@@ -60,7 +60,7 @@ for f in .python-version README.md; do
     [[ -f "${f}" ]] && cp -a "${f}" "${SAVE_DIR}/" || true
 done
 
-if [[ "${PWD}" != /scratch/* && -d /scratch ]]; then
+if [[ ! "${PWD}" =~ ^/scratch(/|$) && -d /scratch ]]; then
     echo "Note: saving from ${PWD} — prefer /scratch for active projects." >&2
 fi
 

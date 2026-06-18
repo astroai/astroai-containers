@@ -157,7 +157,7 @@ Pixi (or uv/pip) downloads CUDA user libraries into the project environment. No 
 | `astroai-env-resume <name> --from <path>` | Restore from custom path |
 | `astroai-env-list` | List saves under `~/.astroai/saves` |
 | `astroai-home-usage` | Disk breakdown under `$HOME` on `/arc` |
-| `astroai-cache-prune --all-safe` | Clear pip/uv/pixi package caches |
+| `astroai-cache-prune --all-safe` | Clear pip/uv/npm/pixi package caches |
 
 ## What is pre-installed (needs root)
 
@@ -192,6 +192,8 @@ Sessions set cache locations in `/etc/profile.d/astroai.sh`:
 |----------|---------|---------|
 | `XDG_CACHE_HOME` | `~/.cache` | Umbrella for tool caches on `/arc` |
 | `UV_CACHE_DIR` | `~/.cache/uv` | uv package cache |
+| `UV_PYTHON_INSTALL_DIR` | `~/.local/share/uv/python` | uv-managed Python installs (overrides image `/usr/local`) |
+| `UV_TOOL_DIR` | `~/.local/share/uv/tools` | uv tool environments |
 | `PIP_CACHE_DIR` | `~/.cache/pip` | pip wheel cache |
 | `PIXI_HOME` / `PIXI_CACHE_DIR` | `~/.pixi` | pixi environments and package cache |
 | `HF_HOME` | `~/.cache/huggingface` | Hugging Face models |
@@ -377,11 +379,11 @@ gh issue list
 **Aider** (Python agent via uv — no Node):
 
 ```bash
-UV_TOOL_DIR="${HOME}/.local/share/uv/tools" \
-UV_TOOL_BIN_DIR="${HOME}/.local/bin" \
 uv tool install aider-chat
 aider --help
 ```
+
+(`UV_TOOL_DIR` / `UV_TOOL_BIN_DIR` are set in `/etc/profile.d/astroai.sh`.)
 
 Re-run installers when a tool publishes an update, or use each tool's built-in update command (`agent update`, `agy update`, etc.).
 
@@ -538,6 +540,7 @@ Skaha typically sets:
 | `gh: not authenticated` | Run `gh auth login` once; token persists on `/arc`. |
 | Wrong npm package | Codex: `@openai/codex` · OpenCode: `opencode-ai` · Claude Code: use curl install, not npm. |
 | pip build fails | Add compilers/libs with pixi, not system apt. |
+| `uv`: Permission denied on `/usr/local/share/uv` | Image `ENV` is root-only; `source /etc/profile.d/astroai.sh` (or `bash -l`) **must** run — it force-sets `UV_PYTHON_INSTALL_DIR` to `~/.local/share/uv/python`. Check with `astroai-status`. |
 | `/arc` quota pressure | `astroai-home-usage`; `astroai-cache-prune --all-safe`. |
 | `ls /cvmfs` looks empty | Normal — CVMFS mounts lazily; `source /cvmfs/soft.computecanada.ca/config/profile/bash.sh` then `module avail`. |
 | Jupyter 404 behind proxy | Notebook session must use port **8888** and `/skaha/startup.sh` — see [OPERATORS.md](OPERATORS.md). |

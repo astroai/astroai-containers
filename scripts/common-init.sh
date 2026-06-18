@@ -8,8 +8,11 @@ fi
 
 _cache_dirs=(
     "${HOME}/.local/bin"
+    "${HOME}/.local/share/uv/python"
+    "${HOME}/.local/share/uv/tools"
     "${HOME}/.astroai/saves"
     "${HOME}/.ssh"
+    "${XDG_CONFIG_HOME:-${HOME}/.config}"
     "${XDG_CACHE_HOME:-${HOME}/.cache}"
     "${UV_CACHE_DIR:-${HOME}/.cache/uv}"
     "${PIP_CACHE_DIR:-${HOME}/.cache/pip}"

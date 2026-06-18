@@ -22,3 +22,5 @@ ENV UV_PYTHON_INSTALL_DIR=/usr/local/share/uv/python \
     PIXI_HOME=/usr/local/share/pixi \
     PIXI_BIN_DIR=/usr/local/bin \
     PIXI_CACHE_DIR=/usr/local/share/pixi/cache
+# ^ build-time paths for `uv pip install --system` only.
+# Session users: /etc/profile.d/astroai.sh overrides UV_* and PIXI_HOME to ~/.local and ~/.pixi.

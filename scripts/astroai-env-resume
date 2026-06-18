@@ -47,7 +47,14 @@ SAVE_DIR="${FROM_OVERRIDE:-$(astroai_save_root)/${NAME}}"
 
 KIND="$(jq -r .kind "${SAVE_DIR}/manifest.json")"
 FULL="$(jq -r .full "${SAVE_DIR}/manifest.json")"
-TARGET="${TARGET:-/scratch/${NAME}}"
+if [[ -z "${TARGET}" ]]; then
+    if [[ -d /scratch && -w /scratch ]]; then
+        TARGET="/scratch/${NAME}"
+    else
+        TARGET="${HOME}/${NAME}"
+        echo "No writable /scratch — restoring to ${TARGET}" >&2
+    fi
+fi
 
 mkdir -p "${TARGET}"
 
