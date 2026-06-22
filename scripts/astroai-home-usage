@@ -1,8 +1,22 @@
 #!/bin/bash -e
 # Show what is using space under $HOME on shared /arc (CephFS).
 
+[[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
+source /opt/astroai/lib/astroai-env-common.sh
+
 echo "Home disk usage for ${USER} (${HOME})"
 echo "========================================"
+
+# Quota overview
+astroai_quota_line "${HOME}" "home"
+
+# Project quotas
+if [[ -d /arc/projects ]]; then
+    for proj in /arc/projects/*/; do
+        [[ -d "${proj}" && -r "${proj}" ]] && astroai_quota_line "${proj}" "$(basename "${proj}")"
+    done
+fi
+echo ""
 
 entries=(
     ".cache:tool caches (uv, pip, HF, torch, …)"
@@ -33,6 +47,21 @@ du -sh "${HOME}"/* 2>/dev/null | grep -vE '/\.(cache|pixi|local|astroai|config|s
 echo ""
 total_h="$(numfmt --to=iec-i --suffix=B "${total}" 2>/dev/null || du -sh "${HOME}" | awk '{print $1}')"
 echo "Tracked profile dirs: ~${total_h}"
+
+# Show quota percentage summary
+_pct="$(df "${HOME}" 2>/dev/null | awk 'NR>1 {used=$3; size=$2; if(size>0) printf "%.0f", (used/size)*100; else print 0}')"
+if [[ -n "${_pct}" ]]; then
+    if [[ "${_pct}" -ge 95 ]]; then
+        echo "Quota:  ${_pct}% used ⚠ CRITICAL — prune immediately"
+    elif [[ "${_pct}" -ge 90 ]]; then
+        echo "Quota:  ${_pct}% used ⚠ high — prune soon"
+    elif [[ "${_pct}" -ge 80 ]]; then
+        echo "Quota:  ${_pct}% used ⚠ monitor"
+    else
+        echo "Quota:  ${_pct}% used"
+    fi
+fi
+
 echo ""
 echo "Keep $HOME lean on shared storage:"
 echo "  - code and active envs on /scratch"

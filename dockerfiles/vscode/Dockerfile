@@ -38,5 +38,9 @@ COPY scripts/skaha-startup-vscode.sh /skaha/startup.sh
 RUN chmod a+rx /cadc/*.sh /skaha/startup.sh
 
 EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:5000/ || exit 1
+
 WORKDIR /tmp
 CMD ["/cadc/startup-vscode.sh"]

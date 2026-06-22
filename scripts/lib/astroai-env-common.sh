@@ -35,3 +35,86 @@ astroai_require_project() {
 astroai_timestamp() {
     date -u +%Y%m%dT%H%M%SZ
 }
+
+# Check storage quota for a path. Prints warnings at thresholds.
+# Returns: 0 = OK, 1 = warning (>80%), 2 = critical (>95%)
+# Usage: astroai_check_quota "/arc/home/user" ["label"]
+astroai_check_quota() {
+    local path="${1:-}"
+    local label="${2:-$(basename "${path}")}"
+
+    [[ -d "${path}" ]] || return 0
+
+    local used_pct
+    used_pct="$(df "${path}" 2>/dev/null | awk 'NR>1 {used=$3; size=$2; if(size>0) printf "%.0f", (used/size)*100; else print 0}')"
+    [[ -n "${used_pct}" ]] || return 0
+
+    if [[ "${used_pct}" -ge 95 ]]; then
+        echo "  ⚠  ${label}: ${used_pct}% used — CRITICAL (near quota limit)" >&2
+        return 2
+    elif [[ "${used_pct}" -ge 90 ]]; then
+        echo "  ⚠  ${label}: ${used_pct}% used — prune soon (astroai-cache-prune --all-safe)" >&2
+        return 1
+    elif [[ "${used_pct}" -ge 80 ]]; then
+        echo "  ⚠  ${label}: ${used_pct}% used — monitor (astroai-home-usage)" >&2
+        return 1
+    fi
+    return 0
+}
+
+# Print a one-line quota summary for a path.
+# Usage: astroai_quota_line "/arc/home/user" "home"
+astroai_quota_line() {
+    local path="${1:-}"
+    local label="${2:-$(basename "${path}")}"
+
+    [[ -d "${path}" ]] || { echo "  ${label}: not mounted"; return; }
+
+    df -h "${path}" 2>/dev/null | awk -v lbl="${label}" 'NR>1 {
+        pct=$5; gsub(/%/, "", pct);
+        if (pct >= 95) alert=" ⚠ CRITICAL";
+        else if (pct >= 90) alert=" ⚠ high";
+        else if (pct >= 80) alert=" ⚠ monitor";
+        else alert="";
+        printf "  %-8s %s / %s (%s%%)%s\n", lbl, $3, $2, $5, alert
+    }'
+}
+
+# Run quota warnings for relevant paths at session start.
+astroai_quota_startup_check() {
+    local warned=0
+
+    # Home quota (always relevant)
+    if [[ -d "${HOME}" ]]; then
+        if ! astroai_check_quota "${HOME}" "home (/arc/home/${USER})" >/dev/null 2>&1; then
+            astroai_check_quota "${HOME}" "home (/arc/home/${USER})"
+            warned=1
+        fi
+    fi
+
+    # Project quota (if PWD or nearby /arc/projects/<project>)
+    if [[ -d /arc/projects ]]; then
+        # Walk up from PWD to find the project root (/arc/projects/<project>)
+        local proj_path="${PWD}"
+        while [[ "${proj_path}" != "/" && "${proj_path}" != "/arc/projects" ]]; do
+            local parent
+            parent="$(dirname "${proj_path}")"
+            if [[ "${parent}" == /arc/projects ]]; then
+                break
+            fi
+            proj_path="${parent}"
+        done
+
+        if [[ "${proj_path}" == /arc/projects/* && "${proj_path}" != /arc/projects ]]; then
+            local proj_label="project ($(basename "${proj_path}"))"
+            if ! astroai_check_quota "${proj_path}" "${proj_label}" >/dev/null 2>&1; then
+                astroai_check_quota "${proj_path}" "${proj_label}"
+                warned=1
+            fi
+        fi
+    fi
+
+    if [[ "${warned}" -eq 1 ]]; then
+        echo ""
+    fi
+}

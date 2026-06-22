@@ -33,6 +33,14 @@ if [[ -n "${TMPDIR:-}" ]]; then
     mkdir -p "${TMPDIR}"
 fi
 
+# Source lib for quota helper before the quota check
+if [[ -f /opt/astroai/lib/astroai-env-common.sh ]]; then
+    # shellcheck disable=SC1091
+    source /opt/astroai/lib/astroai-env-common.sh
+fi
+
+astroai_quota_startup_check
+
 if [[ -d /scratch ]]; then
     git config --global --add safe.directory /scratch 2>/dev/null || true
     git config --global --add safe.directory '*' 2>/dev/null || true

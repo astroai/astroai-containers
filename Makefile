@@ -39,7 +39,7 @@ push/%:
 	docker push $(REGISTRY)/$(OWNER)/$(notdir $@):latest
 
 clean: ## remove locally built AstroAI images
-	@imgs=("$$(docker images --format '{{.Repository}}:{{.Tag}}' '$(IMAGE_PREFIX)/*' 2>/dev/null || true)"); \
+	@imgs=($$(docker images --format '{{.Repository}}:{{.Tag}}' '$(IMAGE_PREFIX)/*' 2>/dev/null || true)); \
 	if [[ $${#imgs[@]} -eq 0 || -z "$${imgs[0]}" ]]; then \
 		echo "No $(IMAGE_PREFIX)/* images to remove."; \
 	else \

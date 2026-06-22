@@ -28,5 +28,9 @@ COPY scripts/skaha-startup-notebook.sh /skaha/startup.sh
 RUN chmod a+rx /cadc/*.sh /skaha/startup.sh
 
 EXPOSE 8888
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8888/ || exit 1
+
 WORKDIR /tmp
 CMD ["/skaha/startup.sh"]

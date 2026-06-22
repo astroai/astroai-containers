@@ -2,6 +2,11 @@
 # Caches live under ~/.cache on /arc (persistent, easy to prune).
 # TMPDIR uses /scratch when mounted (fast, ephemeral).
 
+if [[ -n "${ASTROAI_PROFILE_LOADED:-}" ]]; then
+    return 0 2>/dev/null || true
+fi
+export ASTROAI_PROFILE_LOADED=1
+
 export PATH="${HOME}/.local/bin:/opt/astroai/bin:${PATH}"
 
 # XDG base dirs (on /arc/home/$USER)

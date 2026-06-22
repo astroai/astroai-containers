@@ -76,10 +76,20 @@ COPY scripts/lib/astroai-env-common.sh scripts/lib/skaha-proxy.sh /opt/astroai/l
 COPY scripts/astroai-env-save scripts/astroai-env-resume scripts/astroai-env-list \
     scripts/astroai-home-usage scripts/astroai-cache-prune \
     scripts/astroai-help.sh scripts/astroai-status.sh scripts/astroai-new.sh \
+    scripts/astroai-clone.sh scripts/astroai-debug.sh scripts/astroai-install.sh \
+    scripts/astroai-session-archive.sh scripts/astroai-data-sync.sh \
+    scripts/astroai-project-init.sh \
     /opt/astroai/bin/
 RUN chmod a+rx /opt/astroai/bin/* /opt/astroai/lib/* \
     && ln -sf astroai-help.sh /opt/astroai/bin/astroai-help \
     && ln -sf astroai-status.sh /opt/astroai/bin/astroai-status \
-    && ln -sf astroai-new.sh /opt/astroai/bin/astroai-new
+    && ln -sf astroai-new.sh /opt/astroai/bin/astroai-new \
+    && ln -sf astroai-clone.sh /opt/astroai/bin/astroai-clone \
+    && ln -sf astroai-debug.sh /opt/astroai/bin/astroai-debug \
+    && ln -sf astroai-install.sh /opt/astroai/bin/astroai-install \
+    && ln -sf astroai-session-archive.sh /opt/astroai/bin/astroai-session-archive \
+    && ln -sf astroai-data-sync.sh /opt/astroai/bin/astroai-data-stage \
+    && ln -sf astroai-data-sync.sh /opt/astroai/bin/astroai-data-sync \
+    && ln -sf astroai-project-init.sh /opt/astroai/bin/astroai-project-init
 
 COPY docs/USAGE.md /opt/astroai/USAGE.md
