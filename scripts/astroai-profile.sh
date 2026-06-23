@@ -81,7 +81,28 @@ __astroai_scratch_reminder() {
     (( _since_last >= _interval )) || return 0
 
     local _hours=$(( _elapsed / 3600 )) _mins=$(( (_elapsed % 3600) / 60 ))
-    printf '\n  \033[1;33m⏳ %dh %dm on /scratch — git push or astroai-session-archive\033[0m\n\n' "${_hours}" "${_mins}"
+
+    # Session summary: scratch disk + git commits (only when reminder fires)
+    local _summary="" _part
+
+    if [[ -d /scratch ]]; then
+        _part="$(df -h /scratch 2>/dev/null | awk 'NR>1 {print $3}')"
+        [[ -n "${_part}" ]] && _summary="${_summary}scratch: ${_part}"
+    fi
+
+    if git rev-parse --is-inside-work-tree &>/dev/null; then
+        _part="$(git rev-list --count HEAD --since="@${_start}" 2>/dev/null)"
+        if [[ -n "${_part}" && "${_part}" -gt 0 ]]; then
+            [[ -n "${_summary}" ]] && _summary="${_summary} | "
+            _summary="${_summary}commits: ${_part}"
+        fi
+    fi
+
+    if [[ -n "${_summary}" ]]; then
+        printf '\n  \033[1;33m⏳ %dh %dm on /scratch (%s)\033[0m\n  → git push or astroai-session-archive\n\n' "${_hours}" "${_mins}" "${_summary}"
+    else
+        printf '\n  \033[1;33m⏳ %dh %dm on /scratch — git push or astroai-session-archive\033[0m\n\n' "${_hours}" "${_mins}"
+    fi
 
     mkdir -p "${HOME}/.astroai"
     printf '%s' "${_now}" > "${_reminder_file}"
