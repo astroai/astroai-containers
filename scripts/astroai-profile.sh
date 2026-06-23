@@ -87,8 +87,47 @@ __astroai_scratch_reminder() {
     printf '%s' "${_now}" > "${_reminder_file}"
 }
 
+# ── Periodic quota reminder (every ~6 hours, only when home >80%) ──
+__astroai_quota_reminder() {
+    local _reminder_file="${HOME}/.astroai/last-quota-reminder"
+    local _interval=21600  # 6 hours
+
+    [[ -t 1 ]] || return 0
+    [[ -d "${HOME}" ]] || return 0
+
+    local _now _last _since_last
+    printf -v _now '%(%s)T' -1
+    _last=0
+    [[ -f "${_reminder_file}" ]] && _last="$(cat "${_reminder_file}" 2>/dev/null)" || true
+    _since_last=$(( _now - _last ))
+    (( _since_last >= _interval )) || return 0
+
+    local _used_pct
+    _used_pct="$(df "${HOME}" 2>/dev/null | awk 'NR>1 {used=$3; size=$2; if(size>0) printf "%.0f", (used/size)*100; else print 0}')"
+    [[ -n "${_used_pct}" ]] || return 0
+
+    # Always record that we checked, so df doesn't run on every prompt
+    mkdir -p "${HOME}/.astroai"
+    printf '%s' "${_now}" > "${_reminder_file}"
+
+    (( _used_pct >= 80 )) || return 0
+
+    local _level _color
+    if (( _used_pct >= 95 )); then
+        _level="CRITICAL"
+        _color='\033[1;31m'  # red
+    elif (( _used_pct >= 90 )); then
+        _level="high"
+        _color='\033[1;33m'  # yellow
+    else
+        _level="monitor"
+        _color='\033[1;33m'  # yellow
+    fi
+    printf '\n  %b⚠  home: %d%% used (%s) — astroai-cache-prune --all-safe%b\n\n' "${_color}" "${_used_pct}" "${_level}" '\033[0m'
+}
+
 if [[ -z "${PROMPT_COMMAND:-}" ]]; then
-    PROMPT_COMMAND="__astroai_scratch_reminder"
+    PROMPT_COMMAND="__astroai_scratch_reminder; __astroai_quota_reminder"
 else
-    PROMPT_COMMAND="${PROMPT_COMMAND}; __astroai_scratch_reminder"
+    PROMPT_COMMAND="${PROMPT_COMMAND}; __astroai_scratch_reminder; __astroai_quota_reminder"
 fi
