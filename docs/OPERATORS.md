@@ -146,6 +146,106 @@ kubectl exec <pod> -- astroai-debug --stdout
 
 By default, reports save to `~/.astroai/debug-<YYYYMMDDTHHMMSSZ>.log` on `/arc` (persists across sessions). The `--file` flag saves to a custom path.
 
+## AI coding tools (`astroai-install`)
+
+Session images ship a curated set of dev CLIs (`gh`, `rg`, `fd`, `bat`, `fzf`, `delta`, `tldr`) but do **not** bundle AI agent binaries or Node.js — those change too fast to pin in an image. Users install them on-demand with `astroai-install`, which handles the right installer per tool and verifies each install. All tools land in `~/.local/bin` on `/arc` (persistent across sessions).
+
+### Available tools
+
+| Tool | Command | Installer | Node? |
+|------|---------|-----------|-------|
+| Cursor Agent | `agent` | curl script | No |
+| Claude Code | `claude` | curl script | No |
+| Antigravity (Google) | `agy` | curl script | No |
+| OpenCode | `opencode` | curl script | No |
+| Codex CLI (OpenAI) | `codex` | `gh release download` | No |
+| Freebuff | `freebuff` | npm | **Yes** |
+| Aider | `aider` | `uv tool install` | No |
+
+The table reflects `astroai-install`'s chosen install path. Some tools have alternative install methods (e.g., Codex also has an npm package, OpenCode offers an npm option) — USAGE.md covers those for users who install manually.
+
+Six of seven tools install without Node. Codex uses `gh release download` (requires `gh auth login`). Freebuff is the only npm-only tool — the script detects the missing `npm` and guides the user to install Node via pixi or CVMFS.
+
+### Pre-seeding in the base image
+
+Operators can bake AI tools into the base image to eliminate per-session install overhead. This is **optional** — `astroai-install` works on-demand, and tools persist on `/arc` after the first install.
+
+**Example Dockerfile additions** (after the existing `COPY` blocks in `dockerfiles/base/Dockerfile`):
+
+> **⚠  Caution:** curl-based installers may write binaries to unpredictable locations (e.g., `/usr/local/bin`, `~/.local/bin`, or a tool-specific directory). The `mv` commands below are best-effort — test in CI and verify binary locations before cutting an image. The OpenCode and Codex examples are deterministic.
+
+```dockerfile
+# Pre-seed popular AI coding tools into /usr/local/bin
+# Comment out any tools you don't want to ship.
+# Requires --build-arg GITHUB_TOKEN=... for the codex step.
+
+# OpenCode (deterministic — respects XDG_BIN_DIR)
+RUN XDG_BIN_DIR=/usr/local/bin curl -fsSL https://opencode.ai/install | bash
+
+# Codex CLI (no Node — uses gh; needs GitHub auth at build time)
+ARG GITHUB_TOKEN
+RUN ARCH=$(uname -m) \
+    && case "${ARCH}" in \
+         x86_64)  ASSET="codex-x86_64-unknown-linux-musl.tar.gz" ;; \
+         aarch64) ASSET="codex-aarch64-unknown-linux-musl.tar.gz" ;; \
+         *)       echo "Unsupported arch: ${ARCH}" && exit 1 ;; \
+       esac \
+    && GITHUB_TOKEN="${GITHUB_TOKEN}" gh release download -R openai/codex -p "${ASSET}" -D /tmp \
+    && tar -xzf "/tmp/${ASSET}" -C /usr/local/bin \
+    && mv "/usr/local/bin/${ASSET%.tar.gz}" /usr/local/bin/codex \
+    && rm "/tmp/${ASSET}"
+
+# Aider (Python package — pip installs to /usr/local/bin, world-readable)
+RUN pip install aider-chat
+
+# Cursor Agent (best-effort — curl installer location may vary)
+# RUN curl -fsS https://cursor.com/install | bash \
+#     && (mv ~/.local/bin/agent /usr/local/bin/agent 2>/dev/null \
+#         || mv agent /usr/local/bin/agent 2>/dev/null \
+#         || echo "⚠  agent binary not found — check installer output")
+
+# Claude Code (best-effort — same caveat)
+# RUN curl -fsSL https://claude.ai/install.sh | bash \
+#     && (mv ~/.local/bin/claude /usr/local/bin/claude 2>/dev/null \
+#         || mv claude /usr/local/bin/claude 2>/dev/null \
+#         || echo "⚠  claude binary not found — check installer output")
+```
+
+**Build with:** `docker build --build-arg GITHUB_TOKEN="$(gh auth token)" -t astroai/base:latest .`
+
+**Trade-offs to consider:**
+
+- **Image size**: Each tool adds ~20–80 MB. All 7 tools add roughly 300–500 MB to the base image. Pre-seeding 2–3 popular tools (e.g., `claude`, `codex`, `aider`) balances startup speed against image bloat.
+- **Update cadence**: AI tools release frequently (weekly). Baked-in binaries are frozen at build time — users still need `astroai-install` (or the tool's own update command) to get the latest version. Pre-seeding gives them a working starting point.
+- **Licensing**: Each tool has its own license. Pre-seeding only installs the binary — user accounts and API keys are still required at runtime.
+- **Multi-arch**: Codex has separate tarballs for x86_64 and aarch64. Multi-arch image builds need conditional logic (shown above) or separate Dockerfiles.
+
+**Recommendation**: Pre-seed nothing by default. Tools install once to `/arc` and persist, so the cost is paid only on first use per user. If the user base strongly prefers zero-setup, pre-seed 2–3 tools and document that `astroai-install` fetches the latest version.
+
+### Freebuff and Node.js
+
+Freebuff is npm-only. Operators have three options:
+
+1. **Don't pre-seed it** — users install Node via pixi or CVMFS, then run `astroai-install freebuff`. The script prints guidance when `npm` is missing.
+2. **Add Node to the base image** (`apt install nodejs npm` — ~200 MB). This lets `npm install -g freebuff` work out of the box. Update USAGE.md's "Not in the image" list if you do this.
+3. **Create a separate "full" image** (e.g., `astroai/full:26.06`) with Node + all pre-seeded tools for users who want zero setup.
+
+### Operator implications
+
+**Support:** Most AI tool issues are auth-related (expired tokens, wrong API key) — not install problems. `astroai-install` prints first-run instructions after each install (e.g., `Run: claude` for sign-in). Point users at those.
+
+**Common issues:**
+- `gh release download` fails for codex → `gh auth login` not run, or GitHub token expired
+- `npm not found` for freebuff → user needs `pixi add nodejs` or `module load nodejs`
+- Binary not on PATH → user needs `hash -r` or a new shell after install
+- Tool update → each tool has its own update: `agent update`, `agy update`, `claude` auto-updates, `uv tool upgrade aider-chat`
+
+**Security:** Five of seven tools install via `curl | bash`. This is the vendor-recommended method and standard industry practice for CLI tools. Operators concerned about supply chain risk can:
+- Pre-seed audited versions in the Dockerfile (binary verified at build time)
+- Block curl-based installers at the network level (but this also disables `astroai-install`)
+
+**Audit trail:** `astroai-debug` checks 19 pre-installed system tools but does not list user-installed AI agents. If fleet-wide AI tool tracking is needed, consider adding a separate audit script (`ls ~/.local/bin/agent ~/.local/bin/claude ~/.local/bin/agy ~/.local/bin/opencode ~/.local/bin/codex ~/.local/bin/freebuff ~/.local/bin/aider`).
+
 ## Quota monitoring
 
 Session images include built-in quota awareness for `/arc/home` (personal) and `/arc/projects/<group>/` (team) storage. Quota checks fire at three touchpoints and use three threshold levels.
