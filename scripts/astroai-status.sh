@@ -9,6 +9,25 @@ echo "======================"
 echo "user:  ${USER}  home: ${HOME}"
 echo "pwd:   ${PWD}"
 echo "scratch: $(if [[ -d /scratch ]]; then echo yes; else echo no; fi)  tmp: ${TMPDIR:-/tmp}"
+
+# Session age (from common-init.sh timestamp)
+if [[ -f "${HOME}/.astroai/session-started" ]]; then
+    _start_epoch="$(cat "${HOME}/.astroai/session-started" 2>/dev/null || echo 0)"
+    _now_epoch="$(date -u +%s)"
+    _age_secs=$(( _now_epoch - _start_epoch ))
+    if [[ -n "${_start_epoch}" && "${_start_epoch}" -gt 0 && "${_age_secs}" -ge 0 ]]; then
+        if [[ "${_age_secs}" -ge 86400 ]]; then
+            _age="$(( _age_secs / 86400 ))d $(( (_age_secs % 86400) / 3600 ))h"
+        elif [[ "${_age_secs}" -ge 3600 ]]; then
+            _age="$(( _age_secs / 3600 ))h $(( (_age_secs % 3600) / 60 ))m"
+        else
+            _age="$(( _age_secs / 60 ))m"
+        fi
+        _start_fmt="$(date -d "@${_start_epoch}" '+%H:%M %Z' 2>/dev/null || echo unknown)"
+        echo "session: started ${_start_fmt} (${_age} ago)"
+    fi
+fi
+
 echo "uptime:  $(uptime 2>/dev/null | sed 's/^.*up//' | sed 's/,.*//' | xargs || echo unknown)"
 
 echo "profile: $(if [[ -n "${ASTROAI_PROFILE_LOADED:-}" ]]; then echo sourced; else echo not sourced; fi)"

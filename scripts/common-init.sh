@@ -49,13 +49,36 @@ else
     cd "${HOME}"
 fi
 
+# Track session start time for astroai-status
+mkdir -p "${HOME}/.astroai"
+date -u +%s > "${HOME}/.astroai/session-started"
+
 if [[ ! -f "${HOME}/.astroai/welcomed" ]]; then
-    mkdir -p "${HOME}/.astroai"
     touch "${HOME}/.astroai/welcomed"
-    if [[ -t 1 ]] && command -v astroai-help >/dev/null 2>&1; then
-        echo ""
-        astroai-help | sed -n '1,14p'
-        echo "  (full list: astroai-help)"
-        echo ""
+    if [[ -t 1 ]]; then
+        cat <<'WELCOME'
+
+  ╔══════════════════════════════════════════════════════╗
+  ║       Welcome to AstroAI on CANFAR!                 ║
+  ╚══════════════════════════════════════════════════════╝
+
+  Quick start:
+    astroai-new myproject          create a new project
+    astroai-clone owner/repo       clone a GitHub project
+
+  Once you have code:
+    pixi run python analysis.py    run your project
+    git push                        back up to GitHub
+    astroai-session-archive         save everything before closing
+
+  Storage:
+    /scratch        active work (ephemeral — wiped at session end)
+    /arc/home       persistent (caches, saves, config, AI tools)
+
+  Getting help:
+    astroai-help                    full command list
+    less /opt/astroai/USAGE.md      detailed usage guide
+
+WELCOME
     fi
 fi

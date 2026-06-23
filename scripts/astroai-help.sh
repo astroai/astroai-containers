@@ -6,8 +6,8 @@ AstroAI commands (on PATH via /opt/astroai/bin)
 =================================================
 
 Quick loop
-  astroai-status              where am I, gpu, git, disk
-  astroai-new [name]          pixi init new project in /scratch
+  astroai-status              where am I, gpu, git, disk, session age
+  astroai-new [name]          pixi init + git + GH repo (--uv, --no-git, --no-gh, --astro)
   astroai-clone owner/repo    clone + install deps in one step
 
 Environment save/resume (/arc-friendly)
