@@ -4,26 +4,31 @@
 # Usage:
 #   astroai-session-archive         auto-detect project, push + save
 #   astroai-session-archive --name  custom save name (default: dir name)
+#   astroai-session-archive --force non-interactive (skip prompts)
 
 source /opt/astroai/lib/astroai-env-common.sh
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 
 NAME=""
+FORCE=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --name) NAME="$2"; shift 2 ;;
+        --force|-f) FORCE=1; shift ;;
         -h|--help)
-            sed -n '2,6p' "$0"
+            sed -n '2,7p' "$0"
             exit 0
             ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
 
-echo "Session archive"
-echo "==============="
-echo ""
+if [[ "${FORCE}" -eq 0 ]]; then
+    echo "Session archive"
+    echo "==============="
+    echo ""
+fi
 
 PUSHED=0
 SAVED=0
@@ -36,13 +41,17 @@ if git rev-parse --is-inside-work-tree &>/dev/null; then
 
     # Check for unstaged / uncommitted changes
     if ! git diff-index --quiet HEAD -- 2>/dev/null; then
-        echo "⚠  Uncommitted changes detected. Commit before pushing:"
-        echo "   git add -A && git commit -m 'session work'"
-        echo ""
         UNCOMMITTED=1
+        if [[ "${FORCE}" -eq 0 ]]; then
+            echo "⚠  Uncommitted changes detected. Commit before pushing:"
+            echo "   git add -A && git commit -m 'session work'"
+            echo ""
+        fi
     fi
 
-    echo "Pushing branch '${BRANCH}' to ${REMOTE}..."
+    if [[ "${FORCE}" -eq 0 ]]; then
+        echo "Pushing branch '${BRANCH}' to ${REMOTE}..."
+    fi
     if git push; then
         echo "✓ pushed ${BRANCH}"
         PUSHED=1
@@ -63,7 +72,9 @@ if [[ -n "${KIND}" ]]; then
         NAME="$(basename "${PWD}")"
     fi
 
-    echo "Saving ${KIND} environment '${NAME}'..."
+    if [[ "${FORCE}" -eq 0 ]]; then
+        echo "Saving ${KIND} environment '${NAME}'..."
+    fi
     if /opt/astroai/bin/astroai-env-save "${NAME}"; then
         echo "✓ env saved: ${NAME}"
         SAVED=1
@@ -75,24 +86,27 @@ else
     echo "  Hint: pixi init && pixi add python numpy"
 fi
 
-echo ""
-echo "── Summary ──"
-echo "  git push:   $([[ "${PUSHED}" -eq 1 ]] && echo "done" || echo "skipped")"
-echo "  env save:   $([[ "${SAVED}" -eq 1 ]] && echo "done (${NAME})" || echo "skipped")"
-if [[ "${UNCOMMITTED}" -eq 1 ]]; then
-    echo "  ⚠  uncommitted changes exist — not archived"
+if [[ "${FORCE}" -eq 0 ]]; then
+    echo ""
+    echo "── Summary ──"
+    echo "  git push:   $([[ "${PUSHED}" -eq 1 ]] && echo "done" || echo "skipped")"
+    echo "  env save:   $([[ "${SAVED}" -eq 1 ]] && echo "done (${NAME})" || echo "skipped")"
+    if [[ "${UNCOMMITTED}" -eq 1 ]]; then
+        echo "  ⚠  uncommitted changes exist — not archived"
+    fi
 fi
 
 if [[ -d /scratch ]]; then
-    echo ""
-    echo "⚠  /scratch is ephemeral — your session work will be wiped."
+    if [[ "${FORCE}" -eq 0 ]]; then
+        echo ""
+    fi
     if [[ "${PUSHED}" -eq 1 && "${SAVED}" -eq 1 ]]; then
-        echo "   Code is on GitHub and environment is saved. Safe to close."
+        :  # all good, silent in force mode
     elif [[ "${PUSHED}" -eq 1 ]]; then
-        echo "   Code is on GitHub. Re-run astroai-env-save if you need the environment."
+        [[ "${FORCE}" -eq 0 ]] && echo "⚠  /scratch is ephemeral — environment not saved."
     elif [[ "${SAVED}" -eq 1 ]]; then
-        echo "   Environment is saved. Push code with: git push"
+        [[ "${FORCE}" -eq 0 ]] && echo "⚠  /scratch is ephemeral — code not pushed."
     else
-        echo "   Nothing archived! Push code and save env before closing."
+        [[ "${FORCE}" -eq 0 ]] && echo "⚠  /scratch is ephemeral — nothing archived! Push and save before closing."
     fi
 fi

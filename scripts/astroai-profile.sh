@@ -126,6 +126,23 @@ __astroai_quota_reminder() {
     printf '\n  %b⚠  home: %d%% used (%s) — astroai-cache-prune --all-safe%b\n\n' "${_color}" "${_used_pct}" "${_level}" '\033[0m'
 }
 
+# ── Pre-exit auto-archive (runs astroai-session-archive --force once per session) ──
+__astroai_auto_archive() {
+    local _marker="${HOME}/.astroai/auto-archived"
+
+    [[ -f "${_marker}" ]] && return 0
+    git rev-parse --is-inside-work-tree &>/dev/null || return 0
+
+    mkdir -p "${HOME}/.astroai"
+    touch "${_marker}"
+    astroai-session-archive --force 2>/dev/null || true
+}
+
+if [[ -t 1 ]]; then
+    # Note: replaces any pre-existing EXIT trap (fresh CANFAR shells have none)
+    trap __astroai_auto_archive EXIT
+fi
+
 if [[ -z "${PROMPT_COMMAND:-}" ]]; then
     PROMPT_COMMAND="__astroai_scratch_reminder; __astroai_quota_reminder"
 else
