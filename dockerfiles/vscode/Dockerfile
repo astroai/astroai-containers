@@ -23,15 +23,8 @@ RUN ARCH=$(uname -m | sed 's/x86_64/x64/; s/aarch64/arm64/') \
     | tar -xz -C /opt \
     && mv "/opt/openvscode-server-${OPENVSCODE_VERSION}-linux-${ARCH}" /opt/openvscode-server
 
-RUN mkdir -p /opt/openvscode-server/data/Machine \
-    && printf '%s\n' \
-    '{' \
-    '  "terminal.integrated.defaultProfile.linux": "bash",' \
-    '  "terminal.integrated.profiles.linux": {' \
-    '    "bash": { "path": "/bin/bash", "args": ["-l"] }' \
-    '  }' \
-    '}' \
-    > /opt/openvscode-server/data/Machine/settings.json
+RUN mkdir -p /opt/openvscode-server/data/Machine
+COPY config/openvscode-settings.json /opt/openvscode-server/data/Machine/settings.json
 
 COPY scripts/common-init.sh scripts/startup-vscode.sh /cadc/
 COPY scripts/skaha-startup-vscode.sh /skaha/startup.sh
@@ -43,4 +36,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD bash -c 'SID="${skaha_sessionid:-}"; if [[ -n "${SID}" ]]; then curl -fsS "http://127.0.0.1:5000/session/contrib/${SID}/" >/dev/null; else curl -fsS http://127.0.0.1:5000/ >/dev/null; fi'
 
 WORKDIR /tmp
-CMD ["/cadc/startup-vscode.sh"]
+CMD ["/skaha/startup.sh"]

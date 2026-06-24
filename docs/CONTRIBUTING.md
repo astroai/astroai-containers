@@ -53,6 +53,8 @@ git checkout -b my-change
 | System packages, `gh`, monitoring CLIs | `dockerfiles/base/Dockerfile` | Yes — `base` + downstream |
 | Python / uv / pixi foundation | `dockerfiles/python/Dockerfile` | Yes — full stack |
 | Jupyter config | `config/jupyter_server_config.py` | Yes — `notebook` |
+| CADC client pins | `config/cadc-tools.txt` | Yes — `base` and downstream |
+| VS Code UI defaults | `config/openvscode-settings.json` | Yes — `vscode` |
 | Bake graph, tags | `docker-bake.hcl`, `Makefile` | Depends on target |
 
 **Lean image rule:** don't add compilers, CUDA, or science stacks to Dockerfiles — those belong in user pixi/uv projects (document in USAGE.md instead).

@@ -34,6 +34,10 @@ Dev CLIs (pre-installed)
   gh, rg, fd, bat, fzf, delta, tldr   GitHub + fast search/browse
   gh auth login               one-time GitHub token setup
 
+CADC / CANFAR clients (pre-installed — see USAGE.md)
+  cadcget, cadcput, vcp, cadc-tap, canfar, cadc-get-cert
+  canfar auth login           Science Platform authentication
+
 AI agents (install once to ~/.local/bin on /arc — see USAGE.md)
   astroai-install <tool>     install agent, claude, agy, opencode, codex, freebuff, aider
   curl installers: agent, claude, agy, opencode

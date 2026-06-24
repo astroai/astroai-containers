@@ -42,6 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rsync \
     tealdeer \
     tree \
+    libmagic1 \
     unzip \
     vim-tiny \
     wget \
@@ -70,8 +71,13 @@ RUN printf '%s\n' \
 COPY scripts/astroai-profile.sh /etc/profile.d/astroai.sh
 RUN chmod a+r /etc/profile.d/astroai.sh
 
-RUN mkdir -p /opt/astroai/{bin,cache,lib} /cadc \
+RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc \
     && chmod -R a+rwx /opt/astroai
+
+COPY config/cadc-tools.txt /opt/astroai/cadc-tools.txt
+RUN uv venv /opt/astroai/venv/cadc \
+    && uv pip install --python /opt/astroai/venv/cadc -r /opt/astroai/cadc-tools.txt \
+    && chmod -R a+rX /opt/astroai/venv/cadc
 
 COPY scripts/lib/astroai-env-common.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
 COPY scripts/astroai-env-save scripts/astroai-env-resume scripts/astroai-env-list \

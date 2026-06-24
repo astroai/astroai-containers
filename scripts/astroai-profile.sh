@@ -12,7 +12,7 @@ if [[ -n "${ASTROAI_PROFILE_LOADED:-}" ]]; then
 fi
 export ASTROAI_PROFILE_LOADED=1
 
-export PATH="${HOME}/.local/bin:/opt/astroai/bin:${PATH}"
+export PATH="${HOME}/.local/bin:/opt/astroai/venv/cadc/bin:/opt/astroai/bin:${PATH}"
 
 # XDG base dirs (on /arc/home/$USER)
 # Skaha notebook jobs may set XDG_CACHE_HOME=$HOME; keep caches under ~/.cache instead.

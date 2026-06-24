@@ -1,7 +1,9 @@
 #!/bin/bash -e
-# OpenVSCode Server on port 5000.
+# OpenVSCode Server on port 5000 (CANFAR Contributed session type).
 
 source /cadc/common-init.sh
+# shellcheck disable=SC1091
+source /opt/astroai/lib/skaha-proxy.sh
 
 OPS=(
     --host 0.0.0.0
@@ -11,7 +13,7 @@ OPS=(
 )
 
 if [[ -n "${skaha_sessionid:-}" ]]; then
-    OPS+=(--server-base-path "/session/contrib/${skaha_sessionid}")
+    OPS+=(--server-base-path "$(astroai_skaha_base_url "${skaha_sessionid}" contrib)")
 fi
 
 exec /opt/openvscode-server/bin/openvscode-server "${OPS[@]}"

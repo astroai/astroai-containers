@@ -24,14 +24,16 @@ if [[ "${IMAGE}" == "notebook" ]]; then
     CONTAINER_PORT=8888
     EXTRA_ENV=(-e "JUPYTER_TOKEN=${SESSION_ID}")
     RUN_CMD=(/skaha/startup.sh "${SESSION_ID}")
+    ACCESS_URL="http://127.0.0.1:${PORT}/session/notebook/${SESSION_ID}/"
 else
     PORT="${PORT:-5000}"
     CONTAINER_PORT=5000
     EXTRA_ENV=(-e "skaha_sessionid=${SESSION_ID}")
-    RUN_CMD=()
+    RUN_CMD=(/skaha/startup.sh)
+    ACCESS_URL="http://127.0.0.1:${PORT}/session/contrib/${SESSION_ID}/"
 fi
 
-echo "Running ${FULL_IMAGE} on http://127.0.0.1:${PORT}"
+echo "Running ${FULL_IMAGE} on ${ACCESS_URL}"
 echo "  HOME=${FAKE_ARC}/testuser"
 echo "  /scratch=${FAKE_SCRATCH}"
 echo "  session=${SESSION_ID}"

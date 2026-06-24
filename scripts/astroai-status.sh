@@ -65,6 +65,18 @@ if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree &>/dev/
 fi
 
 echo ""
+echo "cadc:"
+for tool in canfar cadcget cadc-tap vcp; do
+    if command -v "${tool}" >/dev/null 2>&1; then
+        ver="$("${tool}" --version 2>&1 | head -1 || true)"
+        [[ -z "${ver}" ]] && ver="ok"
+        printf "  %-10s %s\n" "${tool}" "${ver}"
+    else
+        printf "  %-10s %s\n" "${tool}" "NOT FOUND"
+    fi
+done
+
+echo ""
 echo "processes (top by CPU):"
 ps -eo pid,user,%cpu,%mem,comm --sort=-%cpu 2>/dev/null | head -6 | sed 's/^/  /'
 

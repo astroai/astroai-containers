@@ -140,6 +140,42 @@ astroai-data-sync /scratch/results/  /arc/projects/mygroup/results/
 astroai-session-archive
 ```
 
+## CADC / CANFAR clients
+
+The OpenCADC Python clients are **pre-installed** in every session (venv at `/opt/astroai/venv/cadc`, on PATH):
+
+| Package | CLI examples | Purpose |
+|---------|--------------|---------|
+| `cadcdata` | `cadcget`, `cadcput`, `cadcinfo`, `cadcremove` | CADC archive data access |
+| `cadctap` | `cadc-tap` | TAP catalog queries |
+| `vos` | `vcp`, `vls`, `vos-config` | VOSpace storage |
+| `canfar` | `canfar auth login`, `canfar sessions …` | Science Platform API/CLI |
+
+**Authentication** (pick what your workflow needs):
+
+```bash
+canfar auth login              # Science Platform (recommended for sessions/API)
+cadc-get-cert -u $USER         # X509 cert for vos / cadcdata (netrc also works)
+```
+
+**Examples:**
+
+```bash
+cadcget cadc:CFHT/806045o.fits
+cadc-tap "SELECT * FROM caom2.Observation WHERE collection='CFHT' LIMIT 5"
+vls vos:/
+canfar sessions list
+```
+
+For **project Python code** (`import cadcdata`, etc.), add packages to your pixi/uv project on `/scratch` so versions match your analysis stack:
+
+```bash
+pixi add cadcdata cadctap vos canfar
+# or: uv add cadcdata cadctap vos canfar
+```
+
+Platform CLIs stay available for ad-hoc use; project envs keep reproducible imports.
+
 ## Alliance software (CVMFS)
 
 CANFAR worker nodes mount **CVMFS** — a read-only software tree maintained by the [Digital Research Alliance of Canada](https://docs.alliancecan.ca/) (DRAC / Alliance; same stacks as Fir, Nibi, and other national clusters). It is available in **all** AstroAI sessions and complements the lean image: the container brings `uv`, `pixi`, and basics; CVMFS brings thousands of pre-built packages without bloating the image.
@@ -163,7 +199,7 @@ module load cfitsio
 |----------|----------|
 | **pixi / uv** on `/scratch` | Project-pinned Python stacks, GPU PyTorch, fast iteration, git-tracked deps |
 | **CVMFS `module load`** | Alliance-built compilers, libraries, and apps already in the national stack |
-| **Image (`apt` / system `uv`)** | Session baseline only — JupyterLab, marimo, shell tooling |
+| **Image (`apt` / system `uv`)** | Session baseline — JupyterLab, marimo, CADC clients, shell tooling |
 
 You cannot `pip install` or write into `/cvmfs`. Module changes last for the current shell unless you add the `source` and `module load` lines to `~/.bashrc` on `/arc`.
 
@@ -613,7 +649,19 @@ uv run python script.py
 
 ### webterm
 
-Browser terminal on port **5000**. Persistent `tmux` session named `astroai` (reattach after refresh). Login shell (`bash -l`). Starship prompt.
+Browser terminal on port **5000**. Persistent `tmux` session named `astroai` (reattach after refresh). Login shell (`bash -l`). Starship prompt. Window tabs appear in the **tmux status bar** at the top.
+
+**tmux tabs** (prefix `Ctrl-b`):
+
+| Keys | Action |
+|------|--------|
+| `Ctrl-b` `c` | New window (tab) |
+| `Ctrl-b` `n` / `p` | Next / previous window |
+| `Ctrl-b` `0`–`9` | Jump to window number |
+| `Ctrl-b` `w` | Interactive window list |
+| `Ctrl-b` `%` / `"` | Split pane vertical / horizontal |
+
+For GUI-style terminal tabs, use the **vscode** session instead.
 
 ```bash
 # inside tmux after reconnect:

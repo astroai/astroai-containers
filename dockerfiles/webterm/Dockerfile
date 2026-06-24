@@ -32,9 +32,17 @@ RUN curl -sS https://starship.rs/install.sh | sh -s -- --yes \
 
 RUN printf '%s\n' \
     'set -g default-shell /bin/bash' \
-    'set -g mouse off' \
+    'set -g mouse on' \
     'set -g history-limit 50000' \
-    'set -g status off' \
+    'set -g status-interval 5' \
+    'set -g status-position top' \
+    'set -g status-left-length 20' \
+    'set -g status-left "#[fg=colour117,bold]AstroAI"' \
+    'set -g status-right "#[fg=colour245]#{host_short}"' \
+    'setw -g window-status-format " #[fg=colour245,bold]#I#[fg=colour245]:#[fg=colour252]#W "' \
+    'setw -g window-status-current-format " #[fg=colour117,bold]#I#[fg=colour117]:#[fg=colour255,bold]#W "' \
+    'setw -g window-status-separator ""' \
+    'setw -g mode-keys vi' \
     > /etc/tmux.conf
 
 COPY scripts/common-init.sh scripts/startup-webterm.sh /cadc/
@@ -44,7 +52,7 @@ RUN chmod a+rx /cadc/*.sh /skaha/startup.sh
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -fsS http://127.0.0.1:5000/ >/dev/null
+    CMD bash -c 'SID="${skaha_sessionid:-}"; if [[ -n "${SID}" ]]; then curl -fsS "http://127.0.0.1:5000/session/contrib/${SID}/" >/dev/null; else curl -fsS http://127.0.0.1:5000/ >/dev/null; fi'
 
 WORKDIR /tmp
-CMD ["/cadc/startup-webterm.sh"]
+CMD ["/skaha/startup.sh"]

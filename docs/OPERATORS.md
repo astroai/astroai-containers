@@ -69,12 +69,12 @@ Remove or replace the `start-jupyterlab` ConfigMap volume mount when using this 
 
 | Image | `/skaha/startup.sh` | `CMD` |
 |-------|---------------------|-------|
-| `webterm` | → `startup-webterm.sh` | `/cadc/startup-webterm.sh` |
-| `vscode` | → `startup-vscode.sh` | `/cadc/startup-vscode.sh` |
+| `webterm` | → `startup-webterm.sh` | `/skaha/startup.sh` |
+| `vscode` | → `startup-vscode.sh` | `/skaha/startup.sh` |
 | `notebook` | → `startup-notebook.sh "$@"` | `/skaha/startup.sh` |
 | `marimo` | → `startup-marimo.sh` | `/cadc/startup-marimo.sh` |
 
-Contributed images work with either `CMD` or `/skaha/startup.sh`. Notebook images expect the session ID as `$1`.
+Contributed images listen on port **5000** and, when `skaha_sessionid` is set, use reverse-proxy base path `/session/contrib/<session-id>/` (ttyd `--base-path`, OpenVSCode `--server-base-path`, marimo `--base-url`).
 
 ## Science Portal checklist
 

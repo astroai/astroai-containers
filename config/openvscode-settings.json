@@ -1,0 +1,20 @@
+{
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.profiles.linux": {
+    "bash": {
+      "path": "/bin/bash",
+      "args": ["-l"]
+    }
+  },
+  "workbench.colorTheme": "Default Dark Modern",
+  "editor.fontSize": 14,
+  "terminal.integrated.fontSize": 14,
+  "workbench.startupEditor": "none",
+  "security.workspace.trust.enabled": false,
+  "window.title": "AstroAI VS Code",
+  "files.watcherExclude": {
+    "**/.pixi/**": true,
+    "**/.venv/**": true,
+    "**/__pycache__/**": true
+  }
+}

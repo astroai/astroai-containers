@@ -79,7 +79,17 @@ if [[ ! -f "${HOME}/.astroai/welcomed" ]]; then
   Getting help:
     astroai-help                    full command list
     less /opt/astroai/USAGE.md      detailed usage guide
-
 WELCOME
+        if [[ "${ASTROAI_SESSION_KIND:-}" == "webterm" ]]; then
+            cat <<'WEBTERM'
+
+  tmux tabs (prefix Ctrl-b):
+    c        new window (tab)
+    n / p    next / previous window
+    0-9      jump to window number
+    w        pick from window list
+    % / "    split pane vertical / horizontal
+WEBTERM
+        fi
     fi
 fi
