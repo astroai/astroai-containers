@@ -12,6 +12,8 @@
 #   REGISTRY   default images.canfar.net
 #   OWNER      default astroai
 #   CANFAR_TEST_TIMEOUT  seconds to wait for session (default 600)
+#   CANFAR_REGISTRY__USERNAME / CANFAR_REGISTRY__SECRET  Harbor pull creds
+#   REGISTRY_USER / REGISTRY_PASSWORD  alternate Harbor cred env names
 
 IMAGE="${1:-base}"
 TAG="${2:-${TAG:-latest}}"
@@ -20,6 +22,67 @@ REGISTRY="${REGISTRY:-images.canfar.net}"
 TIMEOUT="${CANFAR_TEST_TIMEOUT:-600}"
 FULL_IMAGE="${REGISTRY}/${OWNER}/${IMAGE}:${TAG}"
 SESSION_NAME="astroai-verify-${IMAGE}-${TAG}-$(date -u +%Y%m%d%H%M%S)"
+
+ensure_registry_auth() {
+    if [[ -n "${CANFAR_REGISTRY__USERNAME:-}" && -n "${CANFAR_REGISTRY__SECRET:-}" ]]; then
+        export CANFAR_REGISTRY__URL="${CANFAR_REGISTRY__URL:-https://${REGISTRY}}"
+        return 0
+    fi
+
+    if [[ -n "${REGISTRY_USER:-}" && -n "${REGISTRY_PASSWORD:-}" ]]; then
+        export CANFAR_REGISTRY__USERNAME="${REGISTRY_USER}"
+        export CANFAR_REGISTRY__SECRET="${REGISTRY_PASSWORD}"
+        export CANFAR_REGISTRY__URL="${CANFAR_REGISTRY__URL:-https://${REGISTRY}}"
+        return 0
+    fi
+
+    local configured_user
+    configured_user="$(canfar config get registry.username 2>/dev/null | tail -1 || true)"
+    if [[ -n "${configured_user}" && "${configured_user}" != "null" ]]; then
+        return 0
+    fi
+
+    local docker_cfg="${HOME}/.docker/config.json"
+    if [[ ! -f "${docker_cfg}" ]]; then
+        echo "Harbor credentials required for private image ${FULL_IMAGE}." >&2
+        echo "Set CANFAR_REGISTRY__USERNAME and CANFAR_REGISTRY__SECRET, or:" >&2
+        echo "  canfar config set registry.username <user>" >&2
+        echo "  canfar config set registry.secret <token>" >&2
+        echo "  canfar config set registry.url https://${REGISTRY}" >&2
+        exit 1
+    fi
+
+    if ! mapfile -t _reg_creds < <(
+        python3 - "${REGISTRY}" "${docker_cfg}" <<'PY'
+import base64
+import json
+import sys
+
+registry, path = sys.argv[1], sys.argv[2]
+with open(path, encoding="utf-8") as fh:
+    cfg = json.load(fh)
+entry = cfg.get("auths", {}).get(registry, {})
+if "auth" in entry:
+    user, secret = base64.b64decode(entry["auth"]).decode().split(":", 1)
+elif entry.get("username") and entry.get("password"):
+    user, secret = entry["username"], entry["password"]
+else:
+    sys.exit(1)
+print(user)
+print(secret)
+PY
+    ) || [[ ${#_reg_creds[@]} -lt 2 ]]; then
+        echo "Could not read Harbor credentials from ${docker_cfg} for ${REGISTRY}." >&2
+        echo "Log in with: docker login ${REGISTRY}" >&2
+        exit 1
+    fi
+
+    CANFAR_REGISTRY__USERNAME="${_reg_creds[0]}"
+    CANFAR_REGISTRY__SECRET="${_reg_creds[1]}"
+    export CANFAR_REGISTRY__USERNAME CANFAR_REGISTRY__SECRET
+    export CANFAR_REGISTRY__URL="${CANFAR_REGISTRY__URL:-https://${REGISTRY}}"
+    echo "Using Harbor credentials for ${REGISTRY} (user: ${CANFAR_REGISTRY__USERNAME})"
+}
 
 if ! command -v canfar >/dev/null 2>&1; then
     echo "canfar CLI not found. Install with: uv tool install canfar" >&2
@@ -31,16 +94,35 @@ if ! canfar auth show >/dev/null 2>&1; then
     exit 1
 fi
 
+ensure_registry_auth
+
 session_status() {
     local sid="$1"
     canfar ps -a --json 2>/dev/null | python3 -c "
 import json, sys
+
 target = sys.argv[1]
-for row in json.load(sys.stdin):
+raw = sys.stdin.read().strip()
+if not raw:
+    print('')
+    raise SystemExit(0)
+for marker in ('[', '{'):
+    idx = raw.find(marker)
+    if idx >= 0:
+        raw = raw[idx:]
+        break
+try:
+    rows = json.loads(raw)
+except json.JSONDecodeError:
+    print('')
+    raise SystemExit(0)
+if isinstance(rows, dict):
+    rows = [rows]
+for row in rows:
     if row.get('id') == target:
         print(row.get('status', ''))
         break
-" "${sid}"
+" "${sid}" || true
 }
 
 cleanup() {
@@ -69,7 +151,40 @@ CREATE_OUT="$(
 
 echo "${CREATE_OUT}"
 
-SESSION_ID="$(printf '%s\n' "${CREATE_OUT}" | sed -n 's/.*(ID: \([^)]*\)).*/\1/p' | head -1)"
+SESSION_ID="$(
+    printf '%s\n' "${CREATE_OUT}" \
+        | tr -d '\r' \
+        | tr '\n' ' ' \
+        | sed -n 's/.*(ID:[[:space:]]*\([^)]*\)).*/\1/p' \
+        | awk '{print $1}'
+)"
+if [[ -z "${SESSION_ID}" ]]; then
+    SESSION_ID="$(
+        canfar ps -a --json 2>/dev/null | python3 -c "
+import json, sys
+
+name = sys.argv[1]
+raw = sys.stdin.read().strip()
+if not raw:
+    raise SystemExit(0)
+for marker in ('[', '{'):
+    idx = raw.find(marker)
+    if idx >= 0:
+        raw = raw[idx:]
+        break
+try:
+    rows = json.loads(raw)
+except json.JSONDecodeError:
+    raise SystemExit(0)
+if isinstance(rows, dict):
+    rows = [rows]
+for row in rows:
+    if row.get('name') == name:
+        print(row.get('id', ''))
+        break
+" "${SESSION_NAME}" || true
+    )"
+fi
 if [[ -z "${SESSION_ID}" ]]; then
     echo "Could not parse session ID from canfar create output." >&2
     exit 1
@@ -83,8 +198,8 @@ status=""
 while (( SECONDS < deadline )); do
     status="$(session_status "${SESSION_ID}")"
     case "${status}" in
-        Succeeded)
-            echo "Session succeeded."
+        Succeeded|Completed)
+            echo "Session finished (${status})."
             break
             ;;
         Failed|Error|Terminating)
@@ -101,7 +216,7 @@ while (( SECONDS < deadline )); do
     sleep 10
 done
 
-if [[ "${status}" != "Succeeded" ]]; then
+if [[ "${status}" != "Succeeded" && "${status}" != "Completed" ]]; then
     echo ""
     echo "=== Session logs ==="
     canfar logs "${SESSION_ID}" 2>&1 || true

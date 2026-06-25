@@ -73,7 +73,7 @@ Remove or replace the `start-jupyterlab` ConfigMap volume mount when using this 
 | `webterm` | → `startup-webterm.sh` | `/skaha/startup.sh` |
 | `vscode` | → `startup-vscode.sh` | `/skaha/startup.sh` |
 | `notebook` | → `startup-notebook.sh "$@"` | `/skaha/startup.sh` |
-| `marimo` | → `startup-marimo.sh` | `/cadc/startup-marimo.sh` |
+| `marimo` | → `startup-marimo.sh` | `/skaha/startup.sh` |
 
 Contributed images listen on port **5000**. The Skaha ingress **strips** `/session/contrib/<session-id>` before forwarding (Traefik `replacePathRegex` in `ingress-contributed.yaml`), so the container receives requests at `/`.
 
@@ -113,7 +113,7 @@ make build/notebook
 
 ## Post-push verification on CANFAR (headless)
 
-After pushing to Harbor, run a headless Skaha session that executes `canfar-verify.sh` inside the image. Requires the [canfar CLI](https://opencadc.github.io/canfar/) authenticated (`canfar auth login`).
+After pushing to Harbor, run a headless Skaha session that executes `canfar-verify.sh` inside the image. Requires the [canfar CLI](https://opencadc.github.io/canfar/) authenticated (`canfar auth login`) and **Harbor pull credentials** for `images.canfar.net` (private project). The test script reads `~/.docker/config.json` automatically after `docker login images.canfar.net`, or accepts `CANFAR_REGISTRY__USERNAME` / `CANFAR_REGISTRY__SECRET`.
 
 ```bash
 make push/base TAG=26.06
