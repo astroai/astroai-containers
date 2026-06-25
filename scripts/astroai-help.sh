@@ -39,10 +39,11 @@ CADC / CANFAR clients (pre-installed — see USAGE.md)
   canfar auth login           Science Platform authentication
 
 AI agents (install once to ~/.local/bin on /arc — see USAGE.md)
+  astroai-install node       Node.js + npm via pixi (persistent on /arc)
   astroai-install <tool>     install agent, claude, agy, opencode, codex, freebuff, aider
   curl installers: agent, claude, agy, opencode
   gh release (no Node): codex via astroai-install codex
-  npm (needs pixi nodejs): freebuff
+  npm (needs node): freebuff — run astroai-install node first
 
 Docs: less /opt/astroai/USAGE.md  (or see docs/USAGE.md in repo)
 

@@ -11,6 +11,7 @@ Register and publish AstroAI images on the CANFAR Science Platform.
 | `vscode` | `images.canfar.net/astroai/vscode:<tag>` | **Contributed** | 5000 | Browser IDE |
 | `notebook` | `images.canfar.net/astroai/notebook:<tag>` | **Notebook** | 8888 | JupyterLab |
 | `marimo` | `images.canfar.net/astroai/marimo:<tag>` | **Contributed** | 5000 | Reactive notebooks |
+| `full` | `images.canfar.net/astroai/full:<tag>` | *(not launched)* | — | Base + Node.js LTS (`npm` CLIs) |
 
 Each image carries `io.canfar.skaha.session.type` in its OCI labels (`headless`, `contributed`, or `notebook`) for Harbor inventory.
 
@@ -29,8 +30,8 @@ Do **not** register `base` as a Science Portal session — it is the shared pare
 Register as **Contributed** in the Science Portal.
 
 - `skaha_sessionid` is set in the container environment
-- Reverse-proxy path: `/session/contrib/<session-id>/`
-- Container listens on port **5000**
+- Browser URL: `/session/contrib/<session-id>/` (ingress strips that prefix before forwarding to the container)
+- Container listens on port **5000** at `/` (see proxy table below)
 - Image entrypoint: `/skaha/startup.sh` → `/cadc/startup-<image>.sh`
 - Platform does not override the container command
 
@@ -74,7 +75,15 @@ Remove or replace the `start-jupyterlab` ConfigMap volume mount when using this 
 | `notebook` | → `startup-notebook.sh "$@"` | `/skaha/startup.sh` |
 | `marimo` | → `startup-marimo.sh` | `/cadc/startup-marimo.sh` |
 
-Contributed images listen on port **5000** and, when `skaha_sessionid` is set, use reverse-proxy base path `/session/contrib/<session-id>/` (ttyd `--base-path`, OpenVSCode `--server-base-path`, marimo `--base-url`).
+Contributed images listen on port **5000**. The Skaha ingress **strips** `/session/contrib/<session-id>` before forwarding (Traefik `replacePathRegex` in `ingress-contributed.yaml`), so the container receives requests at `/`.
+
+| Image | In-container listen path | Proxy config flag | Purpose |
+|-------|-------------------------|-------------------|---------|
+| `webterm` | `/` | *(none — do not use ttyd `--base-path`)* | ttyd matches incoming paths |
+| `vscode` | `/` | `--server-base-path /session/contrib/<id>` | OpenVSCode URL generation |
+| `marimo` | `/` | `--base-url /session/contrib/<id>` | marimo URL generation |
+
+Notebook sessions are different: ingress does **not** strip the path, so Jupyter `base_url` must be `session/notebook/<session-id>`.
 
 ## Science Portal checklist
 
@@ -91,6 +100,7 @@ Contributed (webterm):
 ```bash
 make build/webterm
 ./scripts/test-local.sh webterm 5000
+./scripts/test-local.sh webterm --verify-only   # CADC/PATH checks without starting ttyd
 ```
 
 Notebook:
@@ -100,6 +110,22 @@ make build/notebook
 ./scripts/test-local.sh notebook 8888
 # simulates: /skaha/startup.sh <session-id> on port 8888
 ```
+
+## Post-push verification on CANFAR (headless)
+
+After pushing to Harbor, run a headless Skaha session that executes `canfar-verify.sh` inside the image. Requires the [canfar CLI](https://opencadc.github.io/canfar/) authenticated (`canfar auth login`).
+
+```bash
+make push/base TAG=26.06
+make test-canfar IMAGE=base TAG=26.06
+
+# Or directly:
+./scripts/test-canfar.sh webterm 26.06
+```
+
+The script creates a headless session, waits for it to finish, prints logs (`canfar logs`), and checks for `All checks passed.` Session cleanup is automatic.
+
+Verify checks include CADC/CANFAR CLIs (`canfar`, `cadcget`, `cadc-tap`, `vcp`) on **login shells** (`bash -l`), matching webterm tmux behaviour.
 
 ## Diagnostic tool (`astroai-debug`)
 
@@ -115,7 +141,7 @@ The report has 10 sections:
 | Profile | `ASTROAI_PROFILE_LOADED` guard, PATH layout, uv/pixi/cache directory locations |
 | GPU | `nvidia-smi` query (GPU index, driver, VRAM, temp, utilization) + GPU process listing |
 | Disk | `/scratch` and `HOME` `df`, top 10 directories in HOME by size, top 10 directories on /scratch |
-| Tools | Version check for 19 pre-installed tools (git, gh, uv, pixi, jq, rg, fd, bat, etc.) |
+| Tools | Version check for pre-installed dev, file, and CADC tools |
 | Project | Pixi/uv project detection, lockfile size, `.pixi`/`.venv` directory size |
 | Network | HTTPS reachability to pypi.org, github.com, conda.anaconda.org, files.pythonhosted.org |
 | Environment | Key env vars (PATH, HOME, XDG, UV, PIXI, CUDA, etc.) with tokens/keys redacted |
@@ -226,9 +252,9 @@ RUN pip install aider-chat
 
 Freebuff is npm-only. Operators have three options:
 
-1. **Don't pre-seed it** — users install Node via pixi or CVMFS, then run `astroai-install freebuff`. The script prints guidance when `npm` is missing.
+1. **Don't pre-seed it in `base`** — users run `astroai-install node` once (pixi global → `~/.local/bin`, persists on `/arc`), then `astroai-install freebuff`.
 2. **Add Node to the base image** (`apt install nodejs npm` — ~200 MB). This lets `npm install -g freebuff` work out of the box. Update USAGE.md's "Not in the image" list if you do this.
-3. **Create a separate "full" image** (e.g., `astroai/full:26.06`) with Node + all pre-seeded tools for users who want zero setup.
+3. **Create a separate "full" image** (`astroai/full`) with Node.js LTS pre-installed — see `dockerfiles/full/Dockerfile`. Users who need npm CLIs without setup can launch `full` instead of `base`; everyone else runs `astroai-install node` once on `/arc`.
 
 ### Operator implications
 

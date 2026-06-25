@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% push-all push/% clean clean-all
+.PHONY: help build-all build/% push-all push/% test-canfar test-local clean clean-all
 
 SHELL := bash
 OWNER ?= astroai
@@ -9,7 +9,7 @@ PYTHON_VERSION ?= 3.13
 
 export OWNER REGISTRY PYTHON_VERSION
 
-ALL_IMAGES := base webterm notebook vscode marimo
+ALL_IMAGES := base webterm notebook vscode marimo full
 IMAGE_PREFIX := $(REGISTRY)/$(OWNER)
 
 help:
@@ -19,6 +19,8 @@ help:
 	@echo "  make build/vscode       build one image (+ parents)"
 	@echo "  make push-all           tag and push all images to Harbor"
 	@echo "  make push/vscode        tag and push one image to Harbor"
+	@echo "  make test-local         local smoke test (webterm/notebook)"
+	@echo "  make test-canfar        post-push headless verify on CANFAR (needs canfar auth)"
 	@echo "  make clean              remove local $(IMAGE_PREFIX)/* images"
 	@echo "  make clean-all          clean + prune buildx cache"
 	@echo ""
@@ -30,13 +32,22 @@ build-all: ## build all session images
 build/%:
 	TAG=$(BUILD_TAG) docker buildx bake $(notdir $@)
 
-push-all: $(addprefix push/,$(ALL_IMAGES))
+push-all: push/python $(addprefix push/,$(ALL_IMAGES))
+
+push/python:
+	docker push $(REGISTRY)/$(OWNER)/python:$(PYTHON_VERSION)
 
 push/%:
 	docker tag $(REGISTRY)/$(OWNER)/$(notdir $@):$(BUILD_TAG) $(REGISTRY)/$(OWNER)/$(notdir $@):$(TAG)
 	docker push $(REGISTRY)/$(OWNER)/$(notdir $@):$(TAG)
 	docker tag $(REGISTRY)/$(OWNER)/$(notdir $@):$(BUILD_TAG) $(REGISTRY)/$(OWNER)/$(notdir $@):latest
 	docker push $(REGISTRY)/$(OWNER)/$(notdir $@):latest
+
+test-local: ## local smoke test (webterm + login-shell PATH check)
+	./scripts/test-local.sh webterm --verify-only
+
+test-canfar: ## post-push headless verification on CANFAR (IMAGE=base TAG=$(TAG))
+	./scripts/test-canfar.sh $(or $(IMAGE),base) $(TAG)
 
 clean: ## remove locally built AstroAI images
 	@imgs=($$(docker images --format '{{.Repository}}:{{.Tag}}' '$(IMAGE_PREFIX)/*' 2>/dev/null || true)); \

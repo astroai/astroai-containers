@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     acl \
     bash-completion \
     bat \
+    bind9-dnsutils \
+    bsdextrautils \
     bzip2 \
     ca-certificates \
     curl \
@@ -31,21 +33,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git-delta \
     git-lfs \
     htop \
+    iproute2 \
     jq \
     less \
     locales \
+    lsof \
+    make \
+    ncdu \
     nvtop \
     openssh-client \
+    patch \
     pigz \
     procps \
     ripgrep \
     rsync \
+    shellcheck \
     tealdeer \
     tree \
     libmagic1 \
+    universal-ctags \
     unzip \
     vim-tiny \
     wget \
+    xxd \
     xz-utils \
     zip \
     zstd \
@@ -85,7 +95,7 @@ COPY scripts/astroai-env-save scripts/astroai-env-resume scripts/astroai-env-lis
     scripts/astroai-help.sh scripts/astroai-status.sh scripts/astroai-new.sh \
     scripts/astroai-clone.sh scripts/astroai-debug.sh scripts/astroai-install.sh \
     scripts/astroai-session-archive.sh scripts/astroai-data-sync.sh \
-    scripts/astroai-project-init.sh \
+    scripts/astroai-project-init.sh scripts/canfar-verify.sh \
     /opt/astroai/bin/
 RUN chmod a+rx /opt/astroai/bin/* /opt/astroai/lib/* \
     && ln -sf astroai-help.sh /opt/astroai/bin/astroai-help \

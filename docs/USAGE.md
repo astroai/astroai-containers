@@ -42,6 +42,7 @@ git push                          # before closing — /scratch is wiped
 | `vscode` | Multi-file projects, extensions, integrated terminal | **Contributed** |
 | `notebook` | JupyterLab exploration and teaching notebooks | **Notebook** |
 | `marimo` | Reactive notebooks and small dashboards | **Contributed** |
+| `full` | Headless + Node.js LTS (`npm` CLIs, CI-style jobs) | — (not a portal session) |
 
 `base` is a headless parent image — not launched directly from the portal.
 
@@ -316,7 +317,11 @@ The image keeps a small **apt** layer: platform essentials and monitoring tools 
 | Tool | Why in the image |
 |------|------------------|
 | `git`, `git-lfs`, `openssh-client`, `gh`, `delta` | Clone, push, PRs/issues, readable diffs |
-| `rg`, `fd`, `bat`, `tree`, `fzf` | Fast search, find, and browse code |
+| `rg`, `fd`, `bat`, `tree`, `fzf`, `ctags` | Fast search, find, browse, and jump to definitions |
+| `file`, `xxd`, `hexdump` | Inspect file type and binary contents |
+| `patch`, `make`, `shellcheck` | Apply diffs, run Makefiles, lint shell scripts |
+| `lsof`, `ss`, `host` | Debug open files, sockets, and DNS |
+| `ncdu` | Explore disk usage interactively |
 | `tldr` | Quick command examples (`tldr git`) |
 | `uv`, `pixi` | Per-project Python environments |
 | `htop`, `nvtop`, `procps` | CPU/GPU monitoring |
@@ -408,6 +413,7 @@ The image ships **dev CLIs** that pair well with AI assistants (`gh`, `rg`, `fd`
 **One-command install** (recommended):
 
 ```bash
+astroai-install node              # Node.js + npm on /arc (once; enables npm CLIs)
 astroai-install claude            # or: agent, agy, opencode, codex, freebuff, aider
 astroai-install --list            # see all available tools
 ```
@@ -558,12 +564,12 @@ pixi run python script.py
 
 ### Node.js and npm
 
-The image has **no system `node` or `npm`**. JupyterLab runs without Node (prebuilt pip wheel). You need Node for:
+The image has **no system `node` or `npm`** (use the **`full`** image or `astroai-install node` for zero-setup npm). JupyterLab runs without Node (prebuilt pip wheel). You need Node for:
 
 - **npm-based AI agents** — Codex (`@openai/codex`), Freebuff, OpenCode (optional)
 - **JupyterLab source extensions** from npm (rare — prefer prebuilt `pip` extensions)
 
-**Prefer curl installers** for Cursor Agent, Claude Code, Antigravity, and OpenCode — they land in `~/.local/bin` on `/arc` and survive `/scratch` expiry. Use Node when npm is the only install path.
+**Prefer `astroai-install node`** for a persistent Node.js on `/arc` (pixi global → `~/.local/bin`). Alternatives: launch the **`full`** image, a pixi project on `/scratch`, or CVMFS `module load nodejs`.
 
 #### Recommended: pixi project on `/scratch`
 
@@ -739,7 +745,9 @@ Share the log file: `cat ~/.astroai/debug-<timestamp>.log`
 | Wrong npm package | Codex: `@openai/codex` · OpenCode: `opencode-ai` · Claude Code: use curl install, not npm. |
 | pip build fails | Add compilers/libs with pixi, not system apt. |
 | `uv`: Permission denied on `/usr/local/share/uv` | Image `ENV` is root-only; `source /etc/profile.d/astroai.sh` (or `bash -l`) **must** run — it force-sets `UV_PYTHON_INSTALL_DIR` to `~/.local/share/uv/python`. Check with `astroai-status`. |
+| `canfar` / `cadcget` not found in webterm | Open a login shell (`bash -l`) or a new tmux window; image ≥ 26.06 fixes inherited profile guard. Run `/opt/astroai/bin/canfar-verify.sh`. |
 | `/arc` quota pressure | `astroai-home-usage`; `astroai-cache-prune --all-safe`. |
 | `ls /cvmfs` looks empty | Normal — CVMFS mounts lazily; `source /cvmfs/soft.computecanada.ca/config/profile/bash.sh` then `module avail`. |
 | Jupyter 404 behind proxy | Notebook session must use port **8888** and `/skaha/startup.sh` — see [OPERATORS.md](OPERATORS.md). |
+| Contributed session 404 (webterm/vscode/marimo) | Skaha strips `/session/contrib/<id>` before forwarding; webterm must **not** use ttyd `--base-path`. Update to latest image tag. |
 | tmux shell is nologin | Image sets `default-shell /bin/bash`; use `bash -l` in webterm. |

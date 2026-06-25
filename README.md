@@ -12,6 +12,7 @@ Licensed under [BSD-2-Clause](LICENSE).
 | `vscode` | Browser IDE (OpenVSCode Server) | Contributed |
 | `notebook` | JupyterLab | **Notebook** |
 | `marimo` | Reactive notebooks | Contributed |
+| `full` | Headless + Node.js LTS (npm CLIs without setup) | — |
 | `base` | Headless parent (not a portal session) | — |
 
 ## Documentation

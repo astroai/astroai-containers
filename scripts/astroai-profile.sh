@@ -7,12 +7,19 @@ if [ -z "${BASH_VERSION:-}" ]; then
     return 0 2>/dev/null || exit 0
 fi
 
+# Always ensure platform paths — login children may inherit ASTROAI_PROFILE_LOADED
+# from a parent startup shell and hit the guard before PATH is customized.
+case ":${PATH}:" in
+    *":/opt/astroai/venv/cadc/bin:"*) ;;
+    *) export PATH="${HOME}/.local/bin:/opt/astroai/venv/cadc/bin:/opt/astroai/bin:${PATH}" ;;
+esac
+
 if [[ -n "${ASTROAI_PROFILE_LOADED:-}" ]]; then
     return 0 2>/dev/null || true
 fi
-export ASTROAI_PROFILE_LOADED=1
-
-export PATH="${HOME}/.local/bin:/opt/astroai/venv/cadc/bin:/opt/astroai/bin:${PATH}"
+# Shell-local only — do not export; exported guard breaks login shells (bash -l) that
+# inherit it from startup scripts while /etc/profile resets PATH first.
+ASTROAI_PROFILE_LOADED=1
 
 # XDG base dirs (on /arc/home/$USER)
 # Skaha notebook jobs may set XDG_CACHE_HOME=$HOME; keep caches under ~/.cache instead.

@@ -16,8 +16,12 @@ variable "PYTHON_VERSION" {
   default = "3.13"
 }
 
+variable "NODE_VERSION" {
+  default = "24.18.0"
+}
+
 group "default" {
-  targets = ["base", "webterm", "notebook", "vscode", "marimo"]
+  targets = ["base", "webterm", "notebook", "vscode", "marimo", "full"]
 }
 
 target "python" {
@@ -75,4 +79,13 @@ target "marimo" {
   inherits   = ["_interface"]
   dockerfile = "dockerfiles/marimo/Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/marimo:${TAG}"]
+}
+
+target "full" {
+  inherits   = ["_interface"]
+  dockerfile = "dockerfiles/full/Dockerfile"
+  tags       = ["${REGISTRY}/${OWNER}/full:${TAG}"]
+  args = {
+    NODE_VERSION = "${NODE_VERSION}"
+  }
 }

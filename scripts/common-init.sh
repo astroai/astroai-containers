@@ -93,3 +93,7 @@ WEBTERM
         fi
     fi
 fi
+
+# Startup scripts exec(3) into ttyd/jupyter/etc. Drop the profile guard so login
+# children (bash -l in webterm tmux) re-source astroai.sh after /etc/profile.
+unset ASTROAI_PROFILE_LOADED

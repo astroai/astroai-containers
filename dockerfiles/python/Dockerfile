@@ -1,12 +1,14 @@
 # syntax=docker/dockerfile:1
 # AstroAI Python foundation: Debian slim + uv + pixi (system-wide paths).
 
+ARG PYTHON_VERSION=3.13
+
 FROM ghcr.io/prefix-dev/pixi:0.58.0 AS pixi
 FROM ghcr.io/astral-sh/uv:0.9.1 AS uv
 
-FROM python:3.13-slim
+FROM python:${PYTHON_VERSION}-slim
 
-LABEL org.opencontainers.image.title="AstroAI Python 3.13 Runtime" \
+LABEL org.opencontainers.image.title="AstroAI Python Runtime" \
       org.opencontainers.image.vendor="AstroAI"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

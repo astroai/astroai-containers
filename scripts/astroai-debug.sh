@@ -89,7 +89,7 @@ else
 fi
 
 section "Tools"
-for tool in git gh uv pixi python3 nvidia-smi nvtop htop jq rg fd bat fzf delta tldr curl wget rsync zstd canfar cadcget cadc-tap vcp cadc-get-cert; do
+for tool in git gh uv pixi python3 nvidia-smi nvtop htop jq rg fd bat fzf delta tldr curl wget rsync zstd patch make lsof xxd hexdump ss host ncdu shellcheck ctags canfar cadcget cadc-tap vcp cadc-get-cert; do
     if command -v "${tool}" >/dev/null 2>&1; then
         ver="$("${tool}" --version 2>&1 | head -1)"
         printf "  %-12s %s\n" "${tool}" "${ver}"

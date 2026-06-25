@@ -14,12 +14,13 @@ BIN_DIR="${HOME}/.local/bin"
 list_tools() {
     cat <<'EOF'
 Available tools:
+  node       Node.js + npm      pixi    (persistent on /arc; enables npm CLIs)
   agent      Cursor Agent       curl    (no Node)
   claude     Claude Code        curl    (no Node)
   agy        Antigravity (Google) curl   (no Node)
   opencode   OpenCode           curl    (no Node)
   codex      Codex CLI (OpenAI) gh      (no Node)
-  freebuff   Freebuff           npm     (needs Node)
+  freebuff   Freebuff           npm     (needs node — run: astroai-install node)
   aider      Aider              uv      (no Node)
 
 Install:  astroai-install <tool>
@@ -57,6 +58,25 @@ require_command() {
     command -v "$1" >/dev/null 2>&1 || { echo "$1 is required but not found." >&2; exit 1; }
 }
 
+install_node() {
+    require_command pixi
+    local pixi_bin="${PIXI_HOME:-${HOME}/.pixi}/bin"
+    echo "Installing Node.js via pixi global (persists under ${PIXI_HOME:-${HOME}/.pixi})..."
+    pixi global install nodejs
+    for cmd in node npm npx; do
+        if [[ -x "${pixi_bin}/${cmd}" ]]; then
+            ln -sf "${pixi_bin}/${cmd}" "${BIN_DIR}/${cmd}"
+        else
+            echo "Expected ${pixi_bin}/${cmd} after pixi global install" >&2
+            exit 1
+        fi
+    done
+    echo ""
+    echo "npm globals: npm install -g --prefix \"${HOME}/.local\" <package>"
+    verify_install node
+    verify_install npm
+}
+
 TOOL="${1:-}"
 
 case "${TOOL}" in
@@ -72,6 +92,9 @@ esac
 ensure_bin_dir
 
 case "${TOOL}" in
+    node)
+        install_node
+        ;;
     agent)
         echo "Installing Cursor Agent..."
         require_command curl
@@ -146,13 +169,10 @@ case "${TOOL}" in
         if ! command -v npm >/dev/null 2>&1; then
             echo "npm is required but not found." >&2
             echo "" >&2
-            echo "Get Node.js via pixi:" >&2
-            echo "  cd /scratch && pixi init node-tools && pixi add nodejs" >&2
-            echo "  pixi run npm install -g freebuff" >&2
+            echo "Install Node.js first:" >&2
+            echo "  astroai-install node" >&2
             echo "" >&2
-            echo "Or via CVMFS:" >&2
-            echo "  source /cvmfs/soft.computecanada.ca/config/profile/bash.sh" >&2
-            echo "  module load nodejs" >&2
+            echo "Or use the full image (node/npm pre-installed), pixi on /scratch, or CVMFS module load nodejs." >&2
             exit 1
         fi
         npm install -g --prefix "${HOME}/.local" freebuff
