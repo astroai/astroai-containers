@@ -34,6 +34,8 @@ git push                          # before closing — /scratch is wiped
 
 **Commands on every session:** `astroai-help` · `astroai-status` · `less /opt/astroai/USAGE.md`
 
+**On this page:** [Session types](#session-types) · [Storage](#storage) · [Team workspaces](#team-workspaces) · [CADC clients](#cadc--canfar-clients) · [CVMFS](#alliance-software-cvmfs) · [Workflows](#typical-workflow) · [Commands](#command-reference) · [AI agents](#ai-coding-tools) · [Session notes](#session-specific-notes) · [Troubleshooting](#troubleshooting)
+
 ## Session types
 
 | Image | Best for | CANFAR session type |
@@ -44,7 +46,7 @@ git push                          # before closing — /scratch is wiped
 | `marimo` | Reactive notebooks and small dashboards | **Contributed** |
 | `full` | Headless + Node.js LTS (`npm` CLIs, CI-style jobs) | — (not a portal session) |
 
-`base` is a headless parent image — not launched directly from the portal.
+`base` is a headless parent image — not launched directly from the portal. The **`full`** image is for headless jobs or local Docker runs when you want system Node without `astroai-install node`; interactive work still uses `webterm`, `vscode`, `notebook`, or `marimo`.
 
 Launch the image you need from the Science Portal. **CPU and GPU use the same image** — when you need a GPU, select a **GPU node** at launch. The platform attaches the driver; your project supplies CUDA libraries via pixi or uv.
 
@@ -253,9 +255,14 @@ Run `astroai-session-archive` to push code and save your environment in one comm
 ```bash
 astroai-session-archive           # auto-detect project, git push + env save
 astroai-session-archive --name my-experiment  # custom save name
+astroai-session-archive --force   # non-interactive (used by the exit hook)
 ```
 
 It prints a summary of what was archived and a contextual `/scratch` wipe reminder.
+
+**Periodic reminder:** interactive login shells print a yellow `/scratch` nudge about every **2 hours** (session age from `~/.astroai/session-started`), including scratch usage and commit count when available.
+
+**Exit hook (Contributed sessions with a login shell):** when you leave an interactive shell inside a git repo, AstroAI runs `astroai-session-archive --force` once per session (marker: `~/.astroai/auto-archived`). That attempts a silent `git push` and env save — still commit first if you want a clean history; the hook warns about uncommitted changes but does not commit for you.
 
 **Common `gh` commands** (after `gh auth login`):
 
@@ -291,25 +298,26 @@ Pixi (or uv/pip) downloads CUDA user libraries into the project environment. No 
 
 | Command | Purpose |
 |---------|---------|
-| `astroai-help` | Full command list |
-| `astroai-status` | Session snapshot: user, gpu, git, disk |
-| `astroai-new [name]` | `pixi init` new project in `/scratch` |
+| `astroai-help` | Full command list (compact; this doc is the long form) |
+| `astroai-status` | Session snapshot: user, gpu, git, disk, session age |
+| `astroai-new [name]` | `pixi init` new project in `/scratch` (`--uv`, `--no-git`, `--no-gh`, `--astro`) |
 | `astroai-env-save [name]` | Save lockfiles + manifest (~KB) |
 | `astroai-env-save name --full` | Also pack `.pixi` or `.venv` with zstd (large) |
 | `astroai-env-save name --to /arc/projects/group/env-saves/name` | Team-shared save |
 | `astroai-env-resume <name>` | Restore to `/scratch/<name>` and rebuild env |
-| `astroai-env-resume <name> --from <path>` | Restore from custom path |
-| `astroai-env-list` | List saves under `~/.astroai/saves` |
+| `astroai-env-resume <name> [path]` | Restore to a custom target directory |
+| `astroai-env-resume <name> --from <path>` | Restore from custom save path |
+| `astroai-env-list` | List personal saves under `~/.astroai/saves` (`--team`, `--all`) |
 | `astroai-kernel-register` | Register pixi/uv/venv project as a Jupyter kernel (notebook sessions) |
 | `astroai-home-usage` | Disk breakdown under `$HOME` on `/arc` |
-| `astroai-cache-prune --all-safe` | Clear pip/uv/npm/pixi package caches |
-| `astroai-clone <owner/repo>` | Clone repo to `/scratch` and install deps |
-| `astroai-install <tool>` | Install AI coding tools to `~/.local/bin` |
+| `astroai-cache-prune --all-safe` | Clear pip/uv/npm/pixi caches (`--pip`, `--uv`, `--npm`, `--pixi`, `--hf`) |
+| `astroai-clone <owner/repo> [dir]` | Clone repo to `/scratch` (or custom dir) and install deps |
+| `astroai-install <tool>` | Install AI coding tools to `~/.local/bin` (`--list`) |
 | `astroai-data-stage <src> [dst]` | Copy data from persistent storage to `/scratch` |
 | `astroai-data-sync <src> <dst>` | Copy `/scratch` results back to persistent storage |
-| `astroai-project-init <name>` | Create team workspace under `/arc/projects` |
-| `astroai-session-archive [--name <name>]` | Git push + env save + summary before closing |
-| `astroai-debug` | Full diagnostic report (GPU, disk, tools, network) |
+| `astroai-project-init <name>` | Create team workspace under `/arc/projects` (`--members`) |
+| `astroai-session-archive [--name <name>]` | Git push + env save + summary before closing (`--force`) |
+| `astroai-debug` | Full diagnostic report (`--stdout`, `--file <path>`) |
 
 ## What is pre-installed (needs root)
 
@@ -328,10 +336,10 @@ The image keeps a small **apt** layer: platform essentials and monitoring tools 
 | `htop`, `nvtop`, `procps` | CPU/GPU monitoring |
 | `zstd`, `xz-utils`, `bzip2`, `pigz`, `zip`, `unzip` | Archives |
 | `curl`, `wget`, `jq`, `rsync` | Fetch data, inspect JSON, sync files |
-| `less`, `file`, `vim-tiny` | Logs and quick edits |
+| `less`, `vim-tiny` | Logs and quick edits |
 | `acl` | CANFAR `/arc` file permissions |
 
-**Not in the image:** `node`/`npm`, AI agent CLIs (`agent`, `claude`, `agy`, `codex`, `freebuff`, `opencode`), `build-essential`, `cmake`, Fortran, CUDA libs, Astropy, PyTorch, etc. Install agents per [AI coding tools](#ai-coding-tools); install Node via [Node.js and npm](#nodejs-and-npm). Many system packages are available via **CVMFS** (`module load`) — see [Alliance software (CVMFS)](#alliance-software-cvmfs).
+**Not in the image:** `node`/`npm`, AI agent CLIs (Cursor Agent `agent`, `claude`, `agy`, `opencode`, `codex`, `copilot`, `goose`, `pi`, `codewhale`, `swival`, `freebuff`), `build-essential`, `cmake`, Fortran, CUDA libs, Astropy, PyTorch, etc. Install agents per [AI coding tools](#ai-coding-tools); install Node via [Node.js and npm](#nodejs-and-npm). Many system packages are available via **CVMFS** (`module load`) — see [Alliance software (CVMFS)](#alliance-software-cvmfs).
 
 ```bash
 pixi add nodejs                                # npm-based CLIs and Lab source extensions
@@ -352,6 +360,7 @@ Sessions set cache locations in `/etc/profile.d/astroai.sh`:
 | `UV_TOOL_DIR` | `~/.local/share/uv/tools` | uv tool environments |
 | `PIP_CACHE_DIR` | `~/.cache/pip` | pip wheel cache |
 | `PIXI_HOME` / `PIXI_CACHE_DIR` | `~/.pixi` | pixi environments and package cache |
+| `NPM_CONFIG_CACHE` | `~/.cache/npm` | npm download cache |
 | `HF_HOME` | `~/.cache/huggingface` | Hugging Face models |
 | `TORCH_HOME` | `~/.cache/torch` | PyTorch hub checkpoints |
 | `TMPDIR` | `/scratch/.tmp-$USER` | Compile/temp files on SSD |
@@ -415,13 +424,13 @@ The image ships **dev CLIs** that pair well with AI assistants (`gh`, `rg`, `fd`
 
 ```bash
 astroai-install node              # Node.js + npm on /arc (once; enables npm CLIs)
-astroai-install claude            # or: agent, agy, opencode, codex, freebuff, aider
-astroai-install --list            # see all available tools
+astroai-install agent             # Cursor Agent (command is `agent`)
+astroai-install --list            # full list + install methods
 ```
 
-`astroai-install` handles the right installer per tool (curl, gh release download, npm, or uv) and verifies each install. All tools land in `~/.local/bin` on `/arc` (persistent).
+`astroai-install` picks the vendor-recommended path per tool: **curl** scripts, **gh release download** (Codex), **uv tool install** (Swival), or **npm** (Pi, CodeWhale, Freebuff). Binaries land in `~/.local/bin` on `/arc` (persistent).
 
-**Where to install:** curl/bash installers drop binaries into **`~/.local/bin` on `/arc`** (persistent; already on `PATH`). npm-based tools need [Node.js](#nodejs-and-npm) first — use a pixi project on `/scratch`. Each CLI needs its own API key or account.
+**Where to install:** curl/gh/uv installers drop into **`~/.local/bin` on `/arc`**. npm-based agents need Node first — run **`astroai-install node`** (recommended) or add `nodejs` to a pixi project on `/scratch`. Each CLI needs its own account or API key.
 
 ### Quick reference
 
@@ -432,10 +441,57 @@ astroai-install --list            # see all available tools
 | [Antigravity CLI](https://antigravity.google/docs/cli-install) | `agy` | curl script | No |
 | [OpenCode](https://dev.opencode.ai/docs/) | `opencode` | curl script (or npm) | Optional |
 | [Codex CLI](https://openai-codex.mintlify.app/installation) | `codex` | npm or `gh release download` | npm path only |
+| [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) | `copilot` | curl script | No |
+| [Goose](https://block.github.io/goose/) | `goose` | curl script | No |
+| [Pi Coding Agent](https://pi.dev/) | `pi` | npm | Yes |
+| [CodeWhale](https://www.codewhale.ai/) | `codewhale` | npm | Yes |
+| [Swival](https://swival.dev/) | `swival` | `uv tool install` | No |
 | [Freebuff](https://freebuff.com/) | `freebuff` | npm | Yes |
-| [Aider](https://aider.chat/) | `aider` | `uv tool install` | No |
 
-Per-tool curl/npm/gh steps live in `astroai-install --list` and in the script output when you run `astroai-install <tool>`. Prefer those over copying commands from docs — vendors change install URLs often.
+Google’s **Gemini CLI** was replaced by **Antigravity CLI** (`agy`) — use `astroai-install agy`, not a separate Gemini package.
+
+Per-tool install steps live in `astroai-install --list` and in the script output when you run `astroai-install <tool>`. Prefer those over copying commands from docs — vendors change install URLs often.
+
+### Choosing an agent
+
+| You want… | Start with | Install |
+|-----------|------------|---------|
+| Cursor subscription / IDE workflow | **Cursor Agent** | `astroai-install agent` |
+| Deep reasoning, long refactors | **Claude Code** | `astroai-install claude` |
+| Google account; Gemini successor | **Antigravity CLI** | `astroai-install agy` |
+| GitHub-native, issue → PR | **GitHub Copilot CLI** | `astroai-install copilot` |
+| OpenAI ChatGPT / Codex | **Codex CLI** | `astroai-install codex` (needs `gh auth login`) |
+| Model-agnostic, 75+ providers | **OpenCode** | `astroai-install opencode` |
+| MCP + recipes, Block/Linux Foundation stack | **Goose** | `astroai-install goose` |
+| Minimal harness, extensions, BYOK | **Pi** | `astroai-install node` then `astroai-install pi` |
+| Open models / DeepSeek-first TUI | **CodeWhale** | `astroai-install node` then `astroai-install codewhale` |
+| Local models + tight context (LM Studio, Ollama) | **Swival** | `astroai-install swival` |
+| npm-only budget agent | **Freebuff** | `astroai-install node` then `astroai-install freebuff` |
+
+You can install several agents to `~/.local/bin`; they share `gh`, `rg`, and `/scratch` repos but use separate auth.
+
+### Swival with local models (LM Studio / Ollama)
+
+Swival is a good fit when you bring your own endpoint — including **local** models — without a cloud subscription:
+
+```bash
+astroai-install swival
+
+# LM Studio on localhost (default provider; start the local server first)
+swival "Summarize the README"
+
+# OpenRouter or other hosted APIs
+export OPENROUTER_API_KEY=sk-or-...
+swival --provider openrouter --model z-ai/glm-5 "Refactor error handling in src/"
+
+# Any OpenAI-compatible server (Ollama, vLLM, remote LM Studio)
+swival --provider generic --base-url http://host:1234/v1 --model my-model "Review this diff"
+
+# Interactive REPL
+cd /scratch/myproject && swival --repl
+```
+
+On CANFAR worker nodes you typically use a **hosted provider** (OpenRouter, Hugging Face, Gemini API) or point `--base-url` at an inference server you control. Swival docs: [swival.dev](https://swival.dev/pages/getting-started.html).
 
 ### Pair agents with `gh` and search tools
 
@@ -447,11 +503,11 @@ gh repo clone you/project && cd project
 rg "def train" --type py          # code search
 fd Dockerfile
 bat README.md
-gh pr list                        # context for the agent
+gh pr list                        # context for the coding agent
 gh issue list
 ```
 
-Re-run installers when a tool publishes an update, or use each tool's built-in update command (`agent update`, `agy update`, etc.).
+Re-run installers when a tool publishes an update, or use each tool's built-in update command (Cursor Agent: `agent update`, Antigravity: `agy update`, etc.).
 
 ## Package managers
 
@@ -467,7 +523,7 @@ pixi run python script.py
 
 The image has **no system `node` or `npm`** (use the **`full`** image or `astroai-install node` for zero-setup npm). JupyterLab runs without Node (prebuilt pip wheel). You need Node for:
 
-- **npm-based AI agents** — Codex (`@openai/codex`), Freebuff, OpenCode (optional)
+- **npm-based AI agents** — Pi (`@earendil-works/pi-coding-agent`), CodeWhale, Freebuff, Codex (`@openai/codex`, optional), OpenCode (optional)
 - **JupyterLab source extensions** from npm (rare — prefer prebuilt `pip` extensions)
 
 **Prefer `astroai-install node`** for a persistent Node.js on `/arc` (pixi global → `~/.local/bin`). Alternatives: launch the **`full`** image, a pixi project on `/scratch`, or CVMFS `module load nodejs`.
@@ -492,6 +548,14 @@ Install npm CLIs **into the pixi env** (not system-wide):
 # OpenAI Codex
 pixi run npm install -g @openai/codex
 pixi run codex --version
+
+# Pi Coding Agent
+pixi run npm install -g @earendil-works/pi-coding-agent
+pixi run pi --version
+
+# CodeWhale
+pixi run npm install -g codewhale
+pixi run codewhale --version
 
 # Freebuff
 pixi run npm install -g freebuff
@@ -581,7 +645,15 @@ OpenVSCode Server on port **5000**. Integrated terminal uses bash. Extensions pe
 
 ### notebook
 
-JupyterLab on port **8888** (Notebook session type). Starts in `/scratch` via `common-init.sh`. Proxy base URL: `session/notebook/<session-id>`.
+JupyterLab on port **8888** (**Notebook** session type in the Science Portal — not Contributed).
+
+**Stock CANFAR (most deployments today):** Skaha runs the platform script `/skaha-system/start-jupyterlab.sh`, not AstroAI’s `/skaha/startup.sh`. Expect the file browser at **`/`** (`serverRoot` `/`, not `/scratch`), no AstroAI welcome banner, Jupyter config under `~/.jupyter` on `/arc`, and harmless `NotebookApp` deprecation warnings in logs (three `LabApp` migration warnings on startup). You can still use pixi/uv on `/scratch` and register kernels manually.
+
+*Validated on CANFAR staging (2026-06): session `gq7x9inz` logs show platform launcher + three deprecation warnings; JupyterLab HTML reports `baseUrl` `/session/notebook/<id>/` and `serverRoot` `/`.*
+
+**With platform launch override (recommended):** when CANFAR ops point notebook jobs at `/skaha/startup.sh`, you get `common-init`, cwd `/scratch`, and `base_url` `session/notebook/<session-id>`. See [OPERATORS.md](OPERATORS.md) for the helm change request.
+
+Browser URL pattern: `https://…/session/notebook/<session-id>/lab/…?token=<session-id>`
 
 The image ships `jupyter lab` via pip — **no Node required** to run Lab. Add extensions with `pip` when possible:
 
@@ -663,15 +735,17 @@ Share the log file: `cat ~/.astroai/debug-<timestamp>.log`
 | `git clone` SSH fails | Add your key to `~/.ssh` on `/arc`. |
 | GPU not visible | Did you pick a GPU node? Run `nvidia-smi`. |
 | `import torch` no CUDA | GPU node + `cuda-version` / GPU torch via pixi. |
-| AI CLI not found | Curl installers → `~/.local/bin`; npm tools → pixi `nodejs` project (see [AI coding tools](#ai-coding-tools)). |
-| `node` / `npm` not found | Not in the image — `pixi add nodejs` in a project on `/scratch` (see [Node.js and npm](#nodejs-and-npm)). |
-| `gh: not authenticated` | Run `gh auth login` once; token persists on `/arc`. |
-| Wrong npm package | Codex: `@openai/codex` · OpenCode: `opencode-ai` · Claude Code: use curl install, not npm. |
+| AI CLI not found | Run `astroai-install <tool>` or `astroai-install --list`. Curl/gh/uv agents → `~/.local/bin`; npm agents → `astroai-install node` first. |
+| `node` / `npm` not found | Not in the image — `astroai-install node` (persistent on `/arc`) or `pixi add nodejs` on `/scratch` (see [Node.js and npm](#nodejs-and-npm)). |
+| `gh: not authenticated` | Run `gh auth login` once; token persists on `/arc`. Required for `astroai-install codex`. |
+| Wrong npm package | Codex: `@openai/codex` · OpenCode: `opencode-ai` · Pi: `@earendil-works/pi-coding-agent` · Claude Code / Cursor Agent: prefer curl via `astroai-install`. |
 | pip build fails | Add compilers/libs with pixi, not system apt. |
 | `uv`: Permission denied on `/usr/local/share/uv` | Image `ENV` is root-only; `source /etc/profile.d/astroai.sh` (or `bash -l`) **must** run — it force-sets `UV_PYTHON_INSTALL_DIR` to `~/.local/share/uv/python`. Check with `astroai-status`. |
 | `canfar` / `cadcget` not found in webterm | Open a login shell (`bash -l`) or a new tmux window; image ≥ 26.06 fixes inherited profile guard. Run `/opt/astroai/bin/canfar-verify.sh`. |
 | `/arc` quota pressure | `astroai-home-usage`; `astroai-cache-prune --all-safe`. |
 | `ls /cvmfs` looks empty | Normal — CVMFS mounts lazily; `source /cvmfs/soft.computecanada.ca/config/profile/bash.sh` then `module avail`. |
-| Jupyter 404 behind proxy | Notebook session must use port **8888** and `/skaha/startup.sh` — see [OPERATORS.md](OPERATORS.md). |
+| Jupyter 404 behind proxy | Notebook sessions use port **8888** and path `/session/notebook/<id>/`. On stock CANFAR, platform launcher must match ingress; full AstroAI startup needs helm override — see [OPERATORS.md](OPERATORS.md). |
+| Jupyter opens in `/` not `/scratch` | Stock platform launcher — `cd /scratch` manually or ask ops for `/skaha/startup.sh` override. |
+| Kernel missing after resume | Re-run `astroai-kernel-register` in the project dir (`/scratch` paths change). |
 | Contributed session 404 (webterm/vscode/marimo) | Skaha strips `/session/contrib/<id>` before forwarding; webterm must **not** use ttyd `--base-path`. Update to latest image tag. |
 | tmux shell is nologin | Image sets `default-shell /bin/bash`; use `bash -l` in webterm. |

@@ -17,11 +17,15 @@ Available tools:
   node       Node.js + npm      pixi    (persistent on /arc; enables npm CLIs)
   agent      Cursor Agent       curl    (no Node)
   claude     Claude Code        curl    (no Node)
-  agy        Antigravity (Google) curl   (no Node)
+  agy        Antigravity CLI    curl    (no Node; replaced Gemini CLI)
   opencode   OpenCode           curl    (no Node)
   codex      Codex CLI (OpenAI) gh      (no Node)
+  copilot    GitHub Copilot CLI curl   (no Node)
+  goose      Goose              curl    (no Node)
+  pi         Pi Coding Agent    npm     (needs node — run: astroai-install node)
+  codewhale  CodeWhale          npm     (needs node — run: astroai-install node)
+  swival     Swival             uv      (no Node)
   freebuff   Freebuff           npm     (needs node — run: astroai-install node)
-  aider      Aider              uv      (no Node)
 
 Install:  astroai-install <tool>
 EOF
@@ -112,7 +116,7 @@ case "${TOOL}" in
         verify_install claude
         ;;
     agy)
-        echo "Installing Antigravity CLI..."
+        echo "Installing Antigravity CLI (Google; successor to Gemini CLI)..."
         require_command curl
         curl -fsSL https://antigravity.google/cli/install.sh | bash
         echo ""
@@ -164,6 +168,23 @@ case "${TOOL}" in
         echo "Run: codex login"
         verify_install codex
         ;;
+    copilot)
+        echo "Installing GitHub Copilot CLI..."
+        require_command curl
+        PREFIX="${HOME}/.local" curl -fsSL https://gh.io/copilot-install | bash
+        echo ""
+        echo "Run: copilot   (sign in on first run; GitHub Copilot subscription required)"
+        verify_install copilot
+        ;;
+    goose)
+        echo "Installing Goose..."
+        require_command curl
+        GOOSE_BIN_DIR="${BIN_DIR}" CONFIGURE=false \
+            curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash
+        echo ""
+        echo "Run: goose configure   then goose"
+        verify_install goose
+        ;;
     freebuff)
         echo "Installing Freebuff..."
         if ! command -v npm >/dev/null 2>&1; then
@@ -179,12 +200,45 @@ case "${TOOL}" in
         echo ""
         verify_install freebuff
         ;;
-    aider)
-        echo "Installing Aider..."
-        require_command uv
-        uv tool install aider-chat
+    pi)
+        echo "Installing Pi Coding Agent..."
+        if ! command -v npm >/dev/null 2>&1; then
+            echo "npm is required but not found." >&2
+            echo "" >&2
+            echo "Install Node.js first:" >&2
+            echo "  astroai-install node" >&2
+            echo "" >&2
+            echo "Or use the full image (node/npm pre-installed), pixi on /scratch, or CVMFS module load nodejs." >&2
+            exit 1
+        fi
+        npm install -g --prefix "${HOME}/.local" @earendil-works/pi-coding-agent
         echo ""
-        verify_install aider
+        echo "Run: pi   (configure provider/API key on first run)"
+        verify_install pi
+        ;;
+    codewhale)
+        echo "Installing CodeWhale..."
+        if ! command -v npm >/dev/null 2>&1; then
+            echo "npm is required but not found." >&2
+            echo "" >&2
+            echo "Install Node.js first:" >&2
+            echo "  astroai-install node" >&2
+            echo "" >&2
+            echo "Or use the full image (node/npm pre-installed), pixi on /scratch, or CVMFS module load nodejs." >&2
+            exit 1
+        fi
+        npm install -g --prefix "${HOME}/.local" codewhale
+        echo ""
+        echo "Run: codewhale auth set   then codewhale"
+        verify_install codewhale
+        ;;
+    swival)
+        echo "Installing Swival..."
+        require_command uv
+        uv tool install swival
+        echo ""
+        echo "Run: swival   (interactive) or swival \"task\""
+        verify_install swival
         ;;
     *)
         echo "Unknown tool: ${TOOL}" >&2

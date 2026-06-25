@@ -265,26 +265,30 @@ Session images ship a curated set of dev CLIs (`gh`, `rg`, `fd`, `bat`, `fzf`, `
 |------|---------|-----------|-------|
 | Cursor Agent | `agent` | curl script | No |
 | Claude Code | `claude` | curl script | No |
-| Antigravity (Google) | `agy` | curl script | No |
+| Antigravity CLI (replaced Gemini CLI) | `agy` | curl script | No |
 | OpenCode | `opencode` | curl script | No |
 | Codex CLI (OpenAI) | `codex` | `gh release download` | No |
+| GitHub Copilot CLI | `copilot` | curl script | No |
+| Goose | `goose` | curl script | No |
+| Pi Coding Agent | `pi` | npm | **Yes** |
+| CodeWhale | `codewhale` | npm | **Yes** |
+| Swival | `swival` | `uv tool install` | No |
 | Freebuff | `freebuff` | npm | **Yes** |
-| Aider | `aider` | `uv tool install` | No |
 
 The table reflects `astroai-install`'s chosen install path. Some tools have alternative install methods (e.g., Codex also has an npm package, OpenCode offers an npm option) — USAGE.md covers those for users who install manually.
 
-Six of seven tools install without Node. Codex uses `gh release download` (requires `gh auth login`). Freebuff is the only npm-only tool — the script detects the missing `npm` and guides the user to install Node via pixi or CVMFS.
+Seven of eleven tools install without Node. Codex uses `gh release download` (requires `gh auth login`). Swival uses `uv tool install`. Pi, CodeWhale, and Freebuff need npm — the script detects a missing `npm` and guides the user to install Node via pixi or CVMFS.
 
 ### Pre-seeding in the base image
 
 **Recommendation:** Pre-seed nothing by default. Tools install once to `/arc` via `astroai-install` and persist; baking agents adds ~300–500 MB and freezes weekly-moving binaries at build time. If a site needs zero-setup, pre-seed 2–3 audited tools in `dockerfiles/base/Dockerfile` and document that `astroai-install` still fetches the latest version.
 
-### Freebuff and Node.js
+### npm-based agents and Node.js
 
-Freebuff is npm-only. Operators have three options:
+Pi, CodeWhale, and Freebuff are npm-only. Operators have three options:
 
-1. **Don't pre-seed it in `base`** — users run `astroai-install node` once (pixi global → `~/.local/bin`, persists on `/arc`), then `astroai-install freebuff`.
-2. **Add Node to the base image** (`apt install nodejs npm` — ~200 MB). This lets `npm install -g freebuff` work out of the box. Update USAGE.md's "Not in the image" list if you do this.
+1. **Don't pre-seed them in `base`** — users run `astroai-install node` once (pixi global → `~/.local/bin`, persists on `/arc`), then `astroai-install pi`, `astroai-install codewhale`, or `astroai-install freebuff`.
+2. **Add Node to the base image** (`apt install nodejs npm` — ~200 MB). This lets `npm install -g` work out of the box. Update USAGE.md's "Not in the image" list if you do this.
 3. **Create a separate "full" image** (`astroai/full`) with Node.js LTS pre-installed — see `dockerfiles/full/Dockerfile`. Users who need npm CLIs without setup can launch `full` instead of `base`; everyone else runs `astroai-install node` once on `/arc`.
 
 ### Operator implications
@@ -293,15 +297,15 @@ Freebuff is npm-only. Operators have three options:
 
 **Common issues:**
 - `gh release download` fails for codex → `gh auth login` not run, or GitHub token expired
-- `npm not found` for freebuff → user needs `pixi add nodejs` or `module load nodejs`
+- `npm not found` for pi/codewhale/freebuff → user needs `astroai-install node`, `pixi add nodejs`, or `module load nodejs`
 - Binary not on PATH → user needs `hash -r` or a new shell after install
-- Tool update → each tool has its own update: `agent update`, `agy update`, `claude` auto-updates, `uv tool upgrade aider-chat`
+- Tool update → each tool has its own update: Cursor Agent `agent update`, Antigravity `agy update`, Claude Code auto-updates, `uv tool upgrade swival`, npm globals for pi/codewhale/freebuff
 
-**Security:** Five of seven tools install via `curl | bash`. This is the vendor-recommended method and standard industry practice for CLI tools. Operators concerned about supply chain risk can:
+**Security:** Seven of eleven tools install via `curl | bash`. This is the vendor-recommended method and standard industry practice for CLI tools. Operators concerned about supply chain risk can:
 - Pre-seed audited versions in the Dockerfile (binary verified at build time)
 - Block curl-based installers at the network level (but this also disables `astroai-install`)
 
-**Audit trail:** `astroai-debug` checks 19 pre-installed system tools but does not list user-installed AI agents. If fleet-wide AI tool tracking is needed, consider adding a separate audit script (`ls ~/.local/bin/agent ~/.local/bin/claude ~/.local/bin/agy ~/.local/bin/opencode ~/.local/bin/codex ~/.local/bin/freebuff ~/.local/bin/aider`).
+**Audit trail:** `astroai-debug` checks 19 pre-installed system tools but does not list user-installed AI agents. If fleet-wide AI tool tracking is needed, consider adding a separate audit script (`ls ~/.local/bin/agent ~/.local/bin/claude ~/.local/bin/agy ~/.local/bin/opencode ~/.local/bin/codex ~/.local/bin/copilot ~/.local/bin/goose ~/.local/bin/pi ~/.local/bin/codewhale ~/.local/bin/swival ~/.local/bin/freebuff`).
 
 ## Quota monitoring
 
