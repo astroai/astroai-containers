@@ -98,7 +98,7 @@ COPY scripts/astroai-env-save scripts/astroai-env-resume scripts/astroai-env-lis
     scripts/astroai-help.sh scripts/astroai-status.sh scripts/astroai-new.sh \
     scripts/astroai-clone.sh scripts/astroai-debug.sh scripts/astroai-install.sh \
     scripts/astroai-session-archive.sh scripts/astroai-data-sync.sh \
-    scripts/astroai-project-init.sh scripts/canfar-verify.sh \
+    scripts/astroai-project-init.sh scripts/astroai-kernel-register scripts/canfar-verify.sh \
     /opt/astroai/bin/
 RUN chmod a+rx /opt/astroai/bin/* /opt/astroai/lib/* \
     && ln -sf astroai-help.sh /opt/astroai/bin/astroai-help \

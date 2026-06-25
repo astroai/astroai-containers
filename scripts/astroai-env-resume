@@ -91,3 +91,5 @@ else
 fi
 
 echo "cd ${TARGET}"
+echo ""
+echo "JupyterLab: astroai-kernel-register   # add this env to the kernel picker"

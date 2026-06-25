@@ -17,6 +17,11 @@ Environment save/resume (/arc-friendly)
   astroai-env-list --team     list team saves on /arc/projects
   astroai-env-list --all      list personal + team saves
 
+JupyterLab (notebook sessions)
+  astroai-kernel-register     add cwd pixi/uv/venv to kernel picker (on demand)
+  astroai-kernel-register --list
+  astroai-kernel-register --unregister
+
 Home hygiene (shared CephFS)
   astroai-home-usage          disk breakdown under $HOME
   astroai-cache-prune --all-safe   clear pip/uv/pixi caches

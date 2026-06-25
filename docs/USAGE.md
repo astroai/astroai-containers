@@ -300,6 +300,7 @@ Pixi (or uv/pip) downloads CUDA user libraries into the project environment. No 
 | `astroai-env-resume <name>` | Restore to `/scratch/<name>` and rebuild env |
 | `astroai-env-resume <name> --from <path>` | Restore from custom path |
 | `astroai-env-list` | List saves under `~/.astroai/saves` |
+| `astroai-kernel-register` | Register pixi/uv/venv project as a Jupyter kernel (notebook sessions) |
 | `astroai-home-usage` | Disk breakdown under `$HOME` on `/arc` |
 | `astroai-cache-prune --all-safe` | Clear pip/uv/npm/pixi package caches |
 | `astroai-clone <owner/repo>` | Clone repo to `/scratch` and install deps |
@@ -589,6 +590,29 @@ pixi add jupyterlab-git    # prebuilt extension, no Node
 ```
 
 Source extensions from npm need Node — add `nodejs` to a pixi project on `/scratch` (see [Node.js and npm](#nodejs-and-npm)).
+
+#### Project kernels (pixi / uv / venv)
+
+JupyterLab does **not** auto-detect environments on `/scratch`. After `pixi install`, `uv sync`, or `astroai-env-resume`, register on demand:
+
+```bash
+cd /scratch/myproject
+astroai-kernel-register
+```
+
+Then pick **Python (myproject · pixi)** in the JupyterLab kernel menu (Launcher → Notebook, or Kernel → Change Kernel).
+
+| Command | Purpose |
+|---------|---------|
+| `astroai-kernel-register` | Register cwd project (adds `ipykernel` if missing) |
+| `astroai-kernel-register /scratch/other` | Register a specific path |
+| `astroai-kernel-register --name mylab` | Override kernelspec name |
+| `astroai-kernel-register --list` | List AstroAI-linked kernels + `jupyter kernelspec list` |
+| `astroai-kernel-register --unregister` | Remove kernel for cwd project |
+
+Kernelspecs persist under `~/.local/share/jupyter/kernels` on `/arc`. The env binaries live on `/scratch` — **re-run `astroai-kernel-register` after each `astroai-env-resume`** (or when imports fail because paths changed).
+
+`astroai-new` does not register a kernel automatically; run the one-liner when you want that project in the picker.
 
 ### marimo
 
