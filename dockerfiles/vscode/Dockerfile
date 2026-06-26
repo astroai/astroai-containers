@@ -15,12 +15,12 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV SHELL=/bin/bash
 
 RUN ARCH=$(uname -m | sed 's/x86_64/x64/; s/aarch64/arm64/') \
-    && OPENVSCODE_VERSION="$(curl -fsSL https://api.github.com/repos/gitpod-io/openvscode-server/releases/latest \
+    && OPENVSCODE_TAG="$(curl -fsSL https://api.github.com/repos/gitpod-io/openvscode-server/releases/latest \
         | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")" \
     && curl -fsSL \
-    "https://github.com/gitpod-io/openvscode-server/releases/download/${OPENVSCODE_VERSION}/openvscode-server-${OPENVSCODE_VERSION}-linux-${ARCH}.tar.gz" \
+    "https://github.com/gitpod-io/openvscode-server/releases/download/${OPENVSCODE_TAG}/${OPENVSCODE_TAG}-linux-${ARCH}.tar.gz" \
     | tar -xz -C /opt \
-    && mv "/opt/openvscode-server-${OPENVSCODE_VERSION}-linux-${ARCH}" /opt/openvscode-server
+    && mv "/opt/${OPENVSCODE_TAG}-linux-${ARCH}" /opt/openvscode-server
 
 RUN mkdir -p /opt/openvscode-server/data/Machine
 COPY config/openvscode-settings.json /opt/openvscode-server/data/Machine/settings.json
