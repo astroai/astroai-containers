@@ -2,15 +2,20 @@
 # Show what is using space under $HOME on shared /arc (CephFS).
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
-source /opt/astroai/lib/astroai-env-common.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
-echo "Home disk usage for ${USER} (${HOME})"
-echo "========================================"
+astroai_title "Home disk usage for ${USER} (${HOME})"
+astroai_divider
 
-# Quota overview
 astroai_quota_line "${HOME}" "home"
 
-# Project quotas
 if [[ -d /arc/projects ]]; then
     for proj in /arc/projects/*/; do
         [[ -d "${proj}" && -r "${proj}" ]] && astroai_quota_line "${proj}" "$(basename "${proj}")"
@@ -35,35 +40,38 @@ for entry in "${entries[@]}"; do
     if [[ -e "${path}" ]]; then
         bytes="$(du -sb "${path}" 2>/dev/null | awk '{print $1}')"
         human="$(du -sh "${path}" 2>/dev/null | awk '{print $1}')"
-        printf "  %-10s %8s  %s\n" "${dir}" "${human}" "${label}"
+        if astroai_ui_enabled; then
+            printf '  %b%-10s%b %8s  %s\n' $'\033[1m' "${dir}" $'\033[0m' "${human}" "${label}"
+        else
+            printf "  %-10s %8s  %s\n" "${dir}" "${human}" "${label}"
+        fi
         total=$((total + bytes))
     fi
 done
 
 echo ""
-echo "Other top-level entries:"
-du -sh "${HOME}"/* 2>/dev/null | grep -vE '/\.(cache|pixi|local|astroai|config|ssh)$' | head -10 || true
+astroai_heading "Other top-level entries:"
+du -sh "${HOME}"/* 2>/dev/null | grep -vE '/\.(cache|pixi|local|astroai|config|ssh)$' | head -10 | sed 's/^/  /' || true
 
 echo ""
 total_h="$(numfmt --to=iec-i --suffix=B "${total}" 2>/dev/null || du -sh "${HOME}" | awk '{print $1}')"
-echo "Tracked profile dirs: ~${total_h}"
+astroai_kv "Tracked:" "~${total_h}"
 
-# Show quota percentage summary
 _pct="$(astroai_quota_used_pct "${HOME}")"
 if [[ -n "${_pct}" ]]; then
     if [[ "${_pct}" -ge 95 ]]; then
-        echo "Quota:  ${_pct}% used ⚠ CRITICAL — prune immediately"
+        astroai_err "Quota:  ${_pct}% used ⚠ CRITICAL — prune immediately"
     elif [[ "${_pct}" -ge 90 ]]; then
-        echo "Quota:  ${_pct}% used ⚠ high — prune soon"
+        astroai_warn "Quota:  ${_pct}% used ⚠ high — prune soon"
     elif [[ "${_pct}" -ge 80 ]]; then
-        echo "Quota:  ${_pct}% used ⚠ monitor"
+        astroai_warn "Quota:  ${_pct}% used ⚠ monitor"
     else
-        echo "Quota:  ${_pct}% used"
+        astroai_kv "Quota:" "${_pct}% used"
     fi
 fi
 
 echo ""
-echo "Keep $HOME lean on shared storage:"
-echo "  - code and active envs on /scratch"
-echo "  - lockfile saves via astroai-env-save (not full packs unless needed)"
-echo "  - prune caches: astroai-cache-prune --help"
+astroai_heading "Keep \$HOME lean on shared storage:"
+astroai_hint "  - code and active envs on /scratch"
+astroai_hint "  - lockfile saves via astroai-env-save (not full packs unless needed)"
+astroai_cmd "  - prune caches: astroai-cache-prune --help"

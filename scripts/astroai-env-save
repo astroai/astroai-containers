@@ -9,7 +9,14 @@
 #   astroai-env-save mylab --full
 #   astroai-env-save mylab --to /arc/projects/group/env-saves/mylab
 
-source /opt/astroai/lib/astroai-env-common.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 
@@ -65,7 +72,7 @@ for f in .python-version README.md; do
 done
 
 if [[ ! "${PWD}" =~ ^/scratch(/|$) && -d /scratch ]]; then
-    echo "Note: saving from ${PWD} — prefer /scratch for active projects." >&2
+    astroai_warn "Note: saving from ${PWD} — prefer /scratch for active projects."
 fi
 
 if [[ "${FULL}" -eq 1 ]]; then
@@ -74,10 +81,10 @@ if [[ "${FULL}" -eq 1 ]]; then
         uv)   ENV_DIR=".venv" ;;
     esac
 
-    [[ -d "${ENV_DIR}" ]] || { echo "No ${ENV_DIR} directory to pack." >&2; exit 1; }
+    [[ -d "${ENV_DIR}" ]] || { astroai_err "No ${ENV_DIR} directory to pack."; exit 1; }
 
     ENV_SIZE="$(du -sh "${ENV_DIR}" | awk '{print $1}')"
-    echo "Environment size: ${ENV_SIZE}"
+    astroai_info "Environment size: ${ENV_SIZE}"
 
     if command -v df >/dev/null 2>&1; then
         echo "Destination free space:"
@@ -87,11 +94,11 @@ if [[ "${FULL}" -eq 1 ]]; then
     echo ""
     read -r -p "Pack ${ENV_SIZE} to ${SAVE_DIR}? [y/N] " CONFIRM || true
     if [[ "${CONFIRM}" != "y" && "${CONFIRM}" != "Y" ]]; then
-        echo "Cancelled."
+        astroai_hint "Cancelled."
         exit 0
     fi
 
-    echo "Packing environment..."
+    astroai_info "Packing environment..."
     tar -C . -cf - "${ENV_DIR}" | zstd -T0 -o "${SAVE_DIR}/env.tar.zst"
 fi
 
@@ -107,5 +114,5 @@ jq -n \
     > "${MANIFEST}"
 
 du -sh "${SAVE_DIR}"
-echo "Saved ${KIND} environment '${NAME}' -> ${SAVE_DIR}"
-echo "Resume on /scratch: astroai-env-resume ${NAME}"
+astroai_ok "Saved ${KIND} environment '${NAME}' -> ${SAVE_DIR}"
+astroai_cmd "Resume on /scratch: astroai-env-resume ${NAME}"

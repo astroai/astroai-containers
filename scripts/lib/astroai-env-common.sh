@@ -1,5 +1,15 @@
 # Shared helpers for AstroAI env save/resume wrappers.
 
+ASTROAI_ENV_COMMON_LOADED=1
+
+if [[ -f /opt/astroai/lib/astroai-ui.sh ]]; then
+    # shellcheck disable=SC1091
+    source /opt/astroai/lib/astroai-ui.sh
+elif [[ -f "${BASH_SOURCE[0]%/*}/astroai-ui.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "${BASH_SOURCE[0]%/*}/astroai-ui.sh"
+fi
+
 astroai_save_root() {
     echo "${ASTROAI_SAVE_DIR:-${HOME}/.astroai/saves}"
 }
@@ -26,7 +36,7 @@ astroai_require_project() {
     local kind
     kind="$(astroai_detect_project)"
     if [[ -z "${kind}" ]]; then
-        echo "No pixi or uv project here (need pixi.toml or pyproject.toml)." >&2
+        astroai_err "No pixi or uv project here (need pixi.toml or pyproject.toml)."
         exit 1
     fi
     echo "${kind}"
@@ -74,13 +84,13 @@ astroai_check_quota() {
     [[ -n "${used_pct}" ]] || return 0
 
     if [[ "${used_pct}" -ge 95 ]]; then
-        echo "  ⚠  ${label}: ${used_pct}% used — CRITICAL (near quota limit)" >&2
+        astroai_warn "  ⚠  ${label}: ${used_pct}% used — CRITICAL (near quota limit)"
         return 2
     elif [[ "${used_pct}" -ge 90 ]]; then
-        echo "  ⚠  ${label}: ${used_pct}% used — prune soon (astroai-cache-prune --all-safe)" >&2
+        astroai_warn "  ⚠  ${label}: ${used_pct}% used — prune soon (astroai-cache-prune --all-safe)"
         return 1
     elif [[ "${used_pct}" -ge 80 ]]; then
-        echo "  ⚠  ${label}: ${used_pct}% used — monitor (astroai-home-usage)" >&2
+        astroai_warn "  ⚠  ${label}: ${used_pct}% used — monitor (astroai-home-usage)"
         return 1
     fi
     return 0

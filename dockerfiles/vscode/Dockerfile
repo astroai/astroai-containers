@@ -5,11 +5,8 @@ ARG REGISTRY=images.canfar.net
 ARG OWNER=astroai
 ARG BASE_NAME=base
 ARG TAG=local
-ARG OPENVSCODE_VERSION=v1.109.5
 
 FROM ${REGISTRY}/${OWNER}/${BASE_NAME}:${TAG}
-
-ARG OPENVSCODE_VERSION=v1.109.5
 
 LABEL io.canfar.skaha.session.type="contributed"
 
@@ -18,8 +15,10 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ENV SHELL=/bin/bash
 
 RUN ARCH=$(uname -m | sed 's/x86_64/x64/; s/aarch64/arm64/') \
+    && OPENVSCODE_VERSION="$(curl -fsSL https://api.github.com/repos/gitpod-io/openvscode-server/releases/latest \
+        | python3 -c "import json,sys; print(json.load(sys.stdin)['tag_name'])")" \
     && curl -fsSL \
-    "https://github.com/gitpod-io/openvscode-server/releases/download/openvscode-server-${OPENVSCODE_VERSION}/openvscode-server-${OPENVSCODE_VERSION}-linux-${ARCH}.tar.gz" \
+    "https://github.com/gitpod-io/openvscode-server/releases/download/${OPENVSCODE_VERSION}/openvscode-server-${OPENVSCODE_VERSION}-linux-${ARCH}.tar.gz" \
     | tar -xz -C /opt \
     && mv "/opt/openvscode-server-${OPENVSCODE_VERSION}-linux-${ARCH}" /opt/openvscode-server
 

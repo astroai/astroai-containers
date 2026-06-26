@@ -8,6 +8,14 @@
 # Tools install to ~/.local/bin which persists on /arc and is on PATH.
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
 BIN_DIR="${HOME}/.local/bin"
 
@@ -32,8 +40,8 @@ EOF
 }
 
 usage() {
-    echo "Usage: astroai-install <tool>" >&2
-    echo "       astroai-install --list" >&2
+    astroai_err "Usage: astroai-install <tool>"
+    astroai_err "       astroai-install --list"
     echo "" >&2
     list_tools >&2
     exit 1
@@ -44,39 +52,52 @@ ensure_bin_dir() {
         mkdir -p "${BIN_DIR}"
     fi
     if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]]; then
-        echo "Warning: ${BIN_DIR} is not on PATH. Open a new shell or run: hash -r" >&2
+        astroai_warn "Warning: ${BIN_DIR} is not on PATH. Open a new shell or run: hash -r"
     fi
 }
 
 verify_install() {
     local cmd="$1"
     if command -v "${cmd}" >/dev/null 2>&1; then
-        echo "✓ ${cmd} installed: $(${cmd} --version 2>&1 | head -1)"
+        astroai_ok "✓ ${cmd} installed: $(${cmd} --version 2>&1 | head -1)"
     else
-        echo "✗ ${cmd} not found on PATH — try opening a new shell" >&2
+        astroai_err "✗ ${cmd} not found on PATH — try opening a new shell"
         return 1
     fi
 }
 
 require_command() {
-    command -v "$1" >/dev/null 2>&1 || { echo "$1 is required but not found." >&2; exit 1; }
+    command -v "$1" >/dev/null 2>&1 || { astroai_err "$1 is required but not found."; exit 1; }
+}
+
+require_npm() {
+    if command -v npm >/dev/null 2>&1; then
+        return 0
+    fi
+    astroai_err "npm is required but not found."
+    echo "" >&2
+    astroai_hint "Install Node.js first:"
+    astroai_cmd "  astroai-install node"
+    echo "" >&2
+    astroai_hint "Or use the full image (node/npm pre-installed), pixi on /scratch, or CVMFS module load nodejs."
+    exit 1
 }
 
 install_node() {
     require_command pixi
     local pixi_bin="${PIXI_HOME:-${HOME}/.pixi}/bin"
-    echo "Installing Node.js via pixi global (persists under ${PIXI_HOME:-${HOME}/.pixi})..."
+    astroai_info "Installing Node.js via pixi global (persists under ${PIXI_HOME:-${HOME}/.pixi})..."
     pixi global install nodejs
     for cmd in node npm npx; do
         if [[ -x "${pixi_bin}/${cmd}" ]]; then
             ln -sf "${pixi_bin}/${cmd}" "${BIN_DIR}/${cmd}"
         else
-            echo "Expected ${pixi_bin}/${cmd} after pixi global install" >&2
+            astroai_err "Expected ${pixi_bin}/${cmd} after pixi global install"
             exit 1
         fi
     done
     echo ""
-    echo "npm globals: npm install -g --prefix \"${HOME}/.local\" <package>"
+    astroai_hint "npm globals: npm install -g --prefix \"${HOME}/.local\" <package>"
     verify_install node
     verify_install npm
 }
@@ -100,43 +121,40 @@ case "${TOOL}" in
         install_node
         ;;
     agent)
-        echo "Installing Cursor Agent..."
+        astroai_info "Installing Cursor Agent..."
         require_command curl
         curl -fsS https://cursor.com/install | bash
-        echo ""
-        echo "Run: agent auth   (or set CURSOR_API_KEY)"
+        astroai_hint "Run: agent auth   (or set CURSOR_API_KEY)"
         verify_install agent
         ;;
     claude)
-        echo "Installing Claude Code..."
+        astroai_info "Installing Claude Code..."
         require_command curl
         curl -fsSL https://claude.ai/install.sh | bash
-        echo ""
-        echo "Run: claude   (sign in on first run)"
+        astroai_hint "Run: claude   (sign in on first run)"
         verify_install claude
         ;;
     agy)
-        echo "Installing Antigravity CLI (Google; successor to Gemini CLI)..."
+        astroai_info "Installing Antigravity CLI (Google; successor to Gemini CLI)..."
         require_command curl
         curl -fsSL https://antigravity.google/cli/install.sh | bash
-        echo ""
-        echo "Run: agy   (sign in on first run)"
+        astroai_hint "Run: agy   (sign in on first run)"
         verify_install agy
         ;;
     opencode)
-        echo "Installing OpenCode..."
+        astroai_info "Installing OpenCode..."
         require_command curl
         XDG_BIN_DIR="${BIN_DIR}" curl -fsSL https://opencode.ai/install | bash
         echo ""
         verify_install opencode
         ;;
     codex)
-        echo "Installing Codex CLI (via GitHub releases — no Node required)..."
+        astroai_info "Installing Codex CLI (via GitHub releases — no Node required)..."
         require_command gh
         require_command curl
 
         if ! gh auth status &>/dev/null; then
-            echo "gh is not authenticated. Run: gh auth login" >&2
+            astroai_err "gh is not authenticated. Run: gh auth login"
             exit 1
         fi
 
@@ -144,13 +162,13 @@ case "${TOOL}" in
         case "${ARCH}" in
             x86_64)  ASSET="codex-x86_64-unknown-linux-musl.tar.gz" ;;
             aarch64) ASSET="codex-aarch64-unknown-linux-musl.tar.gz" ;;
-            *)       echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;;
+            *)       astroai_err "Unsupported architecture: ${ARCH}"; exit 1 ;;
         esac
 
         TMPDIR="${TMPDIR:-/tmp}"
         mkdir -p "${TMPDIR}"
 
-        echo "Downloading ${ASSET}..."
+        astroai_info "Downloading ${ASSET}..."
         gh release download -R openai/codex -p "${ASSET}" -D "${TMPDIR}"
 
         tar -xzf "${TMPDIR}/${ASSET}" -C "${BIN_DIR}"
@@ -158,90 +176,59 @@ case "${TOOL}" in
         if [[ -f "${BIN_DIR}/${BINARY}" ]]; then
             mv "${BIN_DIR}/${BINARY}" "${BIN_DIR}/codex"
         else
-            echo "Extract failed — unexpected tarball layout (expected ${BINARY})" >&2
+            astroai_err "Extract failed — unexpected tarball layout (expected ${BINARY})"
             exit 1
         fi
         chmod +x "${BIN_DIR}/codex" 2>/dev/null || true
         rm -f "${TMPDIR}/${ASSET}"
 
-        echo ""
-        echo "Run: codex login"
+        astroai_hint "Run: codex login"
         verify_install codex
         ;;
     copilot)
-        echo "Installing GitHub Copilot CLI..."
+        astroai_info "Installing GitHub Copilot CLI..."
         require_command curl
         PREFIX="${HOME}/.local" curl -fsSL https://gh.io/copilot-install | bash
-        echo ""
-        echo "Run: copilot   (sign in on first run; GitHub Copilot subscription required)"
+        astroai_hint "Run: copilot   (sign in on first run; GitHub Copilot subscription required)"
         verify_install copilot
         ;;
     goose)
-        echo "Installing Goose..."
+        astroai_info "Installing Goose..."
         require_command curl
         GOOSE_BIN_DIR="${BIN_DIR}" CONFIGURE=false \
             curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash
-        echo ""
-        echo "Run: goose configure   then goose"
+        astroai_hint "Run: goose configure   then goose"
         verify_install goose
         ;;
     freebuff)
-        echo "Installing Freebuff..."
-        if ! command -v npm >/dev/null 2>&1; then
-            echo "npm is required but not found." >&2
-            echo "" >&2
-            echo "Install Node.js first:" >&2
-            echo "  astroai-install node" >&2
-            echo "" >&2
-            echo "Or use the full image (node/npm pre-installed), pixi on /scratch, or CVMFS module load nodejs." >&2
-            exit 1
-        fi
+        astroai_info "Installing Freebuff..."
+        require_npm
         npm install -g --prefix "${HOME}/.local" freebuff
-        echo ""
         verify_install freebuff
         ;;
     pi)
-        echo "Installing Pi Coding Agent..."
-        if ! command -v npm >/dev/null 2>&1; then
-            echo "npm is required but not found." >&2
-            echo "" >&2
-            echo "Install Node.js first:" >&2
-            echo "  astroai-install node" >&2
-            echo "" >&2
-            echo "Or use the full image (node/npm pre-installed), pixi on /scratch, or CVMFS module load nodejs." >&2
-            exit 1
-        fi
+        astroai_info "Installing Pi Coding Agent..."
+        require_npm
         npm install -g --prefix "${HOME}/.local" @earendil-works/pi-coding-agent
-        echo ""
-        echo "Run: pi   (configure provider/API key on first run)"
+        astroai_hint "Run: pi   (configure provider/API key on first run)"
         verify_install pi
         ;;
     codewhale)
-        echo "Installing CodeWhale..."
-        if ! command -v npm >/dev/null 2>&1; then
-            echo "npm is required but not found." >&2
-            echo "" >&2
-            echo "Install Node.js first:" >&2
-            echo "  astroai-install node" >&2
-            echo "" >&2
-            echo "Or use the full image (node/npm pre-installed), pixi on /scratch, or CVMFS module load nodejs." >&2
-            exit 1
-        fi
+        astroai_info "Installing CodeWhale..."
+        require_npm
         npm install -g --prefix "${HOME}/.local" codewhale
-        echo ""
-        echo "Run: codewhale auth set   then codewhale"
+        astroai_hint "Run: codewhale auth set   then codewhale"
         verify_install codewhale
         ;;
     swival)
-        echo "Installing Swival..."
+        astroai_info "Installing Swival..."
         require_command uv
         uv tool install swival
-        echo ""
-        echo "Run: swival   (interactive) or swival \"task\""
+        astroai_hint "Run: swival   (interactive) or swival \"task\""
         verify_install swival
         ;;
     *)
-        echo "Unknown tool: ${TOOL}" >&2
+        astroai_err "Unknown tool: ${TOOL}"
         echo "" >&2
         list_tools >&2
         exit 1
@@ -249,5 +236,5 @@ case "${TOOL}" in
 esac
 
 echo ""
-echo "Installed to ${BIN_DIR} (persists on /arc)"
-echo "Try: ${TOOL} --help"
+astroai_ok "Installed to ${BIN_DIR} (persists on /arc)"
+astroai_cmd "Try: ${TOOL} --help"

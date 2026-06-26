@@ -6,10 +6,14 @@
 #   astroai-project-init <name> --members user1,user2
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
-if [[ -f /opt/astroai/lib/astroai-env-common.sh ]]; then
-    # shellcheck disable=SC1091
-    source /opt/astroai/lib/astroai-env-common.sh
-fi
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
 NAME=""
 MEMBERS=""
@@ -57,8 +61,8 @@ else
     echo ""
 fi
 
-echo "Project: ${NAME}"
-echo "  path:   ${PROJ_DIR}"
+astroai_title "Project: ${NAME}"
+astroai_kv "  path:" "${PROJ_DIR}"
 echo ""
 
 # ── Directory layout ────────────────────────────

@@ -6,7 +6,7 @@ ARG OWNER=astroai
 ARG BASE_NAME=base
 ARG TAG=local
 
-FROM tsl0922/ttyd:1.7.7 AS ttyd-bin
+FROM tsl0922/ttyd:latest AS ttyd-bin
 
 FROM ${REGISTRY}/${OWNER}/${BASE_NAME}:${TAG}
 

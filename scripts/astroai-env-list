@@ -6,7 +6,14 @@
 #   astroai-env-list --team       team saves on /arc/projects
 #   astroai-env-list --all        personal + team
 
-source /opt/astroai/lib/astroai-env-common.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
 TEAM=0
 ALL=0
@@ -62,14 +69,14 @@ list_saves() {
 # ── Personal saves ──────────────────────────────
 if [[ "${SHOW_PERSONAL}" -eq 1 ]]; then
     ROOT="$(astroai_save_root)"
-    echo "Personal saves: ${ROOT}"
+    astroai_heading "Personal saves: ${ROOT}"
     list_saves "${ROOT}" "  "
 fi
 
 # ── Team saves ───────────────────────────────────
 if [[ "${TEAM}" -eq 1 ]]; then
     echo ""
-    echo "Team saves (/arc/projects/<project>/env-saves/):"
+    astroai_heading "Team saves (/arc/projects/<project>/env-saves/):"
     if [[ -d /arc/projects ]]; then
         team_found=0
         for proj in /arc/projects/*/; do
@@ -93,7 +100,7 @@ fi
 
 if [[ "${SHOW_PERSONAL}" -eq 1 ]]; then
     echo ""
-    echo "Tip: team saves can live under /arc/projects/<group>/env-saves/"
-    echo "     astroai-env-list --team"
-    echo "     astroai-env-resume <name> --from /arc/projects/<group>/env-saves/<name>"
+    astroai_hint "Tip: team saves can live under /arc/projects/<group>/env-saves/"
+    astroai_cmd "     astroai-env-list --team"
+    astroai_cmd "     astroai-env-resume <name> --from /arc/projects/<group>/env-saves/<name>"
 fi

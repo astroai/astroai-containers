@@ -7,7 +7,14 @@
 #   astroai-debug --file path  save to custom path (and print to stdout)
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
-source /opt/astroai/lib/astroai-env-common.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
 SAVE=1
 SAVE_PATH=""
@@ -31,13 +38,14 @@ if [[ "${SAVE}" -eq 1 && -z "${SAVE_PATH}" ]]; then
 fi
 
 if [[ -n "${SAVE_PATH}" ]]; then
+    export ASTROAI_UI_PLAIN=1
     exec > >(tee -a "${SAVE_PATH}") 2>&1
 fi
 
-section() { echo ""; echo "=== ${1} ==="; }
+section() { astroai_section "$1"; }
 
-echo "AstroAI diagnostic report"
-echo "========================="
+astroai_title "AstroAI diagnostic report"
+astroai_divider
 echo "generated: ${TIMESTAMP}  user: ${USER}  host: $(hostname 2>/dev/null || echo unknown)"
 
 section "Session"

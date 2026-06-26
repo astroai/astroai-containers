@@ -1,6 +1,16 @@
 #!/bin/bash -e
 # Prune safe caches under ~/.cache and ~/.pixi (frees CephFS quota).
 
+[[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
+
 PIP=0
 UV=0
 HF=0
@@ -10,12 +20,12 @@ ALL=0
 
 usage() {
     sed -n '2,8p' "$0"
-    echo "  --pip       clear PIP_CACHE_DIR"
-    echo "  --uv        run uv cache prune"
-    echo "  --npm       clear NPM_CONFIG_CACHE"
-    echo "  --hf        remove HF_HOME (re-download models)"
-    echo "  --pixi      remove PIXI_CACHE_DIR package cache (keeps envs)"
-    echo "  --all-safe  --pip --uv --npm --pixi"
+    astroai_cmd "  --pip       clear PIP_CACHE_DIR"
+    astroai_cmd "  --uv        run uv cache prune"
+    astroai_cmd "  --npm       clear NPM_CONFIG_CACHE"
+    astroai_cmd "  --hf        remove HF_HOME (re-download models)"
+    astroai_cmd "  --pixi      remove PIXI_CACHE_DIR package cache (keeps envs)"
+    astroai_cmd "  --all-safe  --pip --uv --npm --pixi"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -27,7 +37,7 @@ while [[ $# -gt 0 ]]; do
         --npm) NPM=1; shift ;;
         --all-safe) ALL=1; shift ;;
         -h|--help) usage; exit 0 ;;
-        *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+        *) astroai_err "Unknown option: $1"; usage; exit 1 ;;
     esac
 done
 
@@ -40,31 +50,29 @@ if [[ "${PIP}" -eq 0 && "${UV}" -eq 0 && "${HF}" -eq 0 && "${PIXI}" -eq 0 && "${
     exit 1
 fi
 
-[[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
-
 if [[ "${PIP}" -eq 1 && -d "${PIP_CACHE_DIR:-}" ]]; then
-    echo "Clearing ${PIP_CACHE_DIR}..."
+    astroai_info "Clearing ${PIP_CACHE_DIR}..."
     rm -rf "${PIP_CACHE_DIR:?}"/*
 fi
 
 if [[ "${UV}" -eq 1 ]] && command -v uv >/dev/null; then
-    echo "Pruning uv cache..."
+    astroai_info "Pruning uv cache..."
     uv cache prune
 fi
 
 if [[ "${HF}" -eq 1 && -d "${HF_HOME:-}" ]]; then
-    echo "Removing ${HF_HOME}..."
+    astroai_warn "Removing ${HF_HOME}..."
     rm -rf "${HF_HOME:?}"
 fi
 
 if [[ "${PIXI}" -eq 1 && -d "${PIXI_CACHE_DIR:-}" ]]; then
-    echo "Clearing pixi package cache ${PIXI_CACHE_DIR}..."
+    astroai_info "Clearing pixi package cache ${PIXI_CACHE_DIR}..."
     rm -rf "${PIXI_CACHE_DIR:?}"/*
 fi
 
 if [[ "${NPM}" -eq 1 && -d "${NPM_CONFIG_CACHE:-}" ]]; then
-    echo "Clearing ${NPM_CONFIG_CACHE}..."
+    astroai_info "Clearing ${NPM_CONFIG_CACHE}..."
     rm -rf "${NPM_CONFIG_CACHE:?}"/*
 fi
 
-echo "Done. Check: astroai-home-usage"
+astroai_ok "Done. Check: astroai-home-usage"

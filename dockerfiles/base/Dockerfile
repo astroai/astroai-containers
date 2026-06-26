@@ -92,7 +92,7 @@ RUN uv venv /opt/astroai/venv/cadc \
     && rm /tmp/patch-clint-py313.sh \
     && chmod -R a+rX /opt/astroai/venv/cadc
 
-COPY scripts/lib/astroai-env-common.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
+COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh scripts/lib/astroai-load.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
 COPY scripts/astroai-env-save scripts/astroai-env-resume scripts/astroai-env-list \
     scripts/astroai-home-usage scripts/astroai-cache-prune \
     scripts/astroai-help.sh scripts/astroai-status.sh scripts/astroai-new.sh \

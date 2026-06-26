@@ -10,6 +10,14 @@
 #   astroai-data-sync  /scratch/results/  /arc/projects/mygroup/results/
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
 # Determine mode from the command name
 CMD="$(basename "$0")"
@@ -58,23 +66,22 @@ if [[ "${MODE}" == "stage" ]]; then
         fi
     fi
 
-    echo "Stage: ${SOURCE} → ${TARGET}"
+    astroai_info "Stage: ${SOURCE} → ${TARGET}"
     SRC_SIZE="$(du -sh "${SOURCE}" 2>/dev/null | awk '{print $1}' || echo "?")"
-    echo "  size: ${SRC_SIZE}"
+    astroai_kv "  size:" "${SRC_SIZE}"
 
-    # Don't overwrite existing without asking
     if [[ -e "${TARGET}" ]]; then
-        echo "  ⚠  Target exists: ${TARGET}"
+        astroai_warn "  ⚠  Target exists: ${TARGET}"
         read -r -p "  Overwrite? [y/N] " CONFIRM || true
         if [[ "${CONFIRM}" != "y" && "${CONFIRM}" != "Y" ]]; then
-            echo "Cancelled."
+            astroai_hint "Cancelled."
             exit 0
         fi
     fi
 
-    echo "  copying..."
+    astroai_info "  copying..."
     rsync -avh --progress "${SOURCE}" "${TARGET}"
-    echo "✓ staged to ${TARGET}"
+    astroai_ok "✓ staged to ${TARGET}"
 
 elif [[ "${MODE}" == "sync" ]]; then
     # ── sync: /scratch → persistent ──────────────
@@ -85,20 +92,20 @@ elif [[ "${MODE}" == "sync" ]]; then
 
     # Warn if source is not on /scratch
     if [[ ! "${SOURCE}" =~ ^/scratch(/|$) ]]; then
-        echo "⚠  Source is not on /scratch: ${SOURCE}" >&2
-        echo "   This command is for syncing /scratch work back to persistent storage." >&2
+        astroai_warn "⚠  Source is not on /scratch: ${SOURCE}"
+        astroai_hint "   This command is for syncing /scratch work back to persistent storage."
         read -r -p "   Continue? [y/N] " CONFIRM || true
         if [[ "${CONFIRM}" != "y" && "${CONFIRM}" != "Y" ]]; then
-            echo "Cancelled."
+            astroai_hint "Cancelled."
             exit 0
         fi
     fi
 
     if [[ -d /scratch ]]; then
-        echo "⚠  Remember: /scratch is ephemeral — data there will be wiped when the session ends."
+        astroai_warn "⚠  Remember: /scratch is ephemeral — data there will be wiped when the session ends."
     fi
 
-    echo "Sync: ${SOURCE} → ${TARGET}"
+    astroai_info "Sync: ${SOURCE} → ${TARGET}"
     SRC_SIZE="$(du -sh "${SOURCE}" 2>/dev/null | awk '{print $1}' || echo "?")"
     echo "  size: ${SRC_SIZE}"
 
@@ -108,7 +115,7 @@ elif [[ "${MODE}" == "sync" ]]; then
         echo "  dest free: $(df -h "${TARGET_DIR}" 2>/dev/null | awk 'NR>1{print $4}')"
     fi
 
-    echo "  syncing..."
+    astroai_info "  syncing..."
     rsync -avh --progress "${SOURCE}" "${TARGET}"
-    echo "✓ synced to ${TARGET}"
+    astroai_ok "✓ synced to ${TARGET}"
 fi

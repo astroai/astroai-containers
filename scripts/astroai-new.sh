@@ -9,6 +9,14 @@
 #   astroai-new [name] --astro     suggest common astro packages
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
 NAME=""
 USE_UV=0
@@ -31,8 +39,8 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         -*)
-            echo "Unknown option: $1" >&2
-            echo "Usage: astroai-new [name] [--uv] [--no-git] [--no-gh] [--astro]" >&2
+            astroai_err "Unknown option: $1"
+            astroai_hint "Usage: astroai-new [name] [--uv] [--no-git] [--no-gh] [--astro]"
             exit 1
             ;;
         *)
@@ -53,8 +61,8 @@ else
 fi
 
 if [[ -d "${TARGET}" ]] && [[ -f "${TARGET}/pixi.toml" || -f "${TARGET}/pyproject.toml" ]]; then
-    echo "Project already exists: ${TARGET}" >&2
-    echo "  cd ${TARGET} && pixi run python script.py" >&2
+    astroai_err "Project already exists: ${TARGET}"
+    astroai_cmd "  cd ${TARGET} && pixi run python script.py"
     exit 1
 fi
 
@@ -63,17 +71,17 @@ mkdir -p "${TARGET}"
 cd "${TARGET}"
 
 echo ""
-echo "  Creating project: ${NAME}"
-echo "  Location: ${TARGET}"
+astroai_info "Creating project: ${NAME}"
+astroai_kv "Location:" "${TARGET}"
 echo ""
 
 # ── Initialize package manager ───────────────────
 if [[ "${USE_UV}" -eq 1 ]]; then
-    echo "  uv init --no-readme"
+    astroai_hint "  uv init --no-readme"
     uv init --no-readme
     PM="uv"
 else
-    echo "  pixi init --no-progress"
+    astroai_hint "  pixi init --no-progress"
     pixi init --no-progress
     PM="pixi"
 fi
@@ -81,9 +89,9 @@ fi
 # ── Git init ─────────────────────────────────────
 if [[ "${NO_GIT}" -eq 0 ]]; then
     if ! git rev-parse --is-inside-work-tree &>/dev/null; then
-        echo "  git init"
+        astroai_hint "  git init"
         git init -q
-        echo "  git add -A && git commit -m 'Initial commit'"
+        astroai_hint "  git add -A && git commit -m 'Initial commit'"
         git add -A
         git commit -m "Initial commit" --quiet
     fi
@@ -98,44 +106,43 @@ if [[ "${NO_GIT}" -eq 0 && "${NO_GH}" -eq 0 ]]; then
             CREATE_GH="${CREATE_GH:-y}"
             if [[ "${CREATE_GH}" =~ ^[Yy]$ ]]; then
                 gh repo create "${NAME}" --private --source=. --push --remote=origin
-                echo "  ✓ GitHub repo: github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo "created")"
+                astroai_ok "  ✓ GitHub repo: github.com/$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || echo "created")"
             else
-                echo "  Skipped. Create later: gh repo create ${NAME} --private --source=. --push"
+                astroai_hint "  Skipped. Create later: gh repo create ${NAME} --private --source=. --push"
             fi
         fi
     else
-        echo "  (run 'gh auth login' to enable GitHub repo creation)"
+        astroai_hint "  (run 'gh auth login' to enable GitHub repo creation)"
     fi
 fi
 
 # ── Package suggestions ──────────────────────────
 if [[ "${SUGGEST_ASTRO}" -eq 1 ]]; then
     echo ""
-    echo "  Suggested astro packages:"
+    astroai_heading "Suggested astro packages:"
     if [[ "${PM}" == "pixi" ]]; then
-        echo "    pixi add python numpy astropy matplotlib scipy"
-        echo "    pixi add torch cuda-version=12   # if using GPU"
+        astroai_cmd "    pixi add python numpy astropy matplotlib scipy"
+        astroai_cmd "    pixi add torch cuda-version=12   # if using GPU"
     else
-        echo "    uv add numpy astropy matplotlib scipy"
-        echo "    uv add torch   # if using GPU"
+        astroai_cmd "    uv add numpy astropy matplotlib scipy"
+        astroai_cmd "    uv add torch   # if using GPU"
     fi
 fi
 
-# ── Summary ──────────────────────────────────────
 echo ""
-echo "  ════════════════════════════════════════"
-echo "  ✓  Project ready: ${NAME}"
-echo "  ════════════════════════════════════════"
+astroai_divider
+astroai_ok "  ✓  Project ready: ${NAME}"
+astroai_divider
 echo ""
-echo "  cd ${TARGET}"
+astroai_cmd "  cd ${TARGET}"
 if [[ "${PM}" == "pixi" ]]; then
-    echo "  pixi add python numpy"
-    echo "  pixi run python -c 'print(\"hello\")'"
+    astroai_cmd "  pixi add python numpy"
+    astroai_cmd "  pixi run python -c 'print(\"hello\")'"
 else
-    echo "  uv add numpy"
-    echo "  uv run python -c 'print(\"hello\")'"
+    astroai_cmd "  uv add numpy"
+    astroai_cmd "  uv run python -c 'print(\"hello\")'"
 fi
 echo ""
-echo "  Remember: /scratch is ephemeral — git push your work."
-echo "  Close sessions with: astroai-session-archive"
+astroai_warn "  Remember: /scratch is ephemeral — git push your work."
+astroai_hint "  Close sessions with: astroai-session-archive"
 echo ""

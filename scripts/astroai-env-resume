@@ -6,7 +6,14 @@
 #   astroai-env-resume <name> /scratch/myproject
 #   astroai-env-resume <name> --from /arc/projects/group/env-saves/mylab
 
-source /opt/astroai/lib/astroai-env-common.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 if [[ -n "${TMPDIR:-}" ]]; then
@@ -39,13 +46,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-[[ -n "${NAME}" ]] || { echo "Usage: astroai-env-resume <name> [target-dir]" >&2; exit 1; }
+[[ -n "${NAME}" ]] || { astroai_err "Usage: astroai-env-resume <name> [target-dir]"; exit 1; }
 
 SAVE_DIR="${FROM_OVERRIDE:-$(astroai_save_root)/${NAME}}"
 
 [[ -f "${SAVE_DIR}/manifest.json" ]] || {
-    echo "Save not found: ${SAVE_DIR}" >&2
-    echo "List saves: astroai-env-list" >&2
+    astroai_err "Save not found: ${SAVE_DIR}"
+    astroai_cmd "List saves: astroai-env-list"
     exit 1
 }
 
@@ -56,7 +63,7 @@ if [[ -z "${TARGET}" ]]; then
         TARGET="/scratch/${NAME}"
     else
         TARGET="${HOME}/${NAME}"
-        echo "No writable /scratch — restoring to ${TARGET}" >&2
+        astroai_warn "No writable /scratch — restoring to ${TARGET}"
     fi
 fi
 
@@ -69,27 +76,27 @@ done
 cd "${TARGET}"
 
 if [[ "${FULL}" == "true" && -f "${SAVE_DIR}/env.tar.zst" ]]; then
-    echo "Extracting packed environment..."
+    astroai_info "Extracting packed environment..."
     zstd -d -c "${SAVE_DIR}/env.tar.zst" | tar -xf -
-    echo "Restored full pack in ${TARGET}"
+    astroai_ok "Restored full pack in ${TARGET}"
 else
     case "${KIND}" in
         pixi)
-            command -v pixi >/dev/null || { echo "pixi not found" >&2; exit 1; }
+            command -v pixi >/dev/null || { astroai_err "pixi not found"; exit 1; }
             pixi install
             ;;
         uv)
-            command -v uv >/dev/null || { echo "uv not found" >&2; exit 1; }
+            command -v uv >/dev/null || { astroai_err "uv not found"; exit 1; }
             uv sync
             ;;
         *)
-            echo "Unknown kind: ${KIND}" >&2
+            astroai_err "Unknown kind: ${KIND}"
             exit 1
             ;;
     esac
-    echo "Rebuilt ${KIND} environment in ${TARGET}"
+    astroai_ok "Rebuilt ${KIND} environment in ${TARGET}"
 fi
 
-echo "cd ${TARGET}"
+astroai_cmd "cd ${TARGET}"
 echo ""
-echo "JupyterLab: astroai-kernel-register   # add this env to the kernel picker"
+astroai_hint "JupyterLab: astroai-kernel-register   # add this env to the kernel picker"

@@ -1,65 +1,84 @@
 #!/bin/bash -e
 # AstroAI user command reference.
 
-cat <<'EOF'
-AstroAI commands (on PATH via /opt/astroai/bin)
-=================================================
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
-Quick loop
-  astroai-status              where am I, gpu, git, disk, session age
-  astroai-new [name]          pixi init + git + GH repo (--uv, --no-git, --no-gh, --astro)
-  astroai-clone owner/repo    clone + install deps (optional target dir)
+astroai_title "AstroAI commands (on PATH via /opt/astroai/bin)"
+astroai_divider
+echo ""
 
-Environment save/resume (/arc-friendly)
-  astroai-env-save [name]     save lockfiles to ~/.astroai/saves (--full, --to)
-  astroai-env-resume <name>   restore on /scratch + pixi install (--from, [path])
-  astroai-env-list            list personal saves (--team, --all)
+astroai_heading "Quick loop"
+astroai_cmd "  astroai-status              where am I, gpu, git, disk, session age"
+astroai_cmd "  astroai-new [name]          pixi init + git + GH repo (--uv, --no-git, --no-gh, --astro)"
+astroai_cmd "  astroai-clone owner/repo    clone + install deps (optional target dir)"
+echo ""
 
-JupyterLab (notebook sessions)
-  astroai-kernel-register     add cwd pixi/uv/venv to kernel picker (on demand)
-  astroai-kernel-register --list | --unregister | --name | <path>
+astroai_heading "Environment save/resume (/arc-friendly)"
+astroai_cmd "  astroai-env-save [name]     save lockfiles to ~/.astroai/saves (--full, --to)"
+astroai_cmd "  astroai-env-resume <name>   restore on /scratch + pixi install (--from, [path])"
+astroai_cmd "  astroai-env-list            list personal saves (--team, --all)"
+echo ""
 
-Home hygiene (shared CephFS)
-  astroai-home-usage          disk breakdown under $HOME
-  astroai-cache-prune --all-safe   clear pip/uv/npm/pixi caches
-  astroai-cache-prune --hf    also drop Hugging Face model cache
-  astroai-debug               diagnostic report (--stdout, --file)
-  astroai-debug --stdout      print only (no file save)
+astroai_heading "JupyterLab (notebook sessions)"
+astroai_cmd "  astroai-kernel-register     add cwd pixi/uv/venv to kernel picker (on demand)"
+astroai_cmd "  astroai-kernel-register --list | --unregister | --name | <path>"
+echo ""
 
-Project workflow
-  astroai-project-init <name> create team workspace on /arc/projects (--members)
-  pixi install / uv sync      deps into project (not system image)
-  astroai-session-archive     git push + env save + summary (--force, --name)
-  git push                    before session ends — scratch is wiped
+astroai_heading "Home hygiene (shared CephFS)"
+astroai_cmd "  astroai-home-usage          disk breakdown under \$HOME"
+astroai_cmd "  astroai-cache-prune --all-safe   clear pip/uv/npm/pixi caches"
+astroai_cmd "  astroai-cache-prune --hf    also drop Hugging Face model cache"
+astroai_cmd "  astroai-debug               diagnostic report (--stdout, --file)"
+astroai_cmd "  astroai-debug --stdout      print only (no file save)"
+echo ""
 
-Reminders (interactive login shells)
-  ~every 2h                   yellow /scratch nudge (git push or archive)
-  on shell exit               auto astroai-session-archive --force once (in git repo)
+astroai_heading "Project workflow"
+astroai_cmd "  astroai-project-init <name> create team workspace on /arc/projects (--members)"
+astroai_cmd "  pixi install / uv sync      deps into project (not system image)"
+astroai_cmd "  astroai-session-archive     git push + env save + summary (--force, --name)"
+astroai_cmd "  git push                    before session ends — scratch is wiped"
+echo ""
 
-Dev CLIs (pre-installed)
-  gh, rg, fd, bat, fzf, delta, tldr   GitHub + fast search/browse
-  gh auth login               one-time GitHub token setup
+astroai_heading "Reminders (interactive login shells)"
+astroai_hint "  ~every 2h                   yellow /scratch nudge (git push or archive)"
+astroai_hint "  on shell exit               auto astroai-session-archive --force once (in git repo)"
+echo ""
 
-CADC / CANFAR clients (pre-installed — see USAGE.md)
-  cadcget, cadcput, vcp, cadc-tap, canfar, cadc-get-cert
-  canfar auth login           Science Platform authentication
+astroai_heading "Dev CLIs (pre-installed)"
+astroai_cmd "  gh, rg, fd, bat, fzf, delta, tldr   GitHub + fast search/browse"
+astroai_cmd "  gh auth login               one-time GitHub token setup"
+echo ""
 
-AI agents (install once to ~/.local/bin on /arc — see USAGE.md)
-  astroai-install node       Node.js + npm via pixi (persistent on /arc)
-  astroai-install <tool>     Cursor Agent (agent), claude, agy, opencode, codex,
-                             copilot, goose, pi, codewhale, swival, freebuff
-  astroai-install --list     full list + install methods
-  curl: Cursor Agent (agent), claude, agy, opencode, copilot, goose
-  gh release (no Node): codex
-  uv tool (no Node): swival
-  npm (needs node): pi, codewhale, freebuff
+astroai_heading "CADC / CANFAR clients (pre-installed — see USAGE.md)"
+astroai_cmd "  cadcget, cadcput, vcp, cadc-tap, canfar, cadc-get-cert"
+astroai_cmd "  canfar auth login           Science Platform authentication"
+echo ""
 
-Docs: less /opt/astroai/USAGE.md  (or docs/USAGE.md in repo)
+astroai_heading "AI agents (install once to ~/.local/bin on /arc — see USAGE.md)"
+astroai_cmd "  astroai-install node       Node.js + npm via pixi (persistent on /arc)"
+astroai_cmd "  astroai-install <tool>     Cursor Agent (agent), claude, agy, opencode, codex,"
+astroai_cmd "                             copilot, goose, pi, codewhale, swival, freebuff"
+astroai_cmd "  astroai-install --list     full list + install methods"
+astroai_hint "  curl: Cursor Agent (agent), claude, agy, opencode, copilot, goose"
+astroai_hint "  gh release (no Node): codex"
+astroai_hint "  uv tool (no Node): swival"
+astroai_hint "  npm (needs node): pi, codewhale, freebuff"
+echo ""
 
-Storage
-  /scratch     active work (ephemeral)
-  ~/.cache     tool caches on /arc (prune when large)
-  ~/.astroai   env save manifests
-  astroai-data-stage <src> [dst]  copy data to /scratch for fast I/O
-  astroai-data-sync <src> <tgt>   sync /scratch results to persistent
-EOF
+astroai_heading "Docs"
+astroai_cmd "  less /opt/astroai/USAGE.md  (or docs/USAGE.md in repo)"
+echo ""
+
+astroai_heading "Storage"
+astroai_hint "  /scratch     active work (ephemeral)"
+astroai_hint "  ~/.cache     tool caches on /arc (prune when large)"
+astroai_hint "  ~/.astroai   env save manifests"
+astroai_cmd "  astroai-data-stage <src> [dst]  copy data to /scratch for fast I/O"
+astroai_cmd "  astroai-data-sync <src> <tgt>   sync /scratch results to persistent"

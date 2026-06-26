@@ -16,10 +16,6 @@ variable "PYTHON_VERSION" {
   default = "3.13"
 }
 
-variable "NODE_VERSION" {
-  default = "24.18.0"
-}
-
 group "default" {
   targets = ["base", "webterm", "notebook", "vscode", "marimo", "full"]
 }
@@ -28,6 +24,9 @@ target "python" {
   context    = "./dockerfiles/python"
   dockerfile = "Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/python:${PYTHON_VERSION}"]
+  args = {
+    PYTHON_VERSION = "${PYTHON_VERSION}"
+  }
 }
 
 target "base" {
@@ -85,7 +84,4 @@ target "full" {
   inherits   = ["_interface"]
   dockerfile = "dockerfiles/full/Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/full:${TAG}"]
-  args = {
-    NODE_VERSION = "${NODE_VERSION}"
-  }
 }

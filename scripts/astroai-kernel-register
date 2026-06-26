@@ -12,6 +12,14 @@
 #   astroai-kernel-register --unregister    remove kernel for this project
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
+for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
+    if [[ -f "${_libdir}/astroai-load.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${_libdir}/astroai-load.sh"
+        astroai_source_common "${BASH_SOURCE[0]}"
+        break
+    fi
+done
 
 # Notebook sessions set JUPYTER_CONFIG_DIR=/etc/jupyter (root-owned). User CLI
 # subcommands (kernelspec list, ipykernel install) need a writable config dir.
@@ -290,18 +298,18 @@ astroai_remove_kernel "${KERNEL_NAME}"
 astroai_write_kernel_meta "${PROJECT_ROOT}" "${KERNEL_NAME}" "${KIND}" "${PYTHON}"
 
 echo ""
-echo "Registered Jupyter kernel:"
-echo "  name:    ${KERNEL_NAME}"
-echo "  display: ${DISPLAY_NAME}"
-echo "  python:  ${PYTHON}"
+astroai_ok "Registered Jupyter kernel:"
+astroai_kv "  name:" "${KERNEL_NAME}"
+astroai_kv "  display:" "${DISPLAY_NAME}"
+astroai_kv "  python:" "${PYTHON}"
 echo ""
 if [[ -n "${JUPYTER_TOKEN:-}" || "${JUPYTER_CONFIG_DIR:-}" == /etc/jupyter ]]; then
-    echo "Open JupyterLab → Kernel picker → \"${DISPLAY_NAME}\""
-    echo "If the list looks stale, refresh the browser tab."
+    astroai_cmd "Open JupyterLab → Kernel picker → \"${DISPLAY_NAME}\""
+    astroai_hint "If the list looks stale, refresh the browser tab."
 else
-    echo "Notebook session: pick \"${DISPLAY_NAME}\" in the JupyterLab kernel menu."
-    echo "Other sessions: kernel is saved for your next notebook launch."
+    astroai_hint "Notebook session: pick \"${DISPLAY_NAME}\" in the JupyterLab kernel menu."
+    astroai_hint "Other sessions: kernel is saved for your next notebook launch."
 fi
 echo ""
-echo "Re-run after astroai-env-resume when /scratch was wiped."
-echo "Remove: astroai-kernel-register --unregister"
+astroai_hint "Re-run after astroai-env-resume when /scratch was wiped."
+astroai_cmd "Remove: astroai-kernel-register --unregister"
