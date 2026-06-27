@@ -8,6 +8,9 @@ ARG PIXI_VERSION=0.71.1
 
 FROM python:${PYTHON_VERSION}-slim
 
+ARG UV_VERSION
+ARG PIXI_VERSION
+
 LABEL org.opencontainers.image.title="AstroAI Python Runtime" \
       org.opencontainers.image.vendor="AstroAI"
 
@@ -26,7 +29,8 @@ ENV UV_PYTHON_INSTALL_DIR=/usr/local/share/uv/python \
     PIXI_BIN_DIR=/usr/local/bin \
     PIXI_CACHE_DIR=/usr/local/share/pixi/cache
 # ^ build-time paths for `uv pip install --system` only.
-# Session users: /etc/profile.d/astroai.sh overrides UV_* and PIXI_HOME to ~/.local and ~/.pixi.
+# Session users: /etc/profile.d/astroai.sh overrides UV_* / PIXI_HOME to ~/.local;
+# package caches (uv, pip, pixi, npm) go to /scratch when mounted.
 
 RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh \
     | env UV_VERSION="${UV_VERSION}" UV_UNMANAGED_INSTALL=/usr/local/bin sh \

@@ -11,6 +11,10 @@ ARG NODE_SHA256_ARM64=58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe710
 
 FROM ${REGISTRY}/${OWNER}/${BASE_NAME}:${TAG}
 
+ARG NODE_VERSION
+ARG NODE_SHA256_X64
+ARG NODE_SHA256_ARM64
+
 LABEL org.opencontainers.image.title="AstroAI Full" \
       org.opencontainers.image.description="Base + Node.js LTS for npm-based CLIs" \
       io.canfar.skaha.session.type="headless"

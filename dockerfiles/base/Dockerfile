@@ -72,7 +72,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     TERM=xterm-256color \
-    SHELL=/bin/bash
+    SHELL=/bin/bash \
+    ASTROAI_DEFAULT_SRC_DIR=/srcdir \
+    ASTROAI_DEFAULT_SCRATCH_DIR=/scratch
 
 RUN printf '%s\n' \
     '[ -f /etc/profile.d/astroai.sh ] && . /etc/profile.d/astroai.sh' \
@@ -81,9 +83,10 @@ RUN printf '%s\n' \
 COPY scripts/astroai-profile.sh /etc/profile.d/astroai.sh
 RUN chmod a+r /etc/profile.d/astroai.sh
 
-RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc \
+RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${ASTROAI_DEFAULT_SRC_DIR}" \
     && chmod -R a+rX /opt/astroai \
-    && chmod -R a+rwx /opt/astroai/cache
+    && chmod -R a+rwx /opt/astroai/cache \
+    && chmod 1777 "${ASTROAI_DEFAULT_SRC_DIR}"
 
 COPY config/cadc-tools.txt /opt/astroai/cadc-tools.txt
 COPY scripts/patch-clint-py313.sh /tmp/patch-clint-py313.sh
@@ -95,6 +98,7 @@ RUN uv venv /opt/astroai/venv/cadc \
 
 COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh scripts/lib/astroai-load.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
 COPY scripts/astroai-env-save scripts/astroai-env-resume scripts/astroai-env-list \
+    scripts/astroai-workspace-save.sh scripts/astroai-workspace-restore.sh \
     scripts/astroai-home-usage scripts/astroai-cache-prune \
     scripts/astroai-help.sh scripts/astroai-status.sh scripts/astroai-new.sh \
     scripts/astroai-clone.sh scripts/astroai-debug.sh scripts/astroai-install.sh \
@@ -111,6 +115,8 @@ RUN chmod a+rx /opt/astroai/bin/* /opt/astroai/lib/* \
     && ln -sf astroai-session-archive.sh /opt/astroai/bin/astroai-session-archive \
     && ln -sf astroai-data-sync.sh /opt/astroai/bin/astroai-data-stage \
     && ln -sf astroai-data-sync.sh /opt/astroai/bin/astroai-data-sync \
-    && ln -sf astroai-project-init.sh /opt/astroai/bin/astroai-project-init
+    && ln -sf astroai-project-init.sh /opt/astroai/bin/astroai-project-init \
+    && ln -sf astroai-workspace-save.sh /opt/astroai/bin/astroai-workspace-save \
+    && ln -sf astroai-workspace-restore.sh /opt/astroai/bin/astroai-workspace-restore
 
 COPY docs/USAGE.md /opt/astroai/USAGE.md

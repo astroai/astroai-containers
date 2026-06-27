@@ -12,6 +12,11 @@ ARG STARSHIP_SHA256_ARM64=01517aab398959ea9ea73bdb4f032ea4dbb51dff5c8e5eb05b4a1b
 
 FROM ${REGISTRY}/${OWNER}/${BASE_NAME}:${TAG}
 
+ARG TTYD_VERSION
+ARG STARSHIP_VERSION
+ARG STARSHIP_SHA256_X64
+ARG STARSHIP_SHA256_ARM64
+
 LABEL io.canfar.skaha.session.type="contributed"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

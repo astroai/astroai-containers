@@ -1,9 +1,9 @@
 #!/bin/bash -e
-# Clone a GitHub repo onto /scratch and install its dependencies.
+# Clone a GitHub repo under TMP_SRC_DIR and install its dependencies.
 #
 # Usage:
 #   astroai-clone owner/repo
-#   astroai-clone owner/repo /scratch/custom-dir
+#   astroai-clone owner/repo "${TMP_SRC_DIR}/custom-dir"
 
 for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
     if [[ -f "${_libdir}/astroai-load.sh" ]]; then
@@ -23,7 +23,8 @@ if [[ -z "${REPO}" ]]; then
     astroai_err "Usage: astroai-clone <owner/repo> [target-dir]"
     echo "" >&2
     astroai_cmd "  astroai-clone astroai/astroai-containers"
-    astroai_cmd "  astroai-clone myorg/myproject /scratch/custom-dir"
+    astroai_cmd "  astroai-clone myorg/myproject   # -> \${TMP_SRC_DIR}/myproject"
+    astroai_cmd "  astroai-clone myorg/myproject \"\${TMP_SRC_DIR}/custom\""
     exit 1
 fi
 
@@ -33,14 +34,10 @@ if ! command -v gh >/dev/null 2>&1; then
 fi
 
 REPO_NAME="${REPO##*/}"
+SRC_DIR="$(astroai_src_dir)"
 
 if [[ -z "${TARGET}" ]]; then
-    if [[ -d /scratch && -w /scratch ]]; then
-        TARGET="/scratch/${REPO_NAME}"
-    else
-        TARGET="${HOME}/${REPO_NAME}"
-        astroai_warn "No writable /scratch — cloning to ${TARGET}"
-    fi
+    TARGET="${SRC_DIR}/${REPO_NAME}"
 fi
 
 if [[ -d "${TARGET}" ]]; then

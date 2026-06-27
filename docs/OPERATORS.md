@@ -220,10 +220,10 @@ The report has 10 sections:
 
 | Section | Details for operators |
 |---------|----------------------|
-| Session | Home, PWD, scratch mount status + free space, TMPDIR, shell PID, system uptime |
+| Session | Home, **`TMP_SRC_DIR`**, **`TMP_SCRATCH_DIR`**, TMPDIR, shell PID, system uptime |
 | Profile | `ASTROAI_PROFILE_LOADED` guard, PATH layout, uv/pixi/cache directory locations |
 | GPU | `nvidia-smi` query (GPU index, driver, VRAM, temp, utilization) + GPU process listing |
-| Disk | `/scratch` and `HOME` `df`, top 10 directories in HOME by size, top 10 directories on /scratch |
+| Disk | **`TMP_SRC_DIR`**, **`TMP_SCRATCH_DIR`**, and HOME `df`, top directories by size |
 | Tools | Version check for pre-installed dev, file, and CADC tools |
 | Project | Pixi/uv project detection, lockfile size, `.pixi`/`.venv` directory size |
 | Network | HTTPS reachability to pypi.org, github.com, conda.anaconda.org, files.pythonhosted.org |
@@ -245,7 +245,7 @@ kubectl exec <pod> -- astroai-debug --stdout
 
 ### Operator use cases
 
-**Triage user reports:** Ask the user to run `astroai-debug` and share the log (`cat ~/.astroai/debug-*.log`). The report answers the most common support questions in one file — is /scratch mounted? Is the profile sourced? Are tools present? Is the network reachable?
+**Triage user reports:** Ask the user to run `astroai-debug` and share the log (`cat ~/.astroai/debug-*.log`). The report answers the most common support questions in one file — are **`TMP_SRC_DIR`** / **`TMP_SCRATCH_DIR`** writable? Is the profile sourced? Are tools present? Is the network reachable?
 
 **Fleet health:** Run `astroai-debug --stdout` across all running containers to spot patterns — stale sessions with zero scratch usage, quota-pressure nodes, or CVMFS mount failures.
 
@@ -338,14 +338,14 @@ Uses standard `df` on the CephFS mount — works without `quota` command or plat
 
 ### Project quota detection
 
-At session start, `astroai_quota_startup_check` walks up from the current working directory (`/scratch/<project>`) to find the nearest `/arc/projects/<group>/` ancestor and checks its quota. This catches team projects even when the user is several directories deep in `/scratch`.
+At session start, `astroai_quota_startup_check` walks up from the current working directory (usually under **`TMP_SRC_DIR`**) to find the nearest `/arc/projects/<group>/` ancestor and checks its quota.
 
 ### Operator implications
 
 **Capacity planning:** Monitor quota warnings across the fleet to identify groups approaching their `/arc` allocation before users hit write errors.
 
 **Support:** When a user reports `env-save` failures or `No space left on device` errors, check:
-1. `astroai-debug` Disk section — shows `/scratch` and `/arc/home` free space
+1. `astroai-debug` Disk section — shows **`TMP_SRC_DIR`**, **`TMP_SCRATCH_DIR`**, and `/arc/home` free space
 2. `astroai-home-usage` — breaks down what's consuming the user's quota
 3. `astroai-cache-prune --all-safe` — clears pip/uv/npm/pixi caches
 
@@ -353,7 +353,7 @@ At session start, `astroai_quota_startup_check` walks up from the current workin
 
 ## User data lifecycle
 
-Session images work on `/scratch` (fast local SSD, wiped at session end) while persistent storage lives on `/arc` (CephFS, permanent). Two commands bridge these tiers and let users persist their work before closing a session.
+Session images use **`TMP_SRC_DIR`** (default `/srcdir`) for code and **`TMP_SCRATCH_DIR`** (default `/scratch`) for staged data and download caches — both are fast local SSD, wiped at session end. Persistent storage lives on `/arc` (CephFS, permanent). Commands bridge these tiers and let users persist work before closing a session.
 
 ### `astroai-session-archive` — closing a session safely
 
@@ -368,7 +368,7 @@ Users run this before ending a session. It performs three steps:
 
 If the user is not in a git repo or no pixi/uv project is detected, the script tells them what's missing and how to set it up.
 
-The summary closes with a `/scratch` ephemeral warning and contextual advice based on what was successfully archived.
+The summary closes with a **`TMP_SRC_DIR` ephemeral** warning and contextual advice based on what was successfully archived.
 
 ### `astroai-data-stage` / `astroai-data-sync` — moving data between tiers
 
@@ -376,31 +376,31 @@ These are rsync wrappers for the two directions of data movement:
 
 | Command | Direction | Default target |
 |---------|-----------|---------------|
-| `astroai-data-stage <src> [dst]` | Persistent → `/scratch` | `/scratch/<basename of src>` |
-| `astroai-data-sync <src> <dst>` | `/scratch` → Persistent | *(required)* |
+| `astroai-data-stage <src> [dst]` | Persistent → **`TMP_SCRATCH_DIR`** | `${TMP_SCRATCH_DIR}/<basename of src>` |
+| `astroai-data-sync <src> <dst>` | **`TMP_SCRATCH_DIR`** → Persistent | *(required)* |
 
 - **Stage** shows source size and asks before overwriting an existing target.
-- **Sync** shows source size plus destination free space, and warns if the source is not on `/scratch`.
+- **Sync** shows source size plus destination free space, and warns if the source is not under **`TMP_SCRATCH_DIR`**.
 - Both use `rsync -avh --progress` for visible transfer progress.
 
 ### Typical data lifecycle
 
 ```
-Session start
+Session start (cwd = TMP_SRC_DIR, default /srcdir)
     │
-    ├── astroai-data-stage /arc/projects/mygroup/data.fits   ← stage data to fast SSD
+    ├── astroai-data-stage /arc/projects/mygroup/data.fits   ← stage data to TMP_SCRATCH_DIR
     │
     ▼
-Active work (on /scratch)
+Active work (code on TMP_SRC_DIR, datasets on TMP_SCRATCH_DIR)
     │
-    ├── astroai-data-sync /scratch/results/ /arc/projects/mygroup/results/   ← sync results back
-    ├── git commit -am "results"                            ← commit before archiving
+    ├── astroai-data-sync ${TMP_SCRATCH_DIR}/results/ /arc/projects/mygroup/results/
+    ├── git commit -am "results"
     │
     ▼
 astroai-session-archive                                    ← push code + save env + summary
     │
     ▼
-Session ends → /scratch wiped
+Session ends → TMP_SRC_DIR and TMP_SCRATCH_DIR wiped
 ```
 
 ### Operator implications

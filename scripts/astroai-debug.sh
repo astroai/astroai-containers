@@ -50,8 +50,9 @@ echo "generated: ${TIMESTAMP}  user: ${USER}  host: $(hostname 2>/dev/null || ec
 
 section "Session"
 echo "home:     ${HOME}"
+echo "src:      ${TMP_SRC_DIR:-not set}"
+echo "scratch:  ${TMP_SCRATCH_DIR:-not set} ($(if astroai_scratch_available 2>/dev/null; then echo "writable ($(df -h "$(astroai_scratch_dir)" 2>/dev/null | awk 'NR>1{print $4}' || echo ?))"; else echo "unavailable"; fi))"
 echo "pwd:      ${PWD}"
-echo "scratch:  $(if [[ -d /scratch ]]; then echo "mounted ($(df -h /scratch 2>/dev/null | awk 'NR>1{print $4}' || echo ?))"; else echo "not mounted"; fi)"
 echo "tmp:      ${TMPDIR:-/tmp}"
 echo "shell:    ${SHELL:-unknown}  pid: $$"
 echo "uptime:   $(uptime 2>/dev/null | sed 's/^.*up//' | sed 's/,.*//' | xargs || echo unknown)"
@@ -65,7 +66,8 @@ fi
 echo "PATH:     $(echo "${PATH}" | tr ':' '\n' | head -5 | sed 's/^/  /')"
 echo "uv dir:   ${UV_PYTHON_INSTALL_DIR:-not set}"
 echo "pixi:     ${PIXI_HOME:-not set}"
-echo "caches:   XDG_CACHE=${XDG_CACHE_HOME:-not set}  TORCH=${TORCH_HOME:-not set}  HF=${HF_HOME:-not set}"
+echo "caches:   UV=${UV_CACHE_DIR:-?}  PIP=${PIP_CACHE_DIR:-?}  NPM=${NPM_CONFIG_CACHE:-?}  PIXI=${PIXI_CACHE_DIR:-?}"
+echo "ml:       XDG_CACHE=${XDG_CACHE_HOME:-not set}  TORCH=${TORCH_HOME:-not set}  HF=${HF_HOME:-not set}"
 
 section "GPU"
 if command -v nvidia-smi >/dev/null 2>&1; then
@@ -78,9 +80,17 @@ else
 fi
 
 section "Disk"
-echo "/scratch:"
-if [[ -d /scratch ]]; then
-    df -h /scratch 2>/dev/null | tail -1
+_src="${TMP_SRC_DIR:-$(astroai_src_dir 2>/dev/null || echo /srcdir)}"
+_scr="${TMP_SCRATCH_DIR:-$(astroai_scratch_dir 2>/dev/null || echo /scratch)}"
+echo "TMP_SRC_DIR (${_src}):"
+if [[ -d "${_src}" ]]; then
+    df -h "${_src}" 2>/dev/null | tail -1
+else
+    echo "  not available"
+fi
+echo "TMP_SCRATCH_DIR (${_scr}):"
+if [[ -d "${_scr}" ]]; then
+    df -h "${_scr}" 2>/dev/null | tail -1
 else
     echo "  not mounted"
 fi
@@ -90,11 +100,18 @@ echo ""
 echo "Top 10 directories in HOME:"
 du -sh "${HOME}"/*/ 2>/dev/null | sort -rh | head -10 | sed 's/^/  /' || echo "  (none or no access)"
 echo ""
-echo "Scratch usage:"
-if [[ -d /scratch ]]; then
-    du -sh /scratch/*/ 2>/dev/null | sort -rh | head -10 | sed 's/^/  /' || echo "  (empty)"
+echo "Top 10 under TMP_SRC_DIR:"
+if [[ -d "${_src}" ]]; then
+    du -sh "${_src}"/*/ 2>/dev/null | sort -rh | head -10 | sed 's/^/  /' || echo "  (empty)"
 else
-    echo "  /scratch not mounted"
+    echo "  not available"
+fi
+echo ""
+echo "Top 10 under TMP_SCRATCH_DIR:"
+if [[ -d "${_scr}" ]]; then
+    du -sh "${_scr}"/*/ 2>/dev/null | sort -rh | head -10 | sed 's/^/  /' || echo "  (empty)"
+else
+    echo "  not mounted"
 fi
 
 section "Tools"
@@ -124,7 +141,7 @@ if [[ -n "${KIND}" ]]; then
     fi
 else
     echo "  No pixi or uv project detected in ${PWD}"
-    echo "  Hint: cd /scratch && astroai-new myproject"
+    echo "  Hint: cd \"\${TMP_SRC_DIR:-/srcdir}\" && astroai-new myproject"
 fi
 
 if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree &>/dev/null; then
@@ -147,7 +164,7 @@ done
 
 section "Environment" 
 echo "Key environment variables (sanitized):"
-env | sort | grep -vE '^(TOKEN|SECRET|PASSWORD|KEY|CREDENTIAL|AUTH|GITHUB_TOKEN|AWS_SECRET_ACCESS_KEY|WANDB_API_KEY|HUGGING_FACE_TOKEN|HF_TOKEN|CURSOR_|ANTHROPIC_|OPENAI_|GEMINI_|CODECX_|CLAUDE_)' | grep -iE '^(PATH|HOME|USER|SHELL|LANG|XDG_|UV_|PIXI_|PIP_|HF_|TORCH_|NPM_|MPL_|TMPDIR|ASTROAI_|JUPYTER_|TERM|LC_|CUDA_|NVIDIA_)' | sed 's/^/  /'
+env | sort | grep -vE '^(TOKEN|SECRET|PASSWORD|KEY|CREDENTIAL|AUTH|GITHUB_TOKEN|AWS_SECRET_ACCESS_KEY|WANDB_API_KEY|HUGGING_FACE_TOKEN|HF_TOKEN|CURSOR_|ANTHROPIC_|OPENAI_|GEMINI_|CODECX_|CLAUDE_)' | grep -iE '^(PATH|HOME|USER|SHELL|LANG|XDG_|UV_|PIXI_|PIP_|HF_|TORCH_|NPM_|MPL_|TMPDIR|TMP_SRC_DIR|TMP_SCRATCH_DIR|ASTROAI_|JUPYTER_|TERM|LC_|CUDA_|NVIDIA_)' | sed 's/^/  /'
 
 section "Processes"
 echo "Top 10 by CPU:"

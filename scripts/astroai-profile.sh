@@ -1,6 +1,6 @@
 # AstroAI shell defaults: PATH, caches, temps, aliases.
-# Caches live under ~/.cache on /arc (persistent, easy to prune).
-# TMPDIR uses /scratch when mounted (fast, ephemeral).
+# Code/projects: TMP_SRC_DIR (default ASTROAI_DEFAULT_SRC_DIR in image, usually /srcdir).
+# Data/caches/tmp: TMP_SCRATCH_DIR (default /scratch when mounted). Config on /arc.
 #
 # Bash-only (/etc/profile sources profile.d for all login shells, including sh).
 if [ -z "${BASH_VERSION:-}" ]; then
@@ -31,19 +31,34 @@ fi
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-${HOME}/.config}"
 export XDG_DATA_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}"
 
-# Python package managers
-export UV_CACHE_DIR="${UV_CACHE_DIR:-${XDG_CACHE_HOME}/uv}"
+export TMP_SRC_DIR="$(astroai_src_dir)"
+export TMP_SCRATCH_DIR="${TMP_SCRATCH_DIR:-$(astroai_default_scratch_dir)}"
+mkdir -p "${TMP_SRC_DIR}" 2>/dev/null || true
+
+# Python package managers — download caches on scratch dir when mounted, else under TMP_SRC_DIR
+if astroai_scratch_available; then
+    _scratch_cache="$(astroai_scratch_cache_root)"
+    export UV_CACHE_DIR="${UV_CACHE_DIR:-${_scratch_cache}/uv}"
+    export PIP_CACHE_DIR="${PIP_CACHE_DIR:-${_scratch_cache}/pip}"
+    export NPM_CONFIG_CACHE="${NPM_CONFIG_CACHE:-${_scratch_cache}/npm}"
+    # Unconditional — image ENV sets PIXI_CACHE_DIR=/usr/local/share/pixi/cache
+    export PIXI_CACHE_DIR="${_scratch_cache}/pixi"
+else
+    _work_cache="$(astroai_src_dir)/.cache-${USER:-$(id -un)}"
+    export UV_CACHE_DIR="${UV_CACHE_DIR:-${_work_cache}/uv}"
+    export PIP_CACHE_DIR="${PIP_CACHE_DIR:-${_work_cache}/pip}"
+    export NPM_CONFIG_CACHE="${NPM_CONFIG_CACHE:-${_work_cache}/npm}"
+    export PIXI_CACHE_DIR="${_work_cache}/pixi"
+fi
 # Unconditional overrides — image ENV points at /usr/local (root-only); ${VAR:-} would not replace it.
 export UV_PYTHON_INSTALL_DIR="${XDG_DATA_HOME}/uv/python"
 export UV_PYTHON_BIN_DIR="${HOME}/.local/bin"
 export UV_TOOL_DIR="${XDG_DATA_HOME}/uv/tools"
 export UV_TOOL_BIN_DIR="${HOME}/.local/bin"
-export PIP_CACHE_DIR="${PIP_CACHE_DIR:-${XDG_CACHE_HOME}/pip}"
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# pixi per-user — override image-level PIXI_HOME=/usr/local/share/pixi
+# pixi global envs/config on /arc; package cache on /scratch (see PIXI_CACHE_DIR above)
 export PIXI_HOME="${HOME}/.pixi"
-export PIXI_CACHE_DIR="${HOME}/.pixi/cache"
 
 # ML / data caches (keep out of $HOME root — these grow fast)
 export HF_HOME="${HF_HOME:-${XDG_CACHE_HOME}/huggingface}"
@@ -51,20 +66,21 @@ export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-${HF_HOME}}"
 export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 export TORCH_HOME="${TORCH_HOME:-${XDG_CACHE_HOME}/torch}"
 
-# Optional tooling caches
-export NPM_CONFIG_CACHE="${NPM_CONFIG_CACHE:-${XDG_CACHE_HOME}/npm}"
+# ML / UI caches (persistent on /arc; prune when large)
 export MPLCONFIGDIR="${MPLCONFIGDIR:-${XDG_CACHE_HOME}/matplotlib}"
 
 # Lightweight env save manifests (lockfiles); see astroai-env-save / astroai-env-resume
 export ASTROAI_SAVE_DIR="${ASTROAI_SAVE_DIR:-${HOME}/.astroai/saves}"
 
-# Compile/download temps on scratch SSD when available
-if [[ -d /scratch && -w /scratch ]]; then
-    export TMPDIR="${TMPDIR:-/scratch/.tmp-${USER:-$(id -un)}}"
-    mkdir -p "${TMPDIR}" 2>/dev/null || true
+# Compile/download temps — scratch dir when mounted, else under TMP_SRC_DIR
+if astroai_scratch_available; then
+    export TMPDIR="${TMPDIR:-$(astroai_scratch_dir)/.tmp-${USER:-$(id -un)}}"
+else
+    export TMPDIR="${TMPDIR:-$(astroai_src_dir)/.tmp-${USER:-$(id -un)}}"
 fi
+mkdir -p "${TMPDIR}" 2>/dev/null || true
 
-# /scratch (project envs) and ~/.cache (uv/pixi cache on /arc) are different mounts
+# TMP_SRC_DIR for code; TMP_SCRATCH_DIR for data/caches; /arc/home for config
 export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
 
 alias py="python3"
@@ -106,9 +122,9 @@ __astroai_scratch_reminder() {
     # Session summary: scratch disk + git commits (only when reminder fires)
     local _summary="" _part
 
-    if [[ -d /scratch ]]; then
-        _part="$(df -h /scratch 2>/dev/null | awk 'NR>1 {print $3}')"
-        [[ -n "${_part}" ]] && _summary="${_summary}scratch: ${_part}"
+    if [[ -d "$(astroai_scratch_dir)" ]]; then
+        _part="$(df -h "$(astroai_scratch_dir)" 2>/dev/null | awk 'NR>1 {print $3}')"
+        [[ -n "${_part}" ]] && _summary="${_summary}data: ${_part}"
     fi
 
     if git rev-parse --is-inside-work-tree &>/dev/null; then
@@ -120,9 +136,9 @@ __astroai_scratch_reminder() {
     fi
 
     if [[ -n "${_summary}" ]]; then
-        printf '\n  \033[1;33m⏳ %dh %dm on /scratch (%s)\033[0m\n  → git push or astroai-session-archive\n\n' "${_hours}" "${_mins}" "${_summary}"
+        printf '\n  \033[1;33m⏳ %dh %dm (%s)\033[0m\n  → git push or astroai-session-archive (${TMP_SRC_DIR} is ephemeral)\n\n' "${_hours}" "${_mins}" "${_summary}"
     else
-        printf '\n  \033[1;33m⏳ %dh %dm on /scratch — git push or astroai-session-archive\033[0m\n\n' "${_hours}" "${_mins}"
+        printf '\n  \033[1;33m⏳ %dh %dm — git push or astroai-session-archive (${TMP_SRC_DIR} is ephemeral)\033[0m\n\n' "${_hours}" "${_mins}"
     fi
 
     mkdir -p "${HOME}/.astroai"

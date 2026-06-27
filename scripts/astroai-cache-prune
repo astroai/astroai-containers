@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# Prune safe caches under ~/.cache and ~/.pixi (frees CephFS quota).
+# Prune safe caches (uv/pip/npm/pixi on TMP_SCRATCH_DIR; HF/torch under ~/.cache on /arc).
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do

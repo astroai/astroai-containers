@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# Start a new project on /scratch with smart defaults.
+# Start a new project under TMP_SRC_DIR with smart defaults.
 #
 # Usage:
 #   astroai-new [name]            pixi init + git init + offer GH repo
@@ -32,6 +32,7 @@ while [[ $# -gt 0 ]]; do
         --astro)   SUGGEST_ASTRO=1; shift ;;
         -h|--help)
             echo "Usage: astroai-new [name] [flags]"
+            echo "  Creates a project under TMP_SRC_DIR (default /srcdir)."
             echo "  --uv        use uv instead of pixi"
             echo "  --no-git    skip git init"
             echo "  --no-gh     skip GitHub repo creation"
@@ -57,12 +58,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 NAME="${NAME:-project}"
-
-if [[ -d /scratch && -w /scratch ]]; then
-    TARGET="/scratch/${NAME}"
-else
-    TARGET="${HOME}/${NAME}"
-fi
+SRC_DIR="$(astroai_src_dir)"
+TARGET="${SRC_DIR}/${NAME}"
 
 if [[ -d "${TARGET}" ]]; then
     if [[ -f "${TARGET}/pixi.toml" || -f "${TARGET}/pyproject.toml" ]]; then
@@ -154,6 +151,6 @@ else
     astroai_cmd "  uv run python -c 'print(\"hello\")'"
 fi
 echo ""
-astroai_warn "  Remember: /scratch is ephemeral — git push your work."
+astroai_warn "  Remember: ${SRC_DIR} is ephemeral — git push your work."
 astroai_hint "  Close sessions with: astroai-session-archive"
 echo ""

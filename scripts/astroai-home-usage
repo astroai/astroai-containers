@@ -24,8 +24,8 @@ fi
 echo ""
 
 entries=(
-    ".cache:tool caches (uv, pip, HF, torch, …)"
-    ".pixi:pixi global envs and package cache"
+    ".cache:ML/tool caches on /arc (HF, torch, matplotlib, …)"
+    ".pixi:pixi global envs (package cache on /scratch when mounted)"
     ".local:user tools and data"
     ".astroai:env save manifests"
     ".config:application config"
@@ -72,6 +72,7 @@ fi
 
 echo ""
 astroai_heading "Keep \$HOME lean on shared storage:"
-astroai_hint "  - code and active envs on /scratch"
+astroai_hint "  - code and active envs on TMP_SRC_DIR (default /srcdir)"
+astroai_hint "  - uv/pip/pixi/npm download caches on TMP_SCRATCH_DIR (see astroai-status)"
 astroai_hint "  - lockfile saves via astroai-env-save (not full packs unless needed)"
 astroai_cmd "  - prune caches: astroai-cache-prune --help"

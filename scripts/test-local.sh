@@ -26,8 +26,9 @@ SESSION_ID="${SESSION_ID:-test-session-001}"
 FAILURES=0
 
 FAKE_ARC="$(mktemp -d)"
+FAKE_SRC="$(mktemp -d)"
 FAKE_SCRATCH="$(mktemp -d)"
-trap 'rm -rf "${FAKE_ARC}" "${FAKE_SCRATCH}"' EXIT
+trap 'rm -rf "${FAKE_ARC}" "${FAKE_SRC}" "${FAKE_SCRATCH}"' EXIT
 
 mkdir -p "${FAKE_ARC}/testuser"
 FULL_IMAGE="${REGISTRY}/${OWNER}/${IMAGE}:${TAG}"
@@ -39,6 +40,7 @@ run_docker() {
         -e USER=testuser \
         "${EXTRA_ENV[@]}" \
         -v "${FAKE_ARC}/testuser:${FAKE_ARC}/testuser" \
+        -v "${FAKE_SRC}:/srcdir" \
         -v "${FAKE_SCRATCH}:/scratch" \
         "${FULL_IMAGE}" \
         "$@"
@@ -62,14 +64,21 @@ fi
 if [[ "${VERIFY_ONLY}" -eq 1 ]]; then
     echo "Verifying ${FULL_IMAGE} (startup + login-shell PATH)"
     echo "  HOME=${FAKE_ARC}/testuser"
-    echo "  /scratch=${FAKE_SCRATCH}"
+    echo "  TMP_SRC_DIR=${TMP_SRC_DIR:-?}  TMP_SCRATCH_DIR=${TMP_SCRATCH_DIR:-?}"
     echo ""
 
-    # Simulate startup: common-init exports profile then drops the guard before exec.
+    # Simulate startup: session images use common-init; headless images (base, full) use profile only.
     run_docker bash -lc '
-        source /cadc/common-init.sh
-        # Legacy images exported the guard — ensure login children still work.
-        export ASTROAI_PROFILE_LOADED=1
+        if [[ -f /cadc/common-init.sh ]]; then
+            source /cadc/common-init.sh
+            # Legacy images exported the guard — ensure login children still work.
+            export ASTROAI_PROFILE_LOADED=1
+        elif [[ -f /etc/profile.d/astroai.sh ]]; then
+            source /etc/profile.d/astroai.sh
+        else
+            echo "No session init or astroai profile found." >&2
+            exit 1
+        fi
         exec bash -lic "command -v canfar cadcget cadc-tap vcp astroai-help >/dev/null"
     ' || FAILURES=$((FAILURES + 1))
 
@@ -81,7 +90,7 @@ fi
 
 echo "Running ${FULL_IMAGE} on ${ACCESS_URL}"
 echo "  HOME=${FAKE_ARC}/testuser"
-echo "  /scratch=${FAKE_SCRATCH}"
+echo "  /srcdir=${FAKE_SRC}  /scratch=${FAKE_SCRATCH}"
 echo "  session=${SESSION_ID}"
 
 TTY_ARGS=()
@@ -95,6 +104,7 @@ docker run --rm "${TTY_ARGS[@]}" \
     -e USER=testuser \
     "${EXTRA_ENV[@]}" \
     -v "${FAKE_ARC}/testuser:${FAKE_ARC}/testuser" \
+    -v "${FAKE_SRC}:/srcdir" \
     -v "${FAKE_SCRATCH}:/scratch" \
     -p "${PORT}:${CONTAINER_PORT}" \
     "${FULL_IMAGE}" \

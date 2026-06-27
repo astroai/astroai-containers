@@ -1,13 +1,9 @@
 #!/bin/bash -e
-# Copy data between /scratch (fast SSD) and persistent storage (/arc, etc.).
+# Copy data between TMP_SCRATCH_DIR (fast SSD) and persistent storage (/arc, etc.).
 #
 # Called via symlinks:
-#   astroai-data-stage <source> [target]   copy persistent → /scratch
-#   astroai-data-sync  <source> <target>   copy /scratch → persistent
-#
-#   astroai-data-stage /arc/projects/mygroup/data.fits
-#   astroai-data-stage /arc/projects/mygroup/data/  /scratch/data/
-#   astroai-data-sync  /scratch/results/  /arc/projects/mygroup/results/
+#   astroai-data-stage <source> [target]   copy persistent → scratch dir
+#   astroai-data-sync  <source> <target>   copy scratch dir → persistent
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
@@ -18,6 +14,8 @@ for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname 
         break
     fi
 done
+
+SCRATCH="$(astroai_scratch_dir)"
 
 # Determine mode from the command name
 CMD="$(basename "$0")"
@@ -37,10 +35,10 @@ TARGET="${2:-}"
 if [[ -z "${SOURCE}" ]]; then
     if [[ "${MODE}" == "stage" ]]; then
         echo "Usage: astroai-data-stage <source> [target]" >&2
-        echo "  Copies data FROM persistent storage TO /scratch for fast I/O." >&2
+        echo "  Copies data FROM persistent storage TO ${SCRATCH} for fast I/O." >&2
     else
         echo "Usage: astroai-data-sync <source> <target>" >&2
-        echo "  Copies data FROM /scratch back TO persistent storage." >&2
+        echo "  Copies data FROM ${SCRATCH} back TO persistent storage." >&2
     fi
     exit 1
 fi
@@ -65,12 +63,11 @@ astroai_rsync() {
 }
 
 if [[ "${MODE}" == "stage" ]]; then
-    # ── stage: persistent → /scratch ──────────────
     if [[ -z "${TARGET}" ]]; then
-        if [[ -d /scratch && -w /scratch ]]; then
-            TARGET="/scratch/$(basename "${SOURCE}")"
+        if astroai_scratch_available; then
+            TARGET="${SCRATCH}/$(basename "${SOURCE}")"
         else
-            echo "/scratch not writable — specify a target directory." >&2
+            echo "${SCRATCH} not writable — specify a target directory." >&2
             exit 1
         fi
     fi
@@ -93,16 +90,14 @@ if [[ "${MODE}" == "stage" ]]; then
     astroai_ok "✓ staged to ${TARGET}"
 
 elif [[ "${MODE}" == "sync" ]]; then
-    # ── sync: /scratch → persistent ──────────────
     if [[ -z "${TARGET}" ]]; then
         echo "Usage: astroai-data-sync <source> <target>" >&2
         exit 1
     fi
 
-    # Warn if source is not on /scratch
-    if [[ ! "${SOURCE}" =~ ^/scratch(/|$) ]]; then
-        astroai_warn "⚠  Source is not on /scratch: ${SOURCE}"
-        astroai_hint "   This command is for syncing /scratch work back to persistent storage."
+    if [[ "${SOURCE}" != "${SCRATCH}" && "${SOURCE}" != "${SCRATCH}/"* ]]; then
+        astroai_warn "⚠  Source is not under ${SCRATCH}: ${SOURCE}"
+        astroai_hint "   This command is for syncing scratch data back to persistent storage."
         read -r -p "   Continue? [y/N] " CONFIRM || true
         if [[ "${CONFIRM}" != "y" && "${CONFIRM}" != "Y" ]]; then
             astroai_hint "Cancelled."
@@ -110,15 +105,14 @@ elif [[ "${MODE}" == "sync" ]]; then
         fi
     fi
 
-    if [[ -d /scratch ]]; then
-        astroai_warn "⚠  Remember: /scratch is ephemeral — data there will be wiped when the session ends."
+    if astroai_scratch_available; then
+        astroai_warn "⚠  Remember: ${SCRATCH} is ephemeral — data there will be wiped when the session ends."
     fi
 
     astroai_info "Sync: ${SOURCE} → ${TARGET}"
     SRC_SIZE="$(du -sh "${SOURCE}" 2>/dev/null | awk '{print $1}' || echo "?")"
     echo "  size: ${SRC_SIZE}"
 
-    # Show destination free space
     TARGET_DIR="$(dirname "${TARGET}")"
     if [[ -d "${TARGET_DIR}" ]]; then
         echo "  dest free: $(df -h "${TARGET_DIR}" 2>/dev/null | awk 'NR>1{print $4}')"

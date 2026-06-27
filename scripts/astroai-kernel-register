@@ -2,11 +2,11 @@
 # Register a pixi/uv/venv project as a Jupyter kernel (on demand).
 #
 # Kernelspecs persist under ~/.local/share/jupyter/kernels on /arc.
-# Re-run after astroai-env-resume when /scratch was wiped (paths change).
+# Re-run after astroai-env-resume when TMP_SRC_DIR was wiped (paths change).
 #
 # Usage:
-#   astroai-kernel-register                 current directory
-#   astroai-kernel-register /scratch/mylab  project path
+#   astroai-kernel-register                      current directory
+#   astroai-kernel-register "${TMP_SRC_DIR}/mylab"  project path
 #   astroai-kernel-register --name mylab    override kernelspec name
 #   astroai-kernel-register --list          show project-linked kernels
 #   astroai-kernel-register --unregister    remove kernel for this project
@@ -219,7 +219,7 @@ astroai_list_kernels() {
     local search_root meta name kind root at py status
 
     echo "AstroAI-linked Jupyter kernels:"
-    for search_root in /scratch "${HOME}"; do
+    for search_root in "$(astroai_src_dir)" "${HOME}"; do
         [[ -d "${search_root}" ]] || continue
         while IFS= read -r meta; do
             found=1
@@ -312,5 +312,5 @@ else
     astroai_hint "Other sessions: kernel is saved for your next notebook launch."
 fi
 echo ""
-astroai_hint "Re-run after astroai-env-resume when /scratch was wiped."
+astroai_hint "Re-run after astroai-env-resume when TMP_SRC_DIR was wiped."
 astroai_cmd "Remove: astroai-kernel-register --unregister"

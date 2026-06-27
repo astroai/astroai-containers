@@ -8,7 +8,7 @@ Licensed under [BSD-2-Clause](../LICENSE).
 
 | Doc | Who it's for |
 |-----|----------------|
-| [USAGE.md](USAGE.md) | **Session users** — working on CANFAR (`/scratch`, pixi/uv, GPU, AI CLIs) |
+| [USAGE.md](USAGE.md) | **Session users** — working on CANFAR (`TMP_SRC_DIR` / `TMP_SCRATCH_DIR`, pixi/uv, GPU, AI CLIs) |
 | **CONTRIBUTING.md** (this file) | **Developers** — changing this repo |
 | [OPERATORS.md](OPERATORS.md) | **AstroAI maintainers** — build, push, register images on CANFAR |
 | [README.md](../README.md) | Repo overview, build targets, design principles |
@@ -47,7 +47,7 @@ git checkout -b my-change
 | Contributor / dev workflow | `docs/CONTRIBUTING.md` | No (GitHub only) |
 | Portal registration, Harbor | `docs/OPERATORS.md` | No |
 | Shell env, caches, `uv`/`pixi` paths | `scripts/astroai-profile.sh` | Yes — `base` and downstream |
-| Session startup (`/scratch`, welcome) | `scripts/common-init.sh` | Yes — session image |
+| Session startup (`TMP_SRC_DIR`, welcome) | `scripts/common-init.sh` | Yes — session image |
 | User commands (`astroai-*`) | `scripts/astroai-*`, `scripts/lib/*` | Yes — `base` |
 | Session entrypoints | `scripts/startup-*.sh`, `scripts/skaha-startup-*.sh` | Yes — that session image |
 | System packages, `gh`, monitoring CLIs | `dockerfiles/base/Dockerfile` | Yes — `base` + downstream |
@@ -65,7 +65,7 @@ git checkout -b my-change
 make build/webterm          # one image (+ python → base parents)
 make build-all              # full stack
 
-# smoke test as non-root user with fake /arc and /scratch
+# smoke test as non-root user with fake /arc, /srcdir, and /scratch
 ./scripts/test-local.sh webterm 5000
 ./scripts/test-local.sh notebook 8888
 ```

@@ -14,8 +14,11 @@ done
 astroai_title "AstroAI session status"
 astroai_divider
 astroai_kv "user:" "${USER}  home: ${HOME}"
+astroai_kv "work (TMP_SRC_DIR):" "${TMP_SRC_DIR:-not set}"
+astroai_kv "scratch (TMP_SCRATCH_DIR):" "$(astroai_scratch_dir) ($(if astroai_scratch_available; then echo writable; else echo unavailable; fi))"
 astroai_kv "pwd:" "${PWD}"
-astroai_kv "scratch:" "$(if [[ -d /scratch ]]; then echo yes; else echo no; fi)  tmp: ${TMPDIR:-/tmp}"
+astroai_kv "tmp:" "${TMPDIR:-/tmp}"
+astroai_kv "caches:" "uv=${UV_CACHE_DIR:-?} pixi=${PIXI_CACHE_DIR:-?} npm=${NPM_CONFIG_CACHE:-?}"
 
 # Session age (written by common-init.sh at startup)
 if [[ -f "${HOME}/.astroai/session-started" ]]; then
@@ -57,7 +60,7 @@ kind="$(astroai_detect_project 2>/dev/null || true)"
 if [[ -n "${kind}" ]]; then
     astroai_kv "project:" "${kind} ($(basename "${PWD}"))"
 else
-    astroai_hint "project: none (cd /scratch && pixi init)"
+    astroai_hint "project: none (cd $(astroai_src_dir) && pixi init)"
 fi
 
 if command -v uv >/dev/null 2>&1; then
@@ -91,8 +94,11 @@ ps aux --sort=-%cpu 2>/dev/null | head -6 | tail -5 | sed 's/^/  /' || true
 echo ""
 astroai_heading "disk:"
 astroai_quota_line "${HOME}" "home" 2>/dev/null || true
-if [[ -d /scratch ]]; then
-    astroai_quota_line /scratch "scratch" 2>/dev/null || true
+if [[ -d "$(astroai_src_dir)" ]]; then
+    astroai_quota_line "$(astroai_src_dir)" "src" 2>/dev/null || true
+fi
+if [[ -d "$(astroai_scratch_dir)" ]]; then
+    astroai_quota_line "$(astroai_scratch_dir)" "scratch" 2>/dev/null || true
 fi
 
 echo ""

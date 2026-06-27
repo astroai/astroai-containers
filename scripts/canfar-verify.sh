@@ -61,6 +61,18 @@ if [[ "${QUICK}" -eq 0 ]]; then
         check "node --version" login_shell 'node --version >/dev/null 2>&1'
         check "npm --version" login_shell 'npm --version >/dev/null 2>&1'
     fi
+    if login_shell '[[ -n "${TMP_SRC_DIR:-}" && -d "${TMP_SRC_DIR}" && -w "${TMP_SRC_DIR}" ]]'; then
+        check "TMP_SRC_DIR writable" login_shell 'test -w "${TMP_SRC_DIR}"'
+    fi
+    if login_shell '[[ -d "${TMP_SCRATCH_DIR}" && -w "${TMP_SCRATCH_DIR}" ]]'; then
+        for var in UV_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR; do
+            check "${var} under TMP_SCRATCH_DIR" login_shell "[[ \"\${${var}}\" == \"\${TMP_SCRATCH_DIR}\"/* ]]"
+        done
+    elif login_shell '[[ -n "${TMP_SRC_DIR:-}" ]]'; then
+        for var in UV_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR; do
+            check "${var} under TMP_SRC_DIR" login_shell "[[ \"\${${var}}\" == \"\${TMP_SRC_DIR}\"/* ]]"
+        done
+    fi
 fi
 
 echo ""

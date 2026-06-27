@@ -47,6 +47,66 @@ astroai_timestamp() {
     date -u +%Y%m%dT%H%M%SZ
 }
 
+# Runtime paths — set TMP_SRC_DIR / TMP_SCRATCH_DIR to override; defaults from image ENV only.
+astroai_default_src_dir() {
+    echo "${ASTROAI_DEFAULT_SRC_DIR:-/srcdir}"
+}
+
+astroai_default_scratch_dir() {
+    echo "${ASTROAI_DEFAULT_SCRATCH_DIR:-/scratch}"
+}
+
+astroai_scratch_dir() {
+    echo "${TMP_SCRATCH_DIR:-$(astroai_default_scratch_dir)}"
+}
+
+astroai_scratch_available() {
+    local _scratch
+    _scratch="$(astroai_scratch_dir)"
+    [[ -d "${_scratch}" && -w "${_scratch}" ]]
+}
+
+# Code/env root: TMP_SRC_DIR when set, else default src dir if writable, else scratch, else HOME.
+astroai_src_dir() {
+    if [[ -n "${TMP_SRC_DIR:-}" ]]; then
+        echo "${TMP_SRC_DIR}"
+        return
+    fi
+    # Legacy alias (deprecated)
+    if [[ -n "${ASTROAI_WORK_ROOT:-}" ]]; then
+        echo "${ASTROAI_WORK_ROOT}"
+        return
+    fi
+    local _default_src
+    _default_src="$(astroai_default_src_dir)"
+    if [[ -d "${_default_src}" && -w "${_default_src}" ]]; then
+        echo "${_default_src}"
+    elif astroai_scratch_available; then
+        echo "$(astroai_scratch_dir)"
+    else
+        echo "${HOME}"
+    fi
+}
+
+# Fast SSD workspace snapshots for offline batch (never run software from /arc).
+astroai_workspace_root() {
+    echo "$(astroai_src_dir)/.astroai/workspaces"
+}
+
+astroai_scratch_cache_root() {
+    local _user="${USER:-$(id -un)}"
+    if astroai_scratch_available; then
+        echo "$(astroai_scratch_dir)/.cache-${_user}"
+    else
+        echo "$(astroai_src_dir)/.cache-${_user}"
+    fi
+}
+
+astroai_workspace_bundle_dir() {
+    local name="$1"
+    echo "$(astroai_workspace_root)/${name}"
+}
+
 # Echo integer 0-100 used percentage for path, or empty if unknown.
 astroai_quota_used_pct() {
     local path="${1:-}"

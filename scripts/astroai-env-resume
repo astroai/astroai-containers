@@ -1,10 +1,10 @@
 #!/bin/bash -e
 set -o pipefail
-# Restore a saved pixi or uv environment onto /scratch (fast SSD).
+# Restore a saved pixi or uv environment onto TMP_SRC_DIR.
 #
 # Usage:
 #   astroai-env-resume <name>
-#   astroai-env-resume <name> /scratch/myproject
+#   astroai-env-resume <name> <target-dir>
 #   astroai-env-resume <name> --from /arc/projects/group/env-saves/mylab
 
 for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
@@ -60,12 +60,7 @@ SAVE_DIR="${FROM_OVERRIDE:-$(astroai_save_root)/${NAME}}"
 KIND="$(jq -r .kind "${SAVE_DIR}/manifest.json")"
 FULL="$(jq -r .full "${SAVE_DIR}/manifest.json")"
 if [[ -z "${TARGET}" ]]; then
-    if [[ -d /scratch && -w /scratch ]]; then
-        TARGET="/scratch/${NAME}"
-    else
-        TARGET="${HOME}/${NAME}"
-        astroai_warn "No writable /scratch — restoring to ${TARGET}"
-    fi
+    TARGET="$(astroai_src_dir)/${NAME}"
 fi
 
 mkdir -p "${TARGET}"

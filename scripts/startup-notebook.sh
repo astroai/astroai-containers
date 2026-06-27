@@ -42,7 +42,7 @@ if [[ -n "${SESSION_ID}" ]]; then
     BASE_URL_ARGS=(--ServerApp.base_url="session/notebook/${SESSION_ID}")
 fi
 
-ROOT_DIR="/scratch"
+ROOT_DIR="$(astroai_src_dir)"
 if [[ ! -d "${ROOT_DIR}" ]]; then
     ROOT_DIR="${HOME}"
 fi

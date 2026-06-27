@@ -72,7 +72,7 @@ if git rev-parse --is-inside-work-tree &>/dev/null; then
     fi
 else
     [[ "${FORCE}" -eq 0 ]] && astroai_hint "Not in a git repo — skipping push."
-    [[ "${FORCE}" -eq 0 ]] && astroai_cmd "  Hint: cd /scratch/myproject && gh repo create myproject --private --source=. --push"
+    [[ "${FORCE}" -eq 0 ]] && astroai_cmd "  Hint: cd \"\${TMP_SRC_DIR}/myproject\" && gh repo create myproject --private --source=. --push"
 fi
 
 if [[ "${FORCE}" -eq 0 ]]; then
@@ -111,17 +111,18 @@ if [[ "${FORCE}" -eq 0 ]]; then
     fi
 fi
 
-if [[ -d /scratch ]]; then
+_ephemeral="${TMP_SRC_DIR:-$(astroai_src_dir 2>/dev/null || echo /srcdir)}"
+if [[ -d "${_ephemeral}" || -n "${TMP_SRC_DIR:-}" ]]; then
     if [[ "${FORCE}" -eq 0 ]]; then
         echo ""
     fi
     if [[ "${PUSHED}" -eq 1 && "${SAVED}" -eq 1 ]]; then
         :  # all good, silent in force mode
     elif [[ "${PUSHED}" -eq 1 ]]; then
-        [[ "${FORCE}" -eq 0 ]] && astroai_warn "⚠  /scratch is ephemeral — environment not saved."
+        [[ "${FORCE}" -eq 0 ]] && astroai_warn "⚠  ${_ephemeral} is ephemeral — environment not saved."
     elif [[ "${SAVED}" -eq 1 ]]; then
-        [[ "${FORCE}" -eq 0 ]] && astroai_warn "⚠  /scratch is ephemeral — code not pushed."
+        [[ "${FORCE}" -eq 0 ]] && astroai_warn "⚠  ${_ephemeral} is ephemeral — code not pushed."
     else
-        [[ "${FORCE}" -eq 0 ]] && astroai_err "⚠  /scratch is ephemeral — nothing archived! Push and save before closing."
+        [[ "${FORCE}" -eq 0 ]] && astroai_err "⚠  ${_ephemeral} is ephemeral — nothing archived! Push and save before closing."
     fi
 fi

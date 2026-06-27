@@ -85,7 +85,7 @@ scripts/
 
 - **Same images for CPU and GPU** — pick the node in the portal; CUDA libs via pixi/uv in the project.
 - **Minimal bake stack** — `python` → `base` → four session images; heavy software via pixi or [CVMFS on CANFAR nodes](https://opencadc.github.io/canfar/platform/cvmfs/) ([source](https://github.com/opencadc/canfar/blob/main/docs/platform/cvmfs.md)).
-- **Quick feedback loops** — `/scratch` for active work, `astroai-new` / `astroai-env-resume`, caches on `/arc`.
+- **Quick feedback loops** — **`TMP_SRC_DIR`** (`/srcdir`) for code, **`TMP_SCRATCH_DIR`** (`/scratch`) for data/caches, `astroai-new` / `astroai-env-resume`, ML caches on `/arc`.
 - **Skaha session types** — Contributed (5000) for webterm/vscode/marimo; Notebook (8888) for notebook.
 - **Authentication** — Jupyter, VS Code, Marimo, and ttyd run without built-in auth. CANFAR Skaha terminates TLS and enforces portal login. Do not expose these images on the public internet without an authenticating reverse proxy.
 

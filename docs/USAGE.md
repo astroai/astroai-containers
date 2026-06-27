@@ -14,8 +14,8 @@ How to work in AstroAI sessions on the [CANFAR Science Platform](https://www.can
 ```bash
 astroai-status                    # gpu, disk, project, git — sanity check
 gh auth login                     # one-time GitHub setup (token or browser)
-astroai-new mylab                 # pixi project on /scratch (or: gh repo clone …)
-cd /scratch/mylab
+astroai-new mylab                 # pixi project under TMP_SRC_DIR (default /srcdir)
+cd mylab                          # common-init already cd'd to TMP_SRC_DIR
 pixi add numpy astropy
 pixi run python -c "import astropy; print(astropy.__version__)"
 git init && git add -A && git commit -m "start"
@@ -27,14 +27,14 @@ Next session:
 
 ```bash
 astroai-env-resume mylab
-cd /scratch/mylab
+cd "${TMP_SRC_DIR}/mylab"         # or: cd mylab after login (cwd is TMP_SRC_DIR)
 pixi run python analysis.py
-git push                          # before closing — /scratch is wiped
+git push                          # before closing — TMP_SRC_DIR is ephemeral
 ```
 
 **Commands on every session:** `astroai-help` · `astroai-status` · `less /opt/astroai/USAGE.md`
 
-**On this page:** [Session types](#session-types) · [Storage](#storage) · [Team workspaces](#team-workspaces) · [CADC clients](#cadc--canfar-clients) · [CVMFS](#alliance-software-cvmfs) · [Workflows](#typical-workflow) · [Commands](#command-reference) · [AI agents](#ai-coding-tools) · [Session notes](#session-specific-notes) · [Troubleshooting](#troubleshooting)
+**On this page:** [Session types](#session-types) · [Storage](#storage) · [Team workspaces](#team-workspaces) · [CADC clients](#cadc--canfar-clients) · [CVMFS](#alliance-software-cvmfs) · [Workflows](#typical-workflow) · [Commands](#command-reference) · [Caches](#caches-and-temp-files) · [AI agents](#ai-coding-tools) · [Session notes](#session-specific-notes) · [Troubleshooting](#troubleshooting)
 
 ## Session types
 
@@ -52,20 +52,35 @@ Launch the image you need from the Science Portal. **CPU and GPU use the same im
 
 ## Storage
 
-| Path | Purpose | Lifetime |
-|------|---------|----------|
-| `/scratch` | Active repos, pixi projects, checkpoints | **Ephemeral** SSD (~4 days after session ends) |
-| `/arc/home/$USER` | Dotfiles, caches, AI tools in `~/.local` | Persistent |
+CANFAR sessions mount **two ephemeral directories** on the container disk (Kubernetes `emptyDir`, wiped when the session ends). AstroAI keeps **code** and **data/caches** separate:
+
+| Variable / path | Purpose | Lifetime |
+|-----------------|---------|----------|
+| **`TMP_SRC_DIR`** (default **`/srcdir`**) | Git repos, pixi/uv projects, `.astroai/workspaces` bundles | **Ephemeral** |
+| **`TMP_SCRATCH_DIR`** (default **`/scratch`**) | Staged datasets, training outputs, uv/pip/npm/pixi download caches, `TMPDIR` | **Ephemeral** |
+| `/arc/home/$USER` | SSH keys, dotfiles, env save manifests, AI tools in `~/.local`, HF/torch caches | Persistent |
 | `/arc/projects/<group>/` | Shared group data (ACL-controlled) | Persistent |
 | `/cvmfs/` | DRAC / Alliance software (read-only) | Persistent on nodes; lazy-mounted |
 
-On startup you land in **`/scratch`** (flat mount, not `/scratch/$USER`). Create a project folder there:
+On Contributed session startup, `common-init` **`cd`s to `TMP_SRC_DIR`**. Run `astroai-status` to see resolved paths (`work:` and `scratch:`).
+
+**Override at launch** (Skaha `extraEnv`, headless `canfar create --env`, or `docker run -e`):
 
 ```bash
-mkdir -p myproject && cd myproject
+TMP_SRC_DIR=/custom/code
+TMP_SCRATCH_DIR=/custom/scratch
 ```
 
-**Back up work with git.** `/scratch` is wiped when the session ends.
+Legacy alias: `ASTROAI_WORK_ROOT` still selects the code root when `TMP_SRC_DIR` is unset.
+
+Create projects in the code root:
+
+```bash
+astroai-new myproject && cd myproject
+# equivalent: mkdir -p "${TMP_SRC_DIR}/myproject" && cd "${TMP_SRC_DIR}/myproject"
+```
+
+**Back up code with git before closing.** Both `/srcdir` and `/scratch` are wiped when the session ends.
 
 ## Team workspaces
 
@@ -85,30 +100,30 @@ astroai-project-init mygroup --members carol   # add another member
 
 ### Move data between tiers
 
-**Stage data from persistent storage to `/scratch` for fast I/O:**
+**Stage data from persistent storage to `TMP_SCRATCH_DIR` for fast I/O** (default `/scratch`):
 
 ```bash
 astroai-data-stage /arc/projects/mygroup/data/catalog.fits
-# copies catalog.fits → /scratch/catalog.fits
+# copies catalog.fits → ${TMP_SCRATCH_DIR}/catalog.fits
 
-astroai-data-stage /arc/projects/mygroup/survey/  /scratch/survey/
-# copies survey/ contents → /scratch/survey/
+astroai-data-stage /arc/projects/mygroup/survey/  "${TMP_SCRATCH_DIR}/survey/"
+# copies survey/ contents → ${TMP_SCRATCH_DIR}/survey/
 ```
 
-**Sync results from `/scratch` back to persistent storage:**
+**Sync results from scratch back to persistent storage:**
 
 ```bash
-astroai-data-sync /scratch/results/  /arc/projects/mygroup/results/
+astroai-data-sync "${TMP_SCRATCH_DIR}/results/"  /arc/projects/mygroup/results/
 ```
 
-Both use `rsync -avh --progress` with source size display. `astroai-data-stage` asks before overwriting an existing target. `astroai-data-sync` warns if the source is not on `/scratch`.
+Both use `rsync -avh --progress` with source size display. `astroai-data-stage` asks before overwriting an existing target. `astroai-data-sync` warns if the source is not under `TMP_SCRATCH_DIR`.
 
 ### Team environment saves
 
 Share environment manifests so the whole team can reproduce the same stack:
 
 ```bash
-cd /scratch/myproject
+cd "${TMP_SRC_DIR}/myproject"
 astroai-env-save myproject --to /arc/projects/mygroup/env-saves/myproject
 ```
 
@@ -132,12 +147,12 @@ astroai-env-resume myproject --from /arc/projects/mygroup/env-saves/myproject
 astroai-env-resume myproject --from /arc/projects/mygroup/env-saves/myproject
 astroai-data-stage /arc/projects/mygroup/data/catalog.fits
 
-# Work on /scratch
-cd /scratch/myproject
+# Work under TMP_SRC_DIR; stage data on TMP_SCRATCH_DIR
+cd "${TMP_SRC_DIR}/myproject"
 pixi run python analysis.py
 
-# Share results
-astroai-data-sync /scratch/results/  /arc/projects/mygroup/results/
+# Share results (from scratch)
+astroai-data-sync "${TMP_SCRATCH_DIR}/results/"  /arc/projects/mygroup/results/
 
 # Close
 astroai-session-archive
@@ -170,7 +185,7 @@ vls vos:/
 canfar sessions list
 ```
 
-For **project Python code** (`import cadcdata`, etc.), add packages to your pixi/uv project on `/scratch` so versions match your analysis stack:
+For **project Python code** (`import cadcdata`, etc.), add packages to your pixi/uv project under **`TMP_SRC_DIR`** so versions match your analysis stack:
 
 ```bash
 pixi add cadcdata cadctap vos canfar
@@ -200,7 +215,7 @@ module load cfitsio
 
 | Approach | Good for |
 |----------|----------|
-| **pixi / uv** on `/scratch` | Project-pinned Python stacks, GPU PyTorch, fast iteration, git-tracked deps |
+| **pixi / uv** under **`TMP_SRC_DIR`** | Project-pinned Python stacks, GPU PyTorch, fast iteration, git-tracked deps |
 | **CVMFS `module load`** | Alliance-built compilers, libraries, and apps already in the national stack |
 | **Image (`apt` / system `uv`)** | Session baseline — JupyterLab, marimo, CADC clients, shell tooling |
 
@@ -219,7 +234,7 @@ Clones and installs deps in one step — detects pixi or uv automatically:
 ```bash
 gh auth login
 astroai-clone you/project
-cd /scratch/project
+cd "${TMP_SRC_DIR}/project"       # or cd project if already in TMP_SRC_DIR
 pixi run python analysis.py
 ```
 
@@ -241,7 +256,7 @@ pixi install
 # 3. Develop and run
 pixi run python analysis.py
 
-# 4. Review and share (before closing — /scratch is wiped)
+# 4. Review and share (before closing — TMP_SRC_DIR is ephemeral)
 git add -A && git commit -m "session work"
 git push                          # existing branch
 # or open a PR in one step:
@@ -258,9 +273,9 @@ astroai-session-archive --name my-experiment  # custom save name
 astroai-session-archive --force   # non-interactive (used by the exit hook)
 ```
 
-It prints a summary of what was archived and a contextual `/scratch` wipe reminder.
+It prints a summary of what was archived and a reminder that **`TMP_SRC_DIR` is ephemeral**.
 
-**Periodic reminder:** interactive login shells print a yellow `/scratch` nudge about every **2 hours** (session age from `~/.astroai/session-started`), including scratch usage and commit count when available.
+**Periodic reminder:** interactive login shells print a yellow nudge about every **2 hours** (session age from `~/.astroai/session-started`), reminding you to `git push` or run `astroai-session-archive` before **`TMP_SRC_DIR`** is wiped.
 
 **Exit hook (Contributed sessions with a login shell):** when you leave an interactive shell inside a git repo, AstroAI runs `astroai-session-archive --force` once per session (marker: `~/.astroai/auto-archived`). That attempts a silent `git push` and env save — still commit first if you want a clean history; the hook warns about uncommitted changes but does not commit for you.
 
@@ -287,7 +302,7 @@ gh run list --limit 5             # recent CI runs
 3. Add GPU deps in your project — the image does **not** ship CUDA libraries:
 
 ```bash
-cd /scratch/myproject
+cd "${TMP_SRC_DIR}/myproject"
 pixi add torch cuda-version=12
 pixi run python train.py
 ```
@@ -300,21 +315,23 @@ Pixi (or uv/pip) downloads CUDA user libraries into the project environment. No 
 |---------|---------|
 | `astroai-help` | Full command list (compact; this doc is the long form) |
 | `astroai-status` | Session snapshot: user, gpu, git, disk, session age |
-| `astroai-new [name]` | `pixi init` new project in `/scratch` (`--uv`, `--no-git`, `--no-gh`, `--astro`) |
+| `astroai-new [name]` | `pixi init` new project under **`TMP_SRC_DIR`** (`--uv`, `--no-git`, `--no-gh`, `--astro`) |
 | `astroai-env-save [name]` | Save lockfiles + manifest (~KB) |
 | `astroai-env-save name --full` | Also pack `.pixi` or `.venv` with zstd (large) |
 | `astroai-env-save name --to /arc/projects/group/env-saves/name` | Team-shared save |
-| `astroai-env-resume <name>` | Restore to `/scratch/<name>` and rebuild env |
+| `astroai-env-resume <name>` | Restore to **`TMP_SRC_DIR/<name>`** and rebuild env |
 | `astroai-env-resume <name> [path]` | Restore to a custom target directory |
 | `astroai-env-resume <name> --from <path>` | Restore from custom save path |
 | `astroai-env-list` | List personal saves under `~/.astroai/saves` (`--team`, `--all`) |
+| `astroai-workspace-save [name]` | Freeze full project tree for offline batch (`--with-cache`, `--to`) |
+| `astroai-workspace-restore <name>` | Restore frozen workspace — no network (`--from`, `--to`) |
 | `astroai-kernel-register` | Register pixi/uv/venv project as a Jupyter kernel (notebook sessions) |
 | `astroai-home-usage` | Disk breakdown under `$HOME` on `/arc` |
 | `astroai-cache-prune --all-safe` | Clear pip/uv/npm/pixi caches (`--pip`, `--uv`, `--npm`, `--pixi`, `--hf`) |
-| `astroai-clone <owner/repo> [dir]` | Clone repo to `/scratch` (or custom dir) and install deps |
+| `astroai-clone <owner/repo> [dir]` | Clone repo under **`TMP_SRC_DIR`** (or custom dir) and install deps |
 | `astroai-install <tool>` | Install AI coding tools to `~/.local/bin` (`--list`) |
-| `astroai-data-stage <src> [dst]` | Copy data from persistent storage to `/scratch` |
-| `astroai-data-sync <src> <dst>` | Copy `/scratch` results back to persistent storage |
+| `astroai-data-stage <src> [dst]` | Copy data from persistent storage to **`TMP_SCRATCH_DIR`** |
+| `astroai-data-sync <src> <dst>` | Copy **`TMP_SCRATCH_DIR`** results back to persistent storage |
 | `astroai-project-init <name>` | Create team workspace under `/arc/projects` (`--members`) |
 | `astroai-session-archive [--name <name>]` | Git push + env save + summary before closing (`--force`) |
 | `astroai-debug` | Full diagnostic report (`--stdout`, `--file <path>`) |
@@ -350,20 +367,25 @@ pixi add cfitsio                               # instead of libcfitsio-dev
 
 ## Caches and temp files
 
-Sessions set cache locations in `/etc/profile.d/astroai.sh`:
+Sessions set cache locations in `/etc/profile.d/astroai.sh`. When **`TMP_SCRATCH_DIR`** is writable (default `/scratch` on CANFAR), **package download caches** go there — not under `$HOME`:
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `XDG_CACHE_HOME` | `~/.cache` | Umbrella for tool caches on `/arc` |
-| `UV_CACHE_DIR` | `~/.cache/uv` | uv package cache |
+| Variable | Default (scratch mounted) | Purpose |
+|----------|---------------------------|---------|
+| `TMP_SRC_DIR` | `/srcdir` | Code root (see [Storage](#storage)) |
+| `TMP_SCRATCH_DIR` | `/scratch` | Data staging + download caches |
+| `UV_CACHE_DIR` | `${TMP_SCRATCH_DIR}/.cache-$USER/uv` | uv package cache |
+| `PIP_CACHE_DIR` | `${TMP_SCRATCH_DIR}/.cache-$USER/pip` | pip wheel cache |
+| `NPM_CONFIG_CACHE` | `${TMP_SCRATCH_DIR}/.cache-$USER/npm` | npm download cache |
+| `PIXI_CACHE_DIR` | `${TMP_SCRATCH_DIR}/.cache-$USER/pixi` | pixi package cache |
+| `PIXI_HOME` | `~/.pixi` | pixi global config on `/arc` |
+| `TMPDIR` | `${TMP_SCRATCH_DIR}/.tmp-$USER` | Compile/temp files on SSD |
 | `UV_PYTHON_INSTALL_DIR` | `~/.local/share/uv/python` | uv-managed Python installs (overrides image `/usr/local`) |
 | `UV_TOOL_DIR` | `~/.local/share/uv/tools` | uv tool environments |
-| `PIP_CACHE_DIR` | `~/.cache/pip` | pip wheel cache |
-| `PIXI_HOME` / `PIXI_CACHE_DIR` | `~/.pixi` | pixi environments and package cache |
-| `NPM_CONFIG_CACHE` | `~/.cache/npm` | npm download cache |
+| `XDG_CACHE_HOME` | `~/.cache` | ML/tool caches on `/arc` |
 | `HF_HOME` | `~/.cache/huggingface` | Hugging Face models |
 | `TORCH_HOME` | `~/.cache/torch` | PyTorch hub checkpoints |
-| `TMPDIR` | `/scratch/.tmp-$USER` | Compile/temp files on SSD |
+
+If scratch is not mounted, uv/pip/npm/pixi caches fall back under **`TMP_SRC_DIR/.cache-$USER/`**.
 
 **Prune stale caches** when `/arc` quota is tight:
 
@@ -372,16 +394,30 @@ astroai-home-usage
 astroai-cache-prune --all-safe
 ```
 
-Keep **code and git repos on `/scratch`**; keep **caches under `~/.cache` and `~/.pixi`** on `/arc`.
+Keep **code and git repos on `TMP_SRC_DIR`**; stage **datasets and large outputs on `TMP_SCRATCH_DIR`**; keep **config, manifests, and ML model caches on `/arc`**.
+
+### Offline batch (workspace freeze)
+
+For headless jobs with no network, freeze a full tree (code + `.pixi`/`.venv`, optional caches):
+
+```bash
+cd "${TMP_SRC_DIR}/mylab"
+astroai-workspace-save mylab --with-cache
+# next session or batch job:
+astroai-workspace-restore mylab
+cd "${TMP_SRC_DIR}/mylab" && pixi run python job.py
+```
+
+Bundles live under **`TMP_SRC_DIR/.astroai/workspaces/`** (ephemeral unless you copy them to `/arc` first).
 
 ## Save and resume environments
 
-`/arc/home` is **shared CephFS** — keep it small. Active work belongs on `/scratch`; home should hold SSH keys, config, small save **manifests**, and prunable caches.
+`/arc/home` is **shared CephFS** — keep it small. Active projects belong on **`TMP_SRC_DIR`**; home should hold SSH keys, config, small save **manifests**, and prunable ML caches.
 
 ### Lightweight save (recommended)
 
 ```bash
-cd /scratch/myproject
+cd "${TMP_SRC_DIR}/myproject"
 pixi add numpy torch cuda-version=12
 astroai-env-save myproject
 # -> ~/.astroai/saves/myproject/  (pixi.toml, pixi.lock, manifest.json)
@@ -391,11 +427,11 @@ Next session:
 
 ```bash
 astroai-env-resume myproject
-cd /scratch/myproject
+cd "${TMP_SRC_DIR}/myproject"
 pixi run python train.py
 ```
 
-Pixi reuses `~/.pixi` package cache on `/arc` when resolving the lockfile — fast without storing another full env in home.
+Pixi reuses **`PIXI_CACHE_DIR`** on scratch when resolving the lockfile — fast without storing another full env in home.
 
 ### Full pack (offline / air-gap)
 
@@ -408,9 +444,10 @@ astroai-env-save myproject --full --to /arc/projects/mygroup/env-saves/myproject
 
 | Location | Keep | Avoid |
 |----------|------|-------|
-| `/scratch` | Repos, active `.pixi` env, training outputs | Assuming it persists — `git push` |
+| **`TMP_SRC_DIR`** (`/srcdir`) | Repos, active `.pixi`/`.venv` envs | Assuming it persists — `git push` |
+| **`TMP_SCRATCH_DIR`** (`/scratch`) | Staged datasets, training outputs, download caches | Assuming it persists — `astroai-data-sync` |
 | `~/.astroai/saves/` | Lockfile manifests (small) | `--full` packs unless necessary |
-| `~/.cache/`, `~/.pixi/cache` | OK — prune with `astroai-cache-prune` | Unbounded HF/torch caches |
+| `~/.cache/` (HF, torch, matplotlib) | OK — prune with `astroai-cache-prune` | Unbounded model caches |
 | `~/.local/bin` | AI tools, small user binaries | Large vendored SDKs |
 | `/arc/projects/<group>/` | Shared datasets, team env-saves | Personal scratch copies |
 
@@ -430,7 +467,7 @@ astroai-install --list            # full list + install methods
 
 `astroai-install` picks the vendor-recommended path per tool: **curl** scripts, **gh release download** (Codex), **uv tool install** (Swival), or **npm** (Pi, CodeWhale, Freebuff). Binaries land in `~/.local/bin` on `/arc` (persistent).
 
-**Where to install:** curl/gh/uv installers drop into **`~/.local/bin` on `/arc`**. npm-based agents need Node first — run **`astroai-install node`** (recommended) or add `nodejs` to a pixi project on `/scratch`. Each CLI needs its own account or API key.
+**Where to install:** curl/gh/uv installers drop into **`~/.local/bin` on `/arc`**. npm-based agents need Node first — run **`astroai-install node`** (recommended) or add `nodejs` to a pixi project under **`TMP_SRC_DIR`**. Each CLI needs its own account or API key.
 
 ### Quick reference
 
@@ -468,7 +505,7 @@ Per-tool install steps live in `astroai-install --list` and in the script output
 | Local models + tight context (LM Studio, Ollama) | **Swival** | `astroai-install swival` |
 | npm-only budget agent | **Freebuff** | `astroai-install node` then `astroai-install freebuff` |
 
-You can install several agents to `~/.local/bin`; they share `gh`, `rg`, and `/scratch` repos but use separate auth.
+You can install several agents to `~/.local/bin`; they share `gh`, `rg`, and **`TMP_SRC_DIR`** repos but use separate auth.
 
 ### Swival with local models (LM Studio / Ollama)
 
@@ -488,7 +525,7 @@ swival --provider openrouter --model z-ai/glm-5 "Refactor error handling in src/
 swival --provider generic --base-url http://host:1234/v1 --model my-model "Review this diff"
 
 # Interactive REPL
-cd /scratch/myproject && swival --repl
+cd "${TMP_SRC_DIR}/myproject" && swival --repl
 ```
 
 On CANFAR worker nodes you typically use a **hosted provider** (OpenRouter, Hugging Face, Gemini API) or point `--base-url` at an inference server you control. Swival docs: [swival.dev](https://swival.dev/pages/getting-started.html).
@@ -526,14 +563,14 @@ The image has **no system `node` or `npm`** (use the **`full`** image or `astroa
 - **npm-based AI agents** — Pi (`@earendil-works/pi-coding-agent`), CodeWhale, Freebuff, Codex (`@openai/codex`, optional), OpenCode (optional)
 - **JupyterLab source extensions** from npm (rare — prefer prebuilt `pip` extensions)
 
-**Prefer `astroai-install node`** for a persistent Node.js on `/arc` (pixi global → `~/.local/bin`). Alternatives: launch the **`full`** image, a pixi project on `/scratch`, or CVMFS `module load nodejs`.
+**Prefer `astroai-install node`** for a persistent Node.js on `/arc` (pixi global → `~/.local/bin`). Alternatives: launch the **`full`** image, a pixi project under **`TMP_SRC_DIR`**, or CVMFS `module load nodejs`.
 
-#### Recommended: pixi project on `/scratch`
+#### Recommended: pixi project under TMP_SRC_DIR
 
-Same pattern as Python stacks. Package cache lands under `~/.pixi` on `/arc`:
+Same pattern as Python stacks. Package cache lands under **`PIXI_CACHE_DIR`** on scratch when mounted:
 
 ```bash
-cd /scratch
+cd "${TMP_SRC_DIR}"
 pixi init node-tools
 cd node-tools
 pixi add nodejs=22            # or: pixi add nodejs (latest); Codex needs Node 16+
@@ -569,7 +606,7 @@ pixi run opencode --version
 Run npm globals through pixi each session:
 
 ```bash
-cd /scratch/node-tools
+cd "${TMP_SRC_DIR}/node-tools"
 pixi run codex
 pixi run freebuff
 ```
@@ -577,24 +614,24 @@ pixi run freebuff
 Or add shell aliases in `~/.bashrc` on `/arc`:
 
 ```bash
-alias codex='cd /scratch/node-tools && pixi run codex'
+alias codex='cd "${TMP_SRC_DIR}/node-tools" && pixi run codex'
 ```
 
 #### Persist Node across sessions
 
 ```bash
-cd /scratch/node-tools
+cd "${TMP_SRC_DIR}/node-tools"
 astroai-env-save node-tools     # saves pixi.toml + lockfile to /arc
 # next session:
 astroai-env-resume node-tools
-cd /scratch/node-tools && pixi install
+cd "${TMP_SRC_DIR}/node-tools" && pixi install
 ```
 
-Binaries from `npm install -g` inside the pixi env live under `.pixi/` on `/scratch` — they are rebuilt by `pixi install` after resume. For long-lived personal CLIs, prefer curl → `~/.local/bin` or commit the pixi project to git.
+Binaries from `npm install -g` inside the pixi env live under `.pixi/` on **`TMP_SRC_DIR`** — they are rebuilt by `pixi install` after resume. For long-lived personal CLIs, prefer curl → `~/.local/bin` or commit the pixi project to git.
 
-#### npm cache and `/arc` quota
+#### npm cache
 
-`npm` cache defaults to `~/.cache/npm` on `/arc` (`NPM_CONFIG_CACHE`). Prune with `astroai-cache-prune --all-safe` if it grows.
+`npm` download cache defaults to **`NPM_CONFIG_CACHE`** on **`TMP_SCRATCH_DIR`** when mounted. Prune with `astroai-cache-prune --all-safe` if needed.
 
 #### Alliance CVMFS (optional)
 
@@ -647,11 +684,11 @@ OpenVSCode Server on port **5000**. Integrated terminal uses bash. Extensions pe
 
 JupyterLab on port **8888** (**Notebook** session type in the Science Portal — not Contributed).
 
-**Stock CANFAR (most deployments today):** Skaha runs the platform script `/skaha-system/start-jupyterlab.sh`, not AstroAI’s `/skaha/startup.sh`. Expect the file browser at **`/`** (`serverRoot` `/`, not `/scratch`), no AstroAI welcome banner, Jupyter config under `~/.jupyter` on `/arc`, and harmless `NotebookApp` deprecation warnings in logs (three `LabApp` migration warnings on startup). You can still use pixi/uv on `/scratch` and register kernels manually.
+**Stock CANFAR (most deployments today):** Skaha runs the platform script `/skaha-system/start-jupyterlab.sh`, not AstroAI’s `/skaha/startup.sh`. Expect the file browser at **`/`** (`serverRoot` `/`, not **`TMP_SRC_DIR`**), no AstroAI welcome banner, Jupyter config under `~/.jupyter` on `/arc`, and harmless `NotebookApp` deprecation warnings in logs (three `LabApp` migration warnings on startup). You can still use pixi/uv under **`TMP_SRC_DIR`** and register kernels manually.
 
 *Validated on CANFAR staging (2026-06): session `gq7x9inz` logs show platform launcher + three deprecation warnings; JupyterLab HTML reports `baseUrl` `/session/notebook/<id>/` and `serverRoot` `/`.*
 
-**With platform launch override (recommended):** when CANFAR ops point notebook jobs at `/skaha/startup.sh`, you get `common-init`, cwd `/scratch`, and `base_url` `session/notebook/<session-id>`. See [OPERATORS.md](OPERATORS.md) for the helm change request.
+**With platform launch override (recommended):** when CANFAR ops point notebook jobs at `/skaha/startup.sh`, you get `common-init`, cwd **`TMP_SRC_DIR`**, and `base_url` `session/notebook/<session-id>`. See [OPERATORS.md](OPERATORS.md) for the helm change request.
 
 Browser URL pattern: `https://…/session/notebook/<session-id>/lab/…?token=<session-id>`
 
@@ -661,14 +698,14 @@ The image ships `jupyter lab` via pip — **no Node required** to run Lab. Add e
 pixi add jupyterlab-git    # prebuilt extension, no Node
 ```
 
-Source extensions from npm need Node — add `nodejs` to a pixi project on `/scratch` (see [Node.js and npm](#nodejs-and-npm)).
+Source extensions from npm need Node — add `nodejs` to a pixi project under **`TMP_SRC_DIR`** (see [Node.js and npm](#nodejs-and-npm)).
 
 #### Project kernels (pixi / uv / venv)
 
-JupyterLab does **not** auto-detect environments on `/scratch`. After `pixi install`, `uv sync`, or `astroai-env-resume`, register on demand:
+JupyterLab does **not** auto-detect environments under **`TMP_SRC_DIR`**. After `pixi install`, `uv sync`, or `astroai-env-resume`, register on demand:
 
 ```bash
-cd /scratch/myproject
+cd "${TMP_SRC_DIR}/myproject"
 astroai-kernel-register
 ```
 
@@ -677,20 +714,20 @@ Then pick **Python (myproject · pixi)** in the JupyterLab kernel menu (Launcher
 | Command | Purpose |
 |---------|---------|
 | `astroai-kernel-register` | Register cwd project (adds `ipykernel` if missing) |
-| `astroai-kernel-register /scratch/other` | Register a specific path |
+| `astroai-kernel-register "${TMP_SRC_DIR}/other"` | Register a specific path |
 | `astroai-kernel-register --name mylab` | Override kernelspec name |
 | `astroai-kernel-register --list` | List AstroAI-linked kernels + `jupyter kernelspec list` |
 | `astroai-kernel-register --unregister` | Remove kernel for cwd project |
 
-Kernelspecs persist under `~/.local/share/jupyter/kernels` on `/arc`. The env binaries live on `/scratch` — **re-run `astroai-kernel-register` after each `astroai-env-resume`** (or when imports fail because paths changed).
+Kernelspecs persist under `~/.local/share/jupyter/kernels` on `/arc`. The env binaries live on **`TMP_SRC_DIR`** — **re-run `astroai-kernel-register` after each `astroai-env-resume`** (or when imports fail because paths changed).
 
 `astroai-new` does not register a kernel automatically; run the one-liner when you want that project in the picker.
 
 ### marimo
 
-Reactive notebooks on port **5000**. Create `.py` notebooks in `/scratch` from the marimo UI. Uses `--base-url` when `skaha_sessionid` is set.
+Reactive notebooks on port **5000**. Create `.py` notebooks under **`TMP_SRC_DIR`** from the marimo UI. Uses `--base-url` when `skaha_sessionid` is set.
 
-## Environment variables (platform)
+## Environment variables (platform and AstroAI)
 
 Skaha typically sets:
 
@@ -699,6 +736,18 @@ Skaha typically sets:
 - `skaha_sessionid` — reverse-proxy paths (**Contributed** sessions: webterm, vscode, marimo)
 - `JUPYTER_TOKEN` — session ID on **Notebook** sessions (same value as Skaha session ID)
 - GPU devices — on GPU nodes, via the container runtime
+
+AstroAI profile (`/etc/profile.d/astroai.sh`) sets unless overridden at launch:
+
+| Variable | Image default | Purpose |
+|----------|---------------|---------|
+| `ASTROAI_DEFAULT_SRC_DIR` | `/srcdir` | Default code root when `TMP_SRC_DIR` unset |
+| `ASTROAI_DEFAULT_SCRATCH_DIR` | `/scratch` | Default scratch when `TMP_SCRATCH_DIR` unset |
+| `TMP_SRC_DIR` | resolved at login | Code, git repos, pixi/uv projects |
+| `TMP_SCRATCH_DIR` | `/scratch` | Datasets, download caches, `TMPDIR` parent |
+| `ASTROAI_WORK_ROOT` | — | Legacy alias for code root (deprecated) |
+
+Run `astroai-status` to see resolved values (`work:` / `scratch:` / `caches:`).
 
 ## Diagnostics
 
@@ -714,10 +763,10 @@ The report covers:
 
 | Section | What it shows |
 |---------|---------------|
-| Session | Home, PWD, scratch mount, tmp, shell, uptime |
+| Session | Home, **`TMP_SRC_DIR`**, **`TMP_SCRATCH_DIR`**, tmp, shell, uptime |
 | Profile | ASTROAI_PROFILE_LOADED, PATH, uv/pixi/cache dirs |
 | GPU | nvidia-smi summary and processes (or CPU node notice) |
-| Disk | /scratch and HOME `df`, top directories by size |
+| Disk | **`TMP_SRC_DIR`**, **`TMP_SCRATCH_DIR`**, and HOME `df`, top directories by size |
 | Tools | Version check for git, gh, uv, pixi, jq, rg, fd, bat, and more |
 | Project | Pixi/uv detection, lockfile size, env size |
 | Network | Reachability check for pypi.org, github.com, conda |
@@ -731,12 +780,12 @@ Share the log file: `cat ~/.astroai/debug-<timestamp>.log`
 
 | Problem | Things to try |
 |---------|----------------|
-| Lost work after session | Was it only on `/scratch`? Use `git push` before closing. |
+| Lost work after session | Was code only on **`TMP_SRC_DIR`** without `git push`? Use `git push` or `astroai-session-archive` before closing. |
 | `git clone` SSH fails | Add your key to `~/.ssh` on `/arc`. |
 | GPU not visible | Did you pick a GPU node? Run `nvidia-smi`. |
 | `import torch` no CUDA | GPU node + `cuda-version` / GPU torch via pixi. |
 | AI CLI not found | Run `astroai-install <tool>` or `astroai-install --list`. Curl/gh/uv agents → `~/.local/bin`; npm agents → `astroai-install node` first. |
-| `node` / `npm` not found | Not in the image — `astroai-install node` (persistent on `/arc`) or `pixi add nodejs` on `/scratch` (see [Node.js and npm](#nodejs-and-npm)). |
+| `node` / `npm` not found | Not in the image — `astroai-install node` (persistent on `/arc`) or `pixi add nodejs` under **`TMP_SRC_DIR`** (see [Node.js and npm](#nodejs-and-npm)). |
 | `gh: not authenticated` | Run `gh auth login` once; token persists on `/arc`. Required for `astroai-install codex`. |
 | Wrong npm package | Codex: `@openai/codex` · OpenCode: `opencode-ai` · Pi: `@earendil-works/pi-coding-agent` · Claude Code / Cursor Agent: prefer curl via `astroai-install`. |
 | pip build fails | Add compilers/libs with pixi, not system apt. |
@@ -745,7 +794,7 @@ Share the log file: `cat ~/.astroai/debug-<timestamp>.log`
 | `/arc` quota pressure | `astroai-home-usage`; `astroai-cache-prune --all-safe`. |
 | `ls /cvmfs` looks empty | Normal — CVMFS mounts lazily; `source /cvmfs/soft.computecanada.ca/config/profile/bash.sh` then `module avail`. |
 | Jupyter 404 behind proxy | Notebook sessions use port **8888** and path `/session/notebook/<id>/`. On stock CANFAR, platform launcher must match ingress; full AstroAI startup needs helm override — see [OPERATORS.md](OPERATORS.md). |
-| Jupyter opens in `/` not `/scratch` | Stock platform launcher — `cd /scratch` manually or ask ops for `/skaha/startup.sh` override. |
-| Kernel missing after resume | Re-run `astroai-kernel-register` in the project dir (`/scratch` paths change). |
+| Jupyter opens in `/` not project dir | Stock platform launcher — `cd "${TMP_SRC_DIR}"` manually or ask ops for `/skaha/startup.sh` override. |
+| Kernel missing after resume | Re-run `astroai-kernel-register` in the project dir (**`TMP_SRC_DIR`** paths change between sessions). |
 | Contributed session 404 (webterm/vscode/marimo) | Skaha strips `/session/contrib/<id>` before forwarding; webterm must **not** use ttyd `--base-path`. Update to latest image tag. |
 | tmux shell is nologin | Image sets `default-shell /bin/bash`; use `bash -l` in webterm. |

@@ -22,7 +22,9 @@ OWNER="${OWNER:-astroai}"
 REGISTRY="${REGISTRY:-images.canfar.net}"
 TIMEOUT="${CANFAR_TEST_TIMEOUT:-600}"
 FULL_IMAGE="${REGISTRY}/${OWNER}/${IMAGE}:${TAG}"
-SESSION_NAME="astroai-verify-${IMAGE}-${TAG}-$(date -u +%Y%m%d%H%M%S)"
+# Skaha session names: alphanumeric and hyphen only (TAG like 26.06 is invalid).
+TAG_SAFE="$(printf '%s' "${TAG}" | tr '.:/+' '-' | tr -cd 'a-zA-Z0-9-')"
+SESSION_NAME="astroai-verify-${IMAGE}-${TAG_SAFE}-$(date -u +%Y%m%d%H%M%S)"
 FAILURES=0
 
 maybe_registry_auth() {

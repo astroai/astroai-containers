@@ -3,7 +3,7 @@ set -o pipefail
 # Save a pixi or uv project environment for later resume.
 #
 # Default: lightweight save (lockfiles + manifest only, a few KB on /arc).
-#   Rebuild the env on resume with pixi install / uv sync on /scratch.
+#   Rebuild the env on resume with pixi install / uv sync under TMP_SRC_DIR.
 #
 # Usage:
 #   astroai-env-save [name]
@@ -72,8 +72,8 @@ for f in .python-version README.md; do
     if [[ -f "${f}" ]]; then cp -a "${f}" "${SAVE_DIR}/"; fi
 done
 
-if [[ ! "${PWD}" =~ ^/scratch(/|$) && -d /scratch ]]; then
-    astroai_warn "Note: saving from ${PWD} — prefer /scratch for active projects."
+if [[ ! "${PWD}" =~ ^$(astroai_src_dir)(/|$) && -d "$(astroai_src_dir)" ]]; then
+    astroai_warn "Note: saving from ${PWD} — prefer $(astroai_src_dir) for active projects."
 fi
 
 MANIFEST="${SAVE_DIR}/manifest.json"
@@ -123,4 +123,4 @@ fi
 
 du -sh "${SAVE_DIR}"
 astroai_ok "Saved ${KIND} environment '${NAME}' -> ${SAVE_DIR}"
-astroai_cmd "Resume on /scratch: astroai-env-resume ${NAME}"
+astroai_cmd "Resume: astroai-env-resume ${NAME}"

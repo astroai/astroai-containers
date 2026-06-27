@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# Shared session setup: workspace on /scratch, cache dirs on /arc.
+# Shared session setup: code on TMP_SRC_DIR, data on TMP_SCRATCH_DIR, config on /arc.
 
 if [[ -f /etc/profile.d/astroai.sh ]]; then
     # shellcheck disable=SC1091
@@ -18,9 +18,9 @@ _cache_dirs=(
     "${PIP_CACHE_DIR:-${HOME}/.cache/pip}"
     "${PIXI_HOME:-${HOME}/.pixi}"
     "${PIXI_CACHE_DIR:-${HOME}/.pixi/cache}"
+    "${NPM_CONFIG_CACHE:-${HOME}/.cache/npm}"
     "${HF_HOME:-${HOME}/.cache/huggingface}"
     "${TORCH_HOME:-${HOME}/.cache/torch}"
-    "${NPM_CONFIG_CACHE:-${HOME}/.cache/npm}"
     "${MPLCONFIGDIR:-${HOME}/.cache/matplotlib}"
 )
 
@@ -41,12 +41,13 @@ fi
 
 command -v astroai_quota_startup_check &>/dev/null && astroai_quota_startup_check
 
-if [[ -d /scratch ]]; then
-    git config --global --add safe.directory /scratch 2>/dev/null || true
-    cd /scratch
-else
-    cd "${HOME}"
+if astroai_scratch_available; then
+    git config --global --add safe.directory "$(astroai_scratch_dir)" 2>/dev/null || true
 fi
+_src_root="$(astroai_src_dir)"
+git config --global --add safe.directory "${_src_root}" 2>/dev/null || true
+mkdir -p "${_src_root}"
+cd "${_src_root}"
 
 # Track session start time for astroai-status; reset per-session auto-archive markers
 mkdir -p "${HOME}/.astroai"
@@ -72,8 +73,9 @@ if [[ ! -f "${HOME}/.astroai/welcomed" ]]; then
     astroai-session-archive         save everything before closing
 
   Storage:
-    /scratch        active work (ephemeral — wiped at session end)
-    /arc/home       persistent (caches, saves, config, AI tools)
+    TMP_SRC_DIR     code + env (see astroai-status)
+    TMP_SCRATCH_DIR datasets + caches when mounted
+    /arc/home       persistent config, saves, AI tools in ~/.local
 
   Getting help:
     astroai-help                    full command list
