@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# Prune safe caches (uv/pip/npm/pixi on TMP_SCRATCH_DIR; HF/torch under ~/.cache on /arc).
+# Prune safe caches (uv/pip/npm/pixi/conda on TMP_SCRATCH_DIR; HF/torch under ~/.cache on /arc).
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
@@ -16,6 +16,7 @@ UV=0
 HF=0
 PIXI=0
 NPM=0
+CONDA=0
 ALL=0
 
 usage() {
@@ -25,7 +26,8 @@ usage() {
     astroai_cmd "  --npm       clear NPM_CONFIG_CACHE"
     astroai_cmd "  --hf        remove HF_HOME (re-download models)"
     astroai_cmd "  --pixi      remove PIXI_CACHE_DIR package cache (keeps envs)"
-    astroai_cmd "  --all-safe  --pip --uv --npm --pixi"
+    astroai_cmd "  --conda     remove MAMBA_PKGS_DIRS / CONDA_PKGS_DIRS (keeps envs)"
+    astroai_cmd "  --all-safe  --pip --uv --npm --pixi --conda"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -34,6 +36,7 @@ while [[ $# -gt 0 ]]; do
         --uv) UV=1; shift ;;
         --hf) HF=1; shift ;;
         --pixi) PIXI=1; shift ;;
+        --conda) CONDA=1; shift ;;
         --npm) NPM=1; shift ;;
         --all-safe) ALL=1; shift ;;
         -h|--help) usage; exit 0 ;;
@@ -42,10 +45,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "${ALL}" -eq 1 ]]; then
-    PIP=1; UV=1; NPM=1; PIXI=1
+    PIP=1; UV=1; NPM=1; PIXI=1; CONDA=1
 fi
 
-if [[ "${PIP}" -eq 0 && "${UV}" -eq 0 && "${HF}" -eq 0 && "${PIXI}" -eq 0 && "${NPM}" -eq 0 ]]; then
+if [[ "${PIP}" -eq 0 && "${UV}" -eq 0 && "${HF}" -eq 0 && "${PIXI}" -eq 0 && "${NPM}" -eq 0 && "${CONDA}" -eq 0 ]]; then
     usage
     exit 1
 fi
@@ -68,6 +71,11 @@ fi
 if [[ "${PIXI}" -eq 1 && -d "${PIXI_CACHE_DIR:-}" ]]; then
     astroai_info "Clearing pixi package cache ${PIXI_CACHE_DIR}..."
     rm -rf "${PIXI_CACHE_DIR:?}"/*
+fi
+
+if [[ "${CONDA}" -eq 1 && -d "${MAMBA_PKGS_DIRS:-}" ]]; then
+    astroai_info "Clearing conda/mamba package cache ${MAMBA_PKGS_DIRS}..."
+    rm -rf "${MAMBA_PKGS_DIRS:?}"/*
 fi
 
 if [[ "${NPM}" -eq 1 && -d "${NPM_CONFIG_CACHE:-}" ]]; then

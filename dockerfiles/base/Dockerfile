@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 # AstroAI base: platform CLI + monitoring + compression. No browser UI.
 #
-# Apt packages: only what needs root and is not practical via pixi/uv.
-# Compilers, headers, and ML stacks belong in the user's pixi project.
+# Apt packages: root-only tools not practical via pixi/uv/micromamba.
+# GCC + Rust + autotools, common astronomy headers; heavy ML stacks stay in pixi.
 
 ARG REGISTRY=images.canfar.net
 ARG OWNER=astroai
@@ -18,16 +18,24 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     acl \
+    autoconf \
+    automake \
     bash-completion \
     bat \
     bind9-dnsutils \
+    bison \
     bsdextrautils \
+    build-essential \
     bzip2 \
     ca-certificates \
+    cargo \
+    cmake \
     curl \
     fd-find \
     file \
+    flex \
     fzf \
+    gfortran \
     gh \
     git \
     git-delta \
@@ -36,17 +44,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iproute2 \
     jq \
     less \
+    libcfitsio-dev \
+    libfftw3-dev \
+    libgsl-dev \
+    libtool \
     locales \
     lsof \
     make \
     ncdu \
+    ninja-build \
     nvtop \
     openssh-client \
     patch \
     pigz \
+    pkg-config \
     procps \
     ripgrep \
     rsync \
+    rustc \
     shellcheck \
     tealdeer \
     tree \

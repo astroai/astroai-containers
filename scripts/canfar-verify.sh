@@ -46,7 +46,9 @@ check "login shell: vcp" login_shell 'command -v vcp >/dev/null'
 check "login shell: cadc-get-cert" login_shell 'command -v cadc-get-cert >/dev/null'
 check "login shell: astroai-help" login_shell 'command -v astroai-help >/dev/null'
 
-for tool in gh rg fd bat fzf uv pixi patch make file xxd hexdump lsof ss host ncdu shellcheck ctags; do
+for tool in gh rg fd bat fzf uv pixi micromamba mamba patch make file xxd hexdump lsof ss host ncdu shellcheck ctags \
+    gcc g++ gfortran ld ar rustc cargo \
+    cmake ninja autoconf automake libtoolize flex bison; do
     check "login shell: ${tool}" login_shell "command -v ${tool} >/dev/null"
 done
 
@@ -65,11 +67,11 @@ if [[ "${QUICK}" -eq 0 ]]; then
         check "TMP_SRC_DIR writable" login_shell 'test -w "${TMP_SRC_DIR}"'
     fi
     if login_shell '[[ -d "${TMP_SCRATCH_DIR}" && -w "${TMP_SCRATCH_DIR}" ]]'; then
-        for var in UV_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR; do
+        for var in UV_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR MAMBA_PKGS_DIRS CONDA_PKGS_DIRS; do
             check "${var} under TMP_SCRATCH_DIR" login_shell "[[ \"\${${var}}\" == \"\${TMP_SCRATCH_DIR}\"/* ]]"
         done
     elif login_shell '[[ -n "${TMP_SRC_DIR:-}" ]]'; then
-        for var in UV_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR; do
+        for var in UV_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR MAMBA_PKGS_DIRS CONDA_PKGS_DIRS; do
             check "${var} under TMP_SRC_DIR" login_shell "[[ \"\${${var}}\" == \"\${TMP_SRC_DIR}\"/* ]]"
         done
     fi

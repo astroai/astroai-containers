@@ -18,6 +18,8 @@ _cache_dirs=(
     "${PIP_CACHE_DIR:-${HOME}/.cache/pip}"
     "${PIXI_HOME:-${HOME}/.pixi}"
     "${PIXI_CACHE_DIR:-${HOME}/.pixi/cache}"
+    "${MAMBA_ROOT_PREFIX:-${HOME}/.local/share/micromamba}"
+    "${MAMBA_PKGS_DIRS:-${HOME}/.cache/conda/pkgs}"
     "${NPM_CONFIG_CACHE:-${HOME}/.cache/npm}"
     "${HF_HOME:-${HOME}/.cache/huggingface}"
     "${TORCH_HOME:-${HOME}/.cache/torch}"

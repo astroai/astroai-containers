@@ -66,7 +66,8 @@ fi
 echo "PATH:     $(echo "${PATH}" | tr ':' '\n' | head -5 | sed 's/^/  /')"
 echo "uv dir:   ${UV_PYTHON_INSTALL_DIR:-not set}"
 echo "pixi:     ${PIXI_HOME:-not set}"
-echo "caches:   UV=${UV_CACHE_DIR:-?}  PIP=${PIP_CACHE_DIR:-?}  NPM=${NPM_CONFIG_CACHE:-?}  PIXI=${PIXI_CACHE_DIR:-?}"
+echo "mamba:    ${MAMBA_ROOT_PREFIX:-not set}"
+echo "caches:   UV=${UV_CACHE_DIR:-?}  PIP=${PIP_CACHE_DIR:-?}  NPM=${NPM_CONFIG_CACHE:-?}  PIXI=${PIXI_CACHE_DIR:-?}  CONDA=${MAMBA_PKGS_DIRS:-?}"
 echo "ml:       XDG_CACHE=${XDG_CACHE_HOME:-not set}  TORCH=${TORCH_HOME:-not set}  HF=${HF_HOME:-not set}"
 
 section "GPU"
@@ -164,7 +165,7 @@ done
 
 section "Environment" 
 echo "Key environment variables (sanitized):"
-env | sort | grep -vE '^(TOKEN|SECRET|PASSWORD|KEY|CREDENTIAL|AUTH|GITHUB_TOKEN|AWS_SECRET_ACCESS_KEY|WANDB_API_KEY|HUGGING_FACE_TOKEN|HF_TOKEN|CURSOR_|ANTHROPIC_|OPENAI_|GEMINI_|CODECX_|CLAUDE_)' | grep -iE '^(PATH|HOME|USER|SHELL|LANG|XDG_|UV_|PIXI_|PIP_|HF_|TORCH_|NPM_|MPL_|TMPDIR|TMP_SRC_DIR|TMP_SCRATCH_DIR|ASTROAI_|JUPYTER_|TERM|LC_|CUDA_|NVIDIA_)' | sed 's/^/  /'
+env | sort | grep -vE '^(TOKEN|SECRET|PASSWORD|KEY|CREDENTIAL|AUTH|GITHUB_TOKEN|AWS_SECRET_ACCESS_KEY|WANDB_API_KEY|HUGGING_FACE_TOKEN|HF_TOKEN|CURSOR_|ANTHROPIC_|OPENAI_|GEMINI_|CODECX_|CLAUDE_)' | grep -iE '^(PATH|HOME|USER|SHELL|LANG|XDG_|UV_|PIXI_|PIP_|HF_|TORCH_|NPM_|MPL_|MAMBA_|CONDA_|TMPDIR|TMP_SRC_DIR|TMP_SCRATCH_DIR|ASTROAI_|JUPYTER_|TERM|LC_|CUDA_|NVIDIA_)' | sed 's/^/  /'
 
 section "Processes"
 echo "Top 10 by CPU:"

@@ -18,7 +18,7 @@ astroai_kv "work (TMP_SRC_DIR):" "${TMP_SRC_DIR:-not set}"
 astroai_kv "scratch (TMP_SCRATCH_DIR):" "$(astroai_scratch_dir) ($(if astroai_scratch_available; then echo writable; else echo unavailable; fi))"
 astroai_kv "pwd:" "${PWD}"
 astroai_kv "tmp:" "${TMPDIR:-/tmp}"
-astroai_kv "caches:" "uv=${UV_CACHE_DIR:-?} pixi=${PIXI_CACHE_DIR:-?} npm=${NPM_CONFIG_CACHE:-?}"
+astroai_kv "caches:" "uv=${UV_CACHE_DIR:-?} pixi=${PIXI_CACHE_DIR:-?} conda=${MAMBA_PKGS_DIRS:-?} npm=${NPM_CONFIG_CACHE:-?}"
 
 # Session age (written by common-init.sh at startup)
 if [[ -f "${HOME}/.astroai/session-started" ]]; then

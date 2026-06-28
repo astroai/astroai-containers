@@ -43,12 +43,14 @@ if astroai_scratch_available; then
     export NPM_CONFIG_CACHE="${NPM_CONFIG_CACHE:-${_scratch_cache}/npm}"
     # Unconditional — image ENV sets PIXI_CACHE_DIR=/usr/local/share/pixi/cache
     export PIXI_CACHE_DIR="${_scratch_cache}/pixi"
+    export MAMBA_PKGS_DIRS="${_scratch_cache}/conda/pkgs"
 else
     _work_cache="$(astroai_src_dir)/.cache-${USER:-$(id -un)}"
     export UV_CACHE_DIR="${UV_CACHE_DIR:-${_work_cache}/uv}"
     export PIP_CACHE_DIR="${PIP_CACHE_DIR:-${_work_cache}/pip}"
     export NPM_CONFIG_CACHE="${NPM_CONFIG_CACHE:-${_work_cache}/npm}"
     export PIXI_CACHE_DIR="${_work_cache}/pixi"
+    export MAMBA_PKGS_DIRS="${_work_cache}/conda/pkgs"
 fi
 # Unconditional overrides — image ENV points at /usr/local (root-only); ${VAR:-} would not replace it.
 export UV_PYTHON_INSTALL_DIR="${XDG_DATA_HOME}/uv/python"
@@ -59,6 +61,10 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
 
 # pixi global envs/config on /arc; package cache on /scratch (see PIXI_CACHE_DIR above)
 export PIXI_HOME="${HOME}/.pixi"
+
+# micromamba/mamba — root prefix on /arc; pkgs cache on /scratch (see MAMBA_PKGS_DIRS above)
+export MAMBA_ROOT_PREFIX="${XDG_DATA_HOME}/micromamba"
+export CONDA_PKGS_DIRS="${MAMBA_PKGS_DIRS}"
 
 # ML / data caches (keep out of $HOME root — these grow fast)
 export HF_HOME="${HF_HOME:-${XDG_CACHE_HOME}/huggingface}"

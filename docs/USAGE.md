@@ -338,7 +338,7 @@ Pixi (or uv/pip) downloads CUDA user libraries into the project environment. No 
 
 ## What is pre-installed (needs root)
 
-The image keeps a small **apt** layer: platform essentials and monitoring tools that are not worth pulling in via pixi for every session. **Compilers, dev headers, and science packages go in your pixi project.**
+The image keeps a small **apt** layer: platform essentials, **GCC** compilers, **Rust**, autotools, common astronomy headers, and monitoring tools. **Heavy ML stacks and project-specific deps still belong in pixi/micromamba projects.**
 
 | Tool | Why in the image |
 |------|------------------|
@@ -346,24 +346,30 @@ The image keeps a small **apt** layer: platform essentials and monitoring tools 
 | `rg`, `fd`, `bat`, `tree`, `fzf`, `ctags` | Fast search, find, browse, and jump to definitions |
 | `file`, `xxd`, `hexdump` | Inspect file type and binary contents |
 | `patch`, `make`, `shellcheck` | Apply diffs, run Makefiles, lint shell scripts |
+| `gcc`, `g++`, `gfortran`, `ld`, `ar` | GNU C/C++/Fortran + linkers (default for science builds) |
+| `rustc`, `cargo` | Rust builds |
+| `cmake`, `ninja`, `pkg-config` | Build systems and library discovery |
+| `autoconf`, `automake`, `libtool`, `flex`, `bison` | Legacy `./configure` / autotools tarballs |
+| `libcfitsio-dev`, `libfftw3-dev`, `libgsl-dev` | Common astronomy/science headers |
 | `lsof`, `ss`, `host` | Debug open files, sockets, and DNS |
 | `ncdu` | Explore disk usage interactively |
 | `tldr` | Quick command examples (`tldr git`) |
-| `uv`, `pixi` | Per-project Python environments |
+| `uv`, `pixi`, `micromamba` (`mamba`) | Per-project Python / conda environments |
 | `htop`, `nvtop`, `procps` | CPU/GPU monitoring |
 | `zstd`, `xz-utils`, `bzip2`, `pigz`, `zip`, `unzip` | Archives |
 | `curl`, `wget`, `jq`, `rsync` | Fetch data, inspect JSON, sync files |
 | `less`, `vim-tiny` | Logs and quick edits |
 | `acl` | CANFAR `/arc` file permissions |
 
-**Not in the image:** `node`/`npm`, AI agent CLIs (Cursor Agent `agent`, `claude`, `agy`, `opencode`, `codex`, `copilot`, `goose`, `pi`, `codewhale`, `swival`, `freebuff`), `build-essential`, `cmake`, Fortran, CUDA libs, Astropy, PyTorch, etc. Install agents per [AI coding tools](#ai-coding-tools); install Node via [Node.js and npm](#nodejs-and-npm). Many system packages are available via **CVMFS** (`module load`) — see [Alliance software (CVMFS)](#alliance-software-cvmfs).
+**Not in the image:** `node`/`npm`, AI agent CLIs (Cursor Agent `agent`, `claude`, `agy`, `opencode`, `codex`, `copilot`, `goose`, `pi`, `codewhale`, `swival`, `freebuff`), CUDA libs, Astropy, PyTorch, HDF5/NetCDF/OpenBLAS dev packages, etc. Install agents per [AI coding tools](#ai-coding-tools); install Node via [Node.js and npm](#nodejs-and-npm). Many system packages are available via **CVMFS** (`module load`) — see [Alliance software (CVMFS)](#alliance-software-cvmfs).
 
 ```bash
 pixi add nodejs                                # npm-based CLIs and Lab source extensions
-pixi add cmake cxx-compiler fortran-compiler   # only if you compile extensions
-pixi add cfitsio                               # instead of libcfitsio-dev
-# or: source /cvmfs/.../bash.sh && module load cfitsio
+pixi add hdf5 netcdf4 openblas                 # heavier science libs not in apt layer
+# or: source /cvmfs/.../bash.sh && module load cfitsio hdf5
 ```
+
+**Compilers:** **`gcc`/`g++`/`gfortran`** cover C, C++, and Fortran for astronomy builds. **`cargo build`** for Rust; registry cache stays under `~/.cargo` on `/arc` unless you set `CARGO_HOME`. Need Clang/LLVM? use CVMFS (`module load`) or `pixi add clangxx`.
 
 ## Caches and temp files
 
@@ -378,6 +384,9 @@ Sessions set cache locations in `/etc/profile.d/astroai.sh`. When **`TMP_SCRATCH
 | `NPM_CONFIG_CACHE` | `${TMP_SCRATCH_DIR}/.cache-$USER/npm` | npm download cache |
 | `PIXI_CACHE_DIR` | `${TMP_SCRATCH_DIR}/.cache-$USER/pixi` | pixi package cache |
 | `PIXI_HOME` | `~/.pixi` | pixi global config on `/arc` |
+| `MAMBA_PKGS_DIRS` | `${TMP_SCRATCH_DIR}/.cache-$USER/conda/pkgs` | micromamba/conda package cache |
+| `CONDA_PKGS_DIRS` | same as `MAMBA_PKGS_DIRS` | conda-compatible alias |
+| `MAMBA_ROOT_PREFIX` | `~/.local/share/micromamba` | micromamba config on `/arc` |
 | `TMPDIR` | `${TMP_SCRATCH_DIR}/.tmp-$USER` | Compile/temp files on SSD |
 | `UV_PYTHON_INSTALL_DIR` | `~/.local/share/uv/python` | uv-managed Python installs (overrides image `/usr/local`) |
 | `UV_TOOL_DIR` | `~/.local/share/uv/tools` | uv tool environments |
@@ -385,7 +394,7 @@ Sessions set cache locations in `/etc/profile.d/astroai.sh`. When **`TMP_SCRATCH
 | `HF_HOME` | `~/.cache/huggingface` | Hugging Face models |
 | `TORCH_HOME` | `~/.cache/torch` | PyTorch hub checkpoints |
 
-If scratch is not mounted, uv/pip/npm/pixi caches fall back under **`TMP_SRC_DIR/.cache-$USER/`**.
+If scratch is not mounted, uv/pip/npm/pixi/conda caches fall back under **`TMP_SRC_DIR/.cache-$USER/`**.
 
 **Prune stale caches** when `/arc` quota is tight:
 
@@ -555,6 +564,19 @@ pixi init
 pixi add numpy astropy pytorch cuda-version=12
 pixi run python script.py
 ```
+
+### micromamba / mamba (standalone conda)
+
+`micromamba` is pre-installed (`mamba` is a symlink). Package downloads use **`MAMBA_PKGS_DIRS`** on scratch; config lives under **`MAMBA_ROOT_PREFIX`** on `/arc`. Create envs under **`TMP_SRC_DIR`** with a project-local prefix:
+
+```bash
+cd "${TMP_SRC_DIR}/myenv"
+micromamba create -p ./env -c conda-forge python=3.12 numpy astropy
+micromamba activate ./env
+python -c "import astropy; print(astropy.__version__)"
+```
+
+For pixi projects, conda-channel downloads still go through **`PIXI_CACHE_DIR`** — you do not need micromamba unless you want a classic conda workflow.
 
 ### Node.js and npm
 
