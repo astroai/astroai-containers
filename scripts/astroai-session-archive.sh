@@ -19,6 +19,34 @@ done
 NAME=""
 FORCE=0
 
+usage() {
+    cat <<'EOF' >&2
+astroai-session-archive — git push + env save before closing.
+Usage: astroai-session-archive [--name <name>] [--force]
+  --help for details
+EOF
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-session-archive — git push + env save before closing.
+
+Usage:
+  astroai-session-archive [--name <name>] [--force]
+
+Options:
+  --name <name>  Override the environment save name (default: directory name)
+  --force, -f    Non-interactive mode (skips prompts, used by auto-archive hook)
+  -h             Short help (stderr, exit 1)
+  --help         This help (stdout, exit 0)
+
+Pushes the active git branch to GitHub/origin, saves the current pixi or uv
+project environment, and prints a summary.
+
+Run this command before closing your session to prevent losing work.
+EOF
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --name)
@@ -27,11 +55,15 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --force|-f) FORCE=1; shift ;;
-        -h|--help)
-            sed -n '2,7p' "$0"
+        -h)
+            usage
+            exit 1
+            ;;
+        --help)
+            help_full
             exit 0
             ;;
-        *) echo "Unknown option: $1" >&2; exit 1 ;;
+        *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
     esac
 done
 

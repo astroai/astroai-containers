@@ -29,17 +29,76 @@ case "${CMD}" in
         ;;
 esac
 
+usage() {
+    if [[ "${MODE}" == "stage" ]]; then
+        cat <<'EOF' >&2
+astroai-data-stage — copy data from persistent storage to scratch.
+Usage: astroai-data-stage <source> [target]
+  --help for details
+EOF
+    else
+        cat <<'EOF' >&2
+astroai-data-sync — copy scratch results to persistent storage.
+Usage: astroai-data-sync <source> <target>
+  --help for details
+EOF
+    fi
+}
+
+help_full() {
+    if [[ "${MODE}" == "stage" ]]; then
+        cat <<'EOF'
+astroai-data-stage — copy data from persistent storage to scratch.
+
+Usage:
+  astroai-data-stage <source> [target]
+
+Options:
+  -h          Short help (stderr, exit 1)
+  --help      This help (stdout, exit 0)
+
+Copies files or directories from /arc or other persistent storage to
+the fast, ephemeral scratch directory (TMP_SCRATCH_DIR, default /scratch)
+for high-performance I/O during your session.
+
+Uses rsync under the hood. Asks before overwriting if the target exists.
+
+Examples:
+  astroai-data-stage /arc/projects/mygroup/data.fits
+  astroai-data-stage /arc/projects/mygroup/survey/ "${TMP_SCRATCH_DIR}/survey/"
+EOF
+    else
+        cat <<'EOF'
+astroai-data-sync — copy scratch results to persistent storage.
+
+Usage:
+  astroai-data-sync <source> <target>
+
+Options:
+  -h          Short help (stderr, exit 1)
+  --help      This help (stdout, exit 0)
+
+Syncs files or directories from the ephemeral scratch directory
+(TMP_SCRATCH_DIR, default /scratch) back to persistent storage (/arc, etc.).
+
+Uses rsync under the hood. Warns if the source is not under scratch.
+
+Examples:
+  astroai-data-sync "${TMP_SCRATCH_DIR}/results/" /arc/projects/mygroup/results/
+EOF
+    fi
+}
+
+case "${1:-}" in
+    -h) usage; exit 1 ;;
+    --help) help_full; exit 0 ;;
+esac
+
 SOURCE="${1:-}"
 TARGET="${2:-}"
 
 if [[ -z "${SOURCE}" ]]; then
-    if [[ "${MODE}" == "stage" ]]; then
-        echo "Usage: astroai-data-stage <source> [target]" >&2
-        echo "  Copies data FROM persistent storage TO ${SCRATCH} for fast I/O." >&2
-    else
-        echo "Usage: astroai-data-sync <source> <target>" >&2
-        echo "  Copies data FROM ${SCRATCH} back TO persistent storage." >&2
-    fi
+    usage
     exit 1
 fi
 
@@ -91,7 +150,7 @@ if [[ "${MODE}" == "stage" ]]; then
 
 elif [[ "${MODE}" == "sync" ]]; then
     if [[ -z "${TARGET}" ]]; then
-        echo "Usage: astroai-data-sync <source> <target>" >&2
+        usage
         exit 1
     fi
 

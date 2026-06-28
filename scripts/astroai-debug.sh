@@ -19,14 +19,53 @@ done
 SAVE=1
 SAVE_PATH=""
 
+usage() {
+    cat <<'EOF' >&2
+astroai-debug — session diagnostic report.
+Usage: astroai-debug [--stdout] [--file <path>]
+  --help for details
+EOF
+    exit 1
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-debug — session diagnostic report.
+
+Collects GPU, disk, tools, network, environment, and process info.
+Saves to ~/.astroai/debug-<timestamp>.log by default.
+
+Usage:
+  astroai-debug [--stdout] [--file <path>]
+
+Options:
+  --stdout          Print to stdout only (do not save to file).
+  --file <path>     Save to a custom path (and print to stdout).
+  -h                Show short usage summary.
+  --help            Show this detailed help.
+
+Examples:
+  astroai-debug                             # default: stdout + log file
+  astroai-debug --stdout                    # terminal only, no file
+  astroai-debug --file /tmp/diag.log        # custom output path
+
+Sections collected:
+  Session, Profile, GPU, Disk, Tools, Project, Network, Environment,
+  Processes, CVMFS.
+
+Notes:
+  • Default log: ~/.astroai/debug-<timestamp>.log
+  • Share the log file for remote troubleshooting.
+EOF
+    exit 0
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --stdout) SAVE=0; shift ;;
         --file) [[ -n "${2:-}" ]] || { echo "--file requires a path" >&2; exit 1; }; SAVE_PATH="$2"; shift 2 ;;
-        -h|--help)
-            sed -n '2,7p' "$0"
-            exit 0
-            ;;
+        -h) usage ;;
+        --help) help_full ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done

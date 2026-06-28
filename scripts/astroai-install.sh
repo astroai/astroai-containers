@@ -40,11 +40,40 @@ EOF
 }
 
 usage() {
-    astroai_err "Usage: astroai-install <tool>"
-    astroai_err "       astroai-install --list"
-    echo "" >&2
+    cat <<'EOF' >&2
+astroai-install — install AI coding tools into ~/.local/bin.
+Usage: astroai-install <tool>
+       astroai-install --list
+  --help for details
+EOF
     list_tools >&2
-    exit 1
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-install — install AI coding tools into ~/.local/bin.
+
+Usage:
+  astroai-install <tool>
+  astroai-install --list
+
+Options:
+  <tool>      Install the named tool (see list below)
+  --list, -l  List available tools
+  -h          Short help (stderr, exit 1)
+  --help      This help (stdout, exit 0)
+
+Tools are installed to ~/.local/bin, which persists on /arc
+and is on PATH. Some tools require Node.js — install it first
+with `astroai-install node`.
+
+Examples:
+  astroai-install claude
+  astroai-install agy
+  astroai-install node    # install Node.js first for npm-based tools
+  astroai-install --list  # see all available tools
+EOF
+    list_tools
 }
 
 ensure_bin_dir() {
@@ -109,8 +138,13 @@ case "${TOOL}" in
         list_tools
         exit 0
         ;;
-    -h|--help|"")
+    -h|"")
         usage
+        exit 1
+        ;;
+    --help)
+        help_full
+        exit 0
         ;;
 esac
 

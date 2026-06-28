@@ -11,6 +11,39 @@ for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname 
     fi
 done
 
+usage() {
+    cat <<'EOF' >&2
+astroai-status — session snapshot: user, GPU, git, disk, age.
+Usage: astroai-status
+  --help for details
+EOF
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-status — session snapshot: user, GPU, git, disk, age.
+
+Usage:
+  astroai-status
+
+Options:
+  -h          Short help (stderr, exit 1)
+  --help      This help (stdout, exit 0)
+
+Prints a quick overview of the current AstroAI session:
+  user, home, work and scratch directories, caches,
+  session age, GPU status, git branch, CADC tools,
+  top processes, and disk quotas.
+
+No arguments required.
+EOF
+}
+
+case "${1:-}" in
+    -h) usage; exit 1 ;;
+    --help) help_full; exit 0 ;;
+esac
+
 astroai_title "AstroAI session status"
 astroai_divider
 astroai_kv "user:" "${USER}  home: ${HOME}"

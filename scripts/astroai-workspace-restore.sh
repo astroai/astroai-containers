@@ -19,6 +19,51 @@ done
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 
+usage() {
+    cat <<'EOF' >&2
+astroai-workspace-restore — restore a frozen workspace for offline batch use.
+Usage: astroai-workspace-restore <name> [--from <path>] [--to <path>]
+  --help for details
+EOF
+    exit 1
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-workspace-restore — restore a frozen workspace for offline batch use.
+
+Extracts a workspace bundle (from astroai-workspace-save) onto TMP_SRC_DIR.
+No network, no git clone, no pixi install — everything is pre-packed.
+
+Usage:
+  astroai-workspace-restore <name> [--from <path>] [--to <path>]
+
+Arguments:
+  name              Name of the workspace bundle to restore.
+
+Options:
+  --from <path>     Restore from a custom bundle location.
+  --to <path>       Extract to a custom target directory (must be under
+                    TMP_SRC_DIR).
+  -h                Show short usage summary.
+  --help            Show this detailed help.
+
+Examples:
+  astroai-workspace-restore mylab
+  astroai-workspace-restore mylab --from /arc/bundles/mylab
+  astroai-workspace-restore mylab --to "${TMP_SRC_DIR}/mylab-v2"
+
+Headless batch:
+  astroai-workspace-restore mylab && cd "${TMP_SRC_DIR}/mylab" && pixi run python job.py
+
+Notes:
+  • Target directory must be empty or non-existent.
+  • If the bundle includes caches (--with-cache), they are also restored.
+  • Bundles on /arc are read once and extracted to TMP_SRC_DIR.
+EOF
+    exit 0
+}
+
 FROM_OVERRIDE=""
 TARGET=""
 NAME=""
@@ -35,10 +80,8 @@ while [[ $# -gt 0 ]]; do
             TARGET="$2"
             shift 2
             ;;
-        -h|--help)
-            sed -n '2,12p' "$0"
-            exit 0
-            ;;
+        -h) usage ;;
+        --help) help_full ;;
         *)
             NAME="$1"
             shift

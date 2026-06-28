@@ -32,8 +32,47 @@ UNREGISTER=0
 LIST=0
 
 usage() {
-    sed -n '2,12p' "$0"
-    exit "${1:-0}"
+    cat <<'EOF' >&2
+astroai-kernel-register — add a project to the JupyterLab kernel picker.
+Usage: astroai-kernel-register [path] [--name <name>] [--list] [--unregister]
+  --help for details
+EOF
+    exit 1
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-kernel-register — add a project to the JupyterLab kernel picker.
+
+Registers a pixi, uv, or plain venv project as a Jupyter kernel.
+Kernelspecs persist under ~/.local/share/jupyter/kernels on /arc.
+
+Usage:
+  astroai-kernel-register [path] [--name <name>] [--list] [--unregister]
+
+Arguments:
+  path              Project directory (default: current directory).
+
+Options:
+  --name <name>     Override the kernelspec name.
+  --list, -l        Show all project-linked kernels.
+  --unregister, -u  Remove the kernel for this project.
+  -h                Show short usage summary.
+  --help            Show this detailed help.
+
+Examples:
+  astroai-kernel-register                              # register cwd
+  astroai-kernel-register "${TMP_SRC_DIR}/mylab"       # specific path
+  astroai-kernel-register --name mylab                 # custom name
+  astroai-kernel-register --list                       # show all
+  astroai-kernel-register --unregister                 # remove kernel
+
+Notes:
+  • Re-run after astroai-env-resume when TMP_SRC_DIR was wiped (paths change).
+  • ipykernel is auto-installed if missing.
+  • If the kernel list looks stale, refresh the browser tab.
+EOF
+    exit 0
 }
 
 while [[ $# -gt 0 ]]; do
@@ -51,15 +90,14 @@ while [[ $# -gt 0 ]]; do
             LIST=1
             shift
             ;;
-        -h|--help)
-            usage 0
-            ;;
+        -h) usage ;;
+        --help) help_full ;;
         -*)
             echo "Unknown option: $1" >&2
-            usage 1
+            usage
             ;;
         *)
-            [[ -z "${PROJECT_ROOT}" ]] || { echo "Unexpected argument: $1" >&2; usage 1; }
+            [[ -z "${PROJECT_ROOT}" ]] || { echo "Unexpected argument: $1" >&2; usage; }
             PROJECT_ROOT="$1"
             shift
             ;;

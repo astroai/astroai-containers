@@ -16,15 +16,49 @@ done
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 
+usage() {
+    cat <<'EOF' >&2
+astroai-clone — clone a GitHub repo and install deps.
+Usage: astroai-clone <owner/repo> [target-dir]
+  --help for details
+EOF
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-clone — clone a GitHub repo and install deps.
+
+Usage:
+  astroai-clone <owner/repo> [target-dir]
+
+Options:
+  -h          Short help (stderr, exit 1)
+  --help      This help (stdout, exit 0)
+
+Clones a GitHub repo via `gh repo clone` and runs `pixi install`
+or `uv sync` if a pixi.toml or pyproject.toml is found.
+
+Defaults to TMP_SRC_DIR/<repo-name> when target-dir is omitted.
+Requires `gh auth login` for GitHub access.
+
+Examples:
+  astroai-clone astroai/astroai-containers
+  astroai-clone myorg/myproject
+  astroai-clone myorg/myproject "${TMP_SRC_DIR}/custom"
+EOF
+}
+
+case "${1:-}" in
+    -h) usage; exit 1 ;;
+    --help) help_full; exit 0 ;;
+esac
+
+
 REPO="${1:-}"
 TARGET="${2:-}"
 
 if [[ -z "${REPO}" ]]; then
-    astroai_err "Usage: astroai-clone <owner/repo> [target-dir]"
-    echo "" >&2
-    astroai_cmd "  astroai-clone astroai/astroai-containers"
-    astroai_cmd "  astroai-clone myorg/myproject   # -> \${TMP_SRC_DIR}/myproject"
-    astroai_cmd "  astroai-clone myorg/myproject \"\${TMP_SRC_DIR}/custom\""
+    usage
     exit 1
 fi
 

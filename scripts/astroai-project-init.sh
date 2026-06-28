@@ -18,6 +18,39 @@ done
 NAME=""
 MEMBERS=""
 
+usage() {
+    cat <<'EOF' >&2
+astroai-project-init — create a team workspace under /arc/projects.
+Usage: astroai-project-init <name> [--members user1,user2]
+  --help for details
+EOF
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-project-init — create a team workspace under /arc/projects.
+
+Usage:
+  astroai-project-init <name> [--members user1,user2]
+
+Options:
+  --members <list>   Comma-separated list of usernames to grant read/write POSIX ACLs
+  -h                 Short help (stderr, exit 1)
+  --help             This help (stdout, exit 0)
+
+Creates a directory structure for collaborative team work under
+/arc/projects/<name>/ with subdirectories:
+  data/        Shared datasets
+  env-saves/   Team environment manifests
+  results/     Shared results and outputs
+
+Examples:
+  astroai-project-init mygroup
+  astroai-project-init mygroup --members alice,bob
+  astroai-project-init mygroup --members carol       # add carol to existing workspace
+EOF
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --members)
@@ -25,13 +58,17 @@ while [[ $# -gt 0 ]]; do
             MEMBERS="${2}"
             shift 2
             ;;
-        -h|--help)
-            sed -n '2,12p' "$0"
+        -h)
+            usage
+            exit 1
+            ;;
+        --help)
+            help_full
             exit 0
             ;;
         -*)
             echo "Unknown option: $1" >&2
-            echo "Usage: astroai-project-init <name> [--members user1,user2]" >&2
+            usage
             exit 1
             ;;
         *)
@@ -42,12 +79,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${NAME}" ]]; then
-    echo "Usage: astroai-project-init <name> [--members user1,user2]" >&2
-    echo "" >&2
-    echo "Creates a team workspace under /arc/projects/<name>/ with:" >&2
-    echo "  data/        shared datasets" >&2
-    echo "  env-saves/   team environment manifests" >&2
-    echo "  results/     shared results and outputs" >&2
+    usage
     exit 1
 fi
 

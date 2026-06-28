@@ -23,6 +23,55 @@ done
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 
+usage() {
+    cat <<'EOF' >&2
+astroai-workspace-save — freeze a project tree for offline batch restore.
+Usage: astroai-workspace-save [name] [--with-cache] [--to <path>]
+  --help for details
+EOF
+    exit 1
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-workspace-save — freeze a project tree for offline batch restore.
+
+Packs the entire project tree (code + environment) into a zstd-compressed
+bundle. Optionally includes package caches for fully offline restore.
+Bundles are stored under TMP_SRC_DIR/.astroai/workspaces by default.
+
+Usage:
+  astroai-workspace-save [name] [--with-cache] [--to <path>]
+
+Arguments:
+  name              Bundle name (defaults to current directory name).
+
+Options:
+  --with-cache      Also pack package caches (pip, uv, pixi, conda) for
+                    fully offline restore (no network needed).
+  --to <path>       Save bundle to a custom directory.
+  -h                Show short usage summary.
+  --help            Show this detailed help.
+
+Examples:
+  cd "${TMP_SRC_DIR}/myproject"
+  astroai-workspace-save                        # default name + location
+  astroai-workspace-save mylab                  # custom name
+  astroai-workspace-save mylab --with-cache     # include caches
+  astroai-workspace-save --to /arc/bundles/     # custom save path
+
+Batch restore (no network):
+  astroai-workspace-restore mylab
+  cd "${TMP_SRC_DIR}/mylab" && pixi run python job.py
+
+Notes:
+  • Bundles include code + env; no rebuild needed on restore.
+  • --with-cache adds package manager caches for offline installs.
+  • Project must be under TMP_SRC_DIR for best results.
+EOF
+    exit 0
+}
+
 WITH_CACHE=0
 DEST_OVERRIDE=""
 NAME=""
@@ -35,10 +84,8 @@ while [[ $# -gt 0 ]]; do
             DEST_OVERRIDE="$2"
             shift 2
             ;;
-        -h|--help)
-            sed -n '2,15p' "$0"
-            exit 0
-            ;;
+        -h) usage ;;
+        --help) help_full ;;
         *)
             NAME="$1"
             shift

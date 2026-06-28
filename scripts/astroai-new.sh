@@ -24,20 +24,51 @@ NO_GIT=0
 NO_GH=0
 SUGGEST_ASTRO=0
 
+usage() {
+    cat <<'EOF' >&2
+astroai-new — start a new project on the work root.
+Usage: astroai-new [name] [--uv] [--no-git] [--no-gh] [--astro]
+  --help for details
+EOF
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-new — start a new project on the work root.
+
+Usage:
+  astroai-new [name] [--uv] [--no-git] [--no-gh] [--astro]
+
+Options:
+  --uv        Use uv instead of pixi for project init
+  --no-git    Skip git init
+  --no-gh     Skip GitHub repo creation
+  --astro     Suggest common astro packages after init
+  -h          Short help (stderr, exit 1)
+  --help      This help (stdout, exit 0)
+
+Creates a pixi (default) or uv project under TMP_SRC_DIR/<name>.
+Includes git init and an optional private GitHub repo via `gh`.
+
+Examples:
+  astroai-new myproject
+  astroai-new myproject --uv --no-gh
+  astroai-new myproject --astro
+EOF
+}
+
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --uv)      USE_UV=1; shift ;;
         --no-git)  NO_GIT=1; shift ;;
         --no-gh)   NO_GH=1; shift ;;
         --astro)   SUGGEST_ASTRO=1; shift ;;
-        -h|--help)
-            echo "Usage: astroai-new [name] [flags]"
-            echo "  Creates a project under TMP_SRC_DIR (default /srcdir)."
-            echo "  --uv        use uv instead of pixi"
-            echo "  --no-git    skip git init"
-            echo "  --no-gh     skip GitHub repo creation"
-            echo "  --astro     suggest common astro packages"
-            exit 0
+        -h)
+            usage; exit 1
+            ;;
+        --help)
+            help_full; exit 0
             ;;
         -*)
             astroai_err "Unknown option: $1"

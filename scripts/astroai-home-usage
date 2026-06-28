@@ -11,6 +11,38 @@ for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname 
     fi
 done
 
+usage() {
+    cat <<'EOF' >&2
+astroai-home-usage — disk breakdown under $HOME on /arc.
+Usage: astroai-home-usage
+  --help for details
+EOF
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-home-usage — disk breakdown under $HOME on /arc.
+
+Usage:
+  astroai-home-usage
+
+Options:
+  -h          Short help (stderr, exit 1)
+  --help      This help (stdout, exit 0)
+
+Checks CephFS quota limits and prints a breakdown of the largest directories
+under your persistent home directory (~/.cache, ~/.pixi, etc.) to help
+identify what's taking up storage space on the shared CANFAR mount.
+
+No arguments required.
+EOF
+}
+
+case "${1:-}" in
+    -h) usage; exit 1 ;;
+    --help) help_full; exit 0 ;;
+esac
+
 astroai_title "Home disk usage for ${USER} (${HOME})"
 astroai_divider
 

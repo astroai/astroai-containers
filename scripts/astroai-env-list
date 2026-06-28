@@ -15,6 +15,46 @@ for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname 
     fi
 done
 
+usage() {
+    cat <<'EOF' >&2
+astroai-env-list — list saved environment manifests.
+Usage: astroai-env-list [--team] [--all]
+  --help for details
+EOF
+    exit 1
+}
+
+help_full() {
+    cat <<'EOF'
+astroai-env-list — list saved environment manifests.
+
+Shows environments previously saved with astroai-env-save, including
+name, kind (pixi/uv), timestamp, full-pack status, size, and user.
+
+Usage:
+  astroai-env-list [--team] [--all]
+
+Options:
+  --team            Show team saves under /arc/projects/*/env-saves/.
+  --all             Show both personal and team saves.
+  -h                Show short usage summary.
+  --help            Show this detailed help.
+
+Examples:
+  astroai-env-list              # personal saves only
+  astroai-env-list --team       # team saves on /arc/projects
+  astroai-env-list --all        # personal + team
+
+Notes:
+  • Personal saves are stored under the default save root.
+  • Team saves can be created with:
+      astroai-env-save mylab --to /arc/projects/<group>/env-saves/mylab
+  • Resume any listed save with:
+      astroai-env-resume <name>
+EOF
+    exit 0
+}
+
 TEAM=0
 ALL=0
 
@@ -22,10 +62,8 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --team) TEAM=1; shift ;;
         --all)  ALL=1; shift ;;
-        -h|--help)
-            sed -n '2,7p' "$0"
-            exit 0
-            ;;
+        -h) usage ;;
+        --help) help_full ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
