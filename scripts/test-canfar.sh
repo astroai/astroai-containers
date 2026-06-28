@@ -11,7 +11,7 @@
 # Environment:
 #   REGISTRY   default images.canfar.net
 #   OWNER      default astroai
-#   CANFAR_TEST_TIMEOUT  seconds to wait for session (default 600)
+#   CANFAR_TEST_TIMEOUT  seconds to wait for session (default 1800; agent installs need time)
 #
 # Harbor images are public — no registry credentials for normal pulls.
 # Optional: CANFAR_REGISTRY__* / REGISTRY_USER for maintainer headless smoke tests.
@@ -20,7 +20,7 @@ IMAGE="${1:-base}"
 TAG="${2:-${TAG:-latest}}"
 OWNER="${OWNER:-astroai}"
 REGISTRY="${REGISTRY:-images.canfar.net}"
-TIMEOUT="${CANFAR_TEST_TIMEOUT:-600}"
+TIMEOUT="${CANFAR_TEST_TIMEOUT:-1800}"
 FULL_IMAGE="${REGISTRY}/${OWNER}/${IMAGE}:${TAG}"
 # Skaha session names: alphanumeric and hyphen only (TAG like 26.06 is invalid).
 TAG_SAFE="$(printf '%s' "${TAG}" | tr '.:/+' '-' | tr -cd 'a-zA-Z0-9-')"

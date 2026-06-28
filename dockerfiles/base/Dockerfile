@@ -115,7 +115,7 @@ RUN uv venv /opt/astroai/venv/cadc \
     && chmod -R a+rX /opt/astroai/venv/cadc
 
 COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh scripts/lib/astroai-load.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
-COPY scripts/canfar-verify.sh /opt/astroai/bin/
+COPY scripts/canfar-verify.sh scripts/canfar-verify-agents.sh /opt/astroai/bin/
 RUN chmod a+rx /opt/astroai/bin/* /opt/astroai/lib/*
 
 COPY docs/USAGE.md /opt/astroai/USAGE.md

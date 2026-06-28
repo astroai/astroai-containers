@@ -77,6 +77,10 @@ if [[ "${QUICK}" -eq 0 ]]; then
             check "${var} under TMP_SRC_DIR" login_shell "[[ \"\${${var}}\" == \"\${TMP_SRC_DIR}\"/* ]]"
         done
     fi
+
+    echo ""
+    echo "Running agent setup & install verification..."
+    /opt/astroai/bin/canfar-verify-agents.sh || failures=$((failures + 1))
 fi
 
 echo ""
