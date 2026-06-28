@@ -54,7 +54,7 @@ echo ""
 astroai_heading "Quick loop"
 astroai_cmd "  astroai-status              quotas, home/project space, processes"
 astroai_cmd "  astroai-new [name]          pixi init + git + GH repo (--uv, --no-git, --no-gh, --astro)"
-astroai_cmd "  astroai-clone owner/repo    clone + install deps (optional target dir)"
+astroai_cmd "  astroai-clone owner/repo    clone + install deps (--from-env <save>, [target dir])"
 echo ""
 
 astroai_heading "Environment save/resume (/arc-friendly)"

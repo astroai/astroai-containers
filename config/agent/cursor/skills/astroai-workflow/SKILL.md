@@ -18,6 +18,7 @@ Refresh after image upgrade: `astroai-agent-setup update`
 
 ```bash
 astroai-new mylab                # or astroai-clone owner/repo
+astroai-clone --from-env ml-base owner/repo   # warm caches from saved stack
 cd "${TMP_SRC_DIR}/mylab"
 pixi install                     # or uv sync
 pixi run python analysis.py

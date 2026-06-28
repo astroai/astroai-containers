@@ -21,6 +21,92 @@ astroai_ensure_save_root() {
     mkdir -p "${root}"
 }
 
+# Resolve an astroai-env-save directory (--from overrides default save root).
+astroai_env_save_resolve() {
+    local name="$1"
+    local from_override="${2:-}"
+    local dir
+
+    if [[ -n "${from_override}" ]]; then
+        dir="${from_override%/}"
+    else
+        dir="$(astroai_save_root)/${name}"
+    fi
+
+    if [[ ! -f "${dir}/manifest.json" ]]; then
+        astroai_err "Save not found: ${dir}"
+        astroai_cmd "List saves: astroai-env-list"
+        exit 1
+    fi
+    echo "${dir}"
+}
+
+# Install a saved env in a temp dir to warm uv/pip/pixi download caches (no repo changes).
+astroai_env_warm_cache() {
+    local save_dir="$1"
+    local kind
+
+    kind="$(jq -r .kind "${save_dir}/manifest.json")"
+
+    (
+        local tmp
+        tmp="$(mktemp -d)"
+        trap 'rm -rf "${tmp}"' EXIT
+
+        case "${kind}" in
+            pixi)
+                [[ -f "${save_dir}/pixi.toml" ]] || exit 0
+                cp -a "${save_dir}/pixi.toml" "${tmp}/"
+                [[ -f "${save_dir}/pixi.lock" ]] && cp -a "${save_dir}/pixi.lock" "${tmp}/"
+                cd "${tmp}" && pixi install --quiet
+                ;;
+            uv)
+                [[ -f "${save_dir}/pyproject.toml" ]] || exit 0
+                cp -a "${save_dir}/pyproject.toml" "${tmp}/"
+                [[ -f "${save_dir}/uv.lock" ]] && cp -a "${save_dir}/uv.lock" "${tmp}/"
+                cd "${tmp}" && uv sync --quiet
+                ;;
+        esac
+    )
+}
+
+# Copy a saved lockfile into the current project when upstream omitted one.
+# Sets ASTROAI_BOOTSTRAP_LOCK=1 when a lock was copied (caller may need fallback).
+astroai_env_bootstrap_lock() {
+    local save_dir="$1"
+    local project_kind="$2"
+    local save_kind
+
+    ASTROAI_BOOTSTRAP_LOCK=0
+    save_kind="$(jq -r .kind "${save_dir}/manifest.json")"
+
+    if [[ "${project_kind}" != "${save_kind}" ]]; then
+        astroai_hint "Save is ${save_kind}, project is ${project_kind} — cache warmed only."
+        return 0
+    fi
+
+    case "${project_kind}" in
+        pixi)
+            [[ -f pixi.toml ]] || return 0
+            [[ -f pixi.lock ]] && return 0
+            [[ -f "${save_dir}/pixi.lock" ]] || return 0
+            cp -a "${save_dir}/pixi.lock" ./pixi.lock
+            ASTROAI_BOOTSTRAP_LOCK=1
+            astroai_hint "Bootstrap: copied pixi.lock from saved env (session-local)."
+            astroai_hint "Publish for OSS: pixi lock && git add pixi.lock && git commit"
+            ;;
+        uv)
+            [[ -f pyproject.toml ]] || return 0
+            [[ -f uv.lock ]] && return 0
+            [[ -f "${save_dir}/uv.lock" ]] || return 0
+            cp -a "${save_dir}/uv.lock" ./uv.lock
+            ASTROAI_BOOTSTRAP_LOCK=1
+            astroai_hint "Bootstrap: copied uv.lock from saved env (session-local)."
+            astroai_hint "Publish for OSS: uv lock && git add uv.lock && git commit"
+            ;;
+    esac
+}
+
 astroai_detect_project() {
     if [[ -f pixi.toml ]]; then
         echo pixi

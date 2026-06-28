@@ -67,7 +67,7 @@ if [[ ! -f "${HOME}/.astroai/welcomed" ]]; then
 
   Quick start:
     astroai-new myproject          create a new project
-    astroai-clone owner/repo       clone a GitHub project
+    astroai-clone owner/repo       clone a GitHub project (--from-env for shared deps)
 
   Once you have code:
     pixi run python analysis.py    run your project

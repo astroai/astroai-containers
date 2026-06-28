@@ -68,6 +68,9 @@ Or clone an existing repo:
 astroai-clone you/project         # clones + installs deps automatically
 cd project
 pixi run python analysis.py
+
+# reuse your saved ML stack (AstroAI-only bootstrap — see below)
+astroai-clone --from-env ml-base you/other-project
 ```
 
 ### 4. Save your work before closing
@@ -212,6 +215,50 @@ copy them to `/arc` first).
 
 **Git remains the primary backup** for code. `astroai-env-save` is for
 environment reproducibility.
+
+### Shared dependency stacks (AstroAI bootstrap)
+
+When several projects use the same heavy stack (torch, CUDA, etc.), save a
+template once and reuse it when cloning:
+
+```bash
+# one-time: create and save your standard stack
+astroai-new ml-base
+cd "${TMP_SRC_DIR}/ml-base"
+pixi add python=3.12 numpy torch cuda-version=12
+astroai-env-save ml-base
+# optional team copy:
+astroai-env-save ml-base --to /arc/projects/mygroup/env-saves/ml-base
+
+# later: clone with warm caches (+ lock bootstrap if repo has no lockfile)
+astroai-clone --from-env ml-base you/project-a
+astroai-clone --from-env ml-base --from /arc/projects/mygroup/env-saves/ml-base you/project-b
+```
+
+What `--from-env` does (session-local only):
+
+1. Installs the saved env in a temp dir to warm `PIXI_CACHE_DIR` / `UV_CACHE_DIR`
+2. If the cloned repo has **no** `pixi.lock` / `uv.lock`, copies one from the save
+   as a bootstrap (never overwrites lockfiles already in git)
+3. If the copied lock doesn't match the repo's manifest, falls back to `pixi lock` /
+   `uv lock` automatically
+
+**Portable / OSS projects:** the cloned repo is never modified with AstroAI-specific
+files. Outside AstroAI, users only need standard project files in git:
+
+```bash
+git clone https://github.com/you/project.git
+cd project
+pixi install    # or: uv sync
+pixi run python analysis.py
+```
+
+Before publishing, commit lockfiles generated from **that** repo's manifest so
+non-AstroAI users get reproducible installs:
+
+```bash
+pixi lock && git add pixi.lock && git commit -m "Add lockfile"
+```
 
 ---
 
@@ -442,7 +489,7 @@ gh run list --limit 5             # recent CI runs
 | `astroai-help` | Full command list (this doc is the long form) |
 | `astroai-status` | Quotas, home/project space, top processes |
 | `astroai-new [name]` | New project under `TMP_SRC_DIR` (`--uv`, `--no-git`, `--no-gh`, `--astro`) |
-| `astroai-clone <owner/repo> [dir]` | Clone + install deps |
+| `astroai-clone <owner/repo> [dir]` | Clone + install deps (`--from-env`, `--from`) |
 | `astroai-env-save [name]` | Save lockfiles + manifest (~KB) (`--full`, `--to`) |
 | `astroai-env-resume <name>` | Restore + rebuild env (`--from`, `[path]`) |
 | `astroai-env-list` | List saves (`--team`, `--all`) |
