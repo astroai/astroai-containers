@@ -36,6 +36,91 @@ maybe_registry_auth() {
     fi
 }
 
+load_docker_registry_auth() {
+    local docker_cfg="${HOME}/.docker/config.json"
+    [[ -f "${docker_cfg}" ]] || return 1
+
+    local _creds=()
+    mapfile -t _creds < <(
+        python3 - "${REGISTRY}" "${docker_cfg}" <<'PY'
+import base64
+import json
+import sys
+
+registry, path = sys.argv[1], sys.argv[2]
+with open(path, encoding="utf-8") as fh:
+    cfg = json.load(fh)
+entry = cfg.get("auths", {}).get(registry, {})
+if "auth" in entry:
+    user, secret = base64.b64decode(entry["auth"]).decode().split(":", 1)
+elif entry.get("username") and entry.get("password"):
+    user, secret = entry["username"], entry["password"]
+else:
+    sys.exit(1)
+if not user or not secret:
+    sys.exit(1)
+print(user)
+print(secret)
+PY
+    ) || return 1
+    [[ ${#_creds[@]} -ge 2 ]] || return 1
+
+    export CANFAR_REGISTRY__USERNAME="${_creds[0]}"
+    export CANFAR_REGISTRY__SECRET="${_creds[1]}"
+    export CANFAR_REGISTRY__URL="${CANFAR_REGISTRY__URL:-https://${REGISTRY}}"
+}
+
+bootstrap_canfar_registry_on_arc() {
+    if [[ -z "${CANFAR_REGISTRY__USERNAME:-}" || -z "${CANFAR_REGISTRY__SECRET:-}" ]]; then
+        return 1
+    fi
+
+    local bootstrap_name="ray-regcfg-${TAG_SAFE}-$(date -u +%Y%m%d%H%M%S)"
+    local base_image="${REGISTRY}/${OWNER}/base:${TAG}"
+    local registry_url="${CANFAR_REGISTRY__URL:-https://${REGISTRY}}"
+    local create_out="" bootstrap_id="" status=""
+
+    echo "Persisting Harbor registry credentials to /arc/home via headless bootstrap..."
+    echo "Persisting Harbor registry credentials to /arc/home via headless bootstrap..."
+    create_out="$(canfar create --name "${bootstrap_name}" headless "${base_image}" \
+        -e "REGISTRY_URL=${registry_url}" \
+        -e "REGISTRY_USER=${CANFAR_REGISTRY__USERNAME}" \
+        -e "REGISTRY_SECRET=${CANFAR_REGISTRY__SECRET}" \
+        -- bash /opt/astroai/bin/bootstrap-canfar-registry.sh 2>&1)" || {
+        echo "${create_out}" >&2
+        return 1
+    }
+
+    bootstrap_id="$(printf '%s\n' "${create_out}" | sed -n 's/.*(ID:[[:space:]]*\([^)]*\)).*/\1/p' | awk '{print $1}')"
+    [[ -n "${bootstrap_id}" ]] || bootstrap_id="$(canfar_ps_field name "${bootstrap_name}" id)"
+    [[ -n "${bootstrap_id}" ]] || { echo "Could not parse bootstrap session ID." >&2; return 1; }
+
+    local deadline=$((SECONDS + 600))
+    while (( SECONDS < deadline )); do
+        status="$(canfar_ps_field id "${bootstrap_id}" status)"
+        case "${status}" in
+            Succeeded|Completed) break ;;
+            Failed|Error)
+                echo "Bootstrap session failed (${status})." >&2
+                canfar logs "${bootstrap_id}" 2>&1 | tail -30 >&2 || true
+                canfar delete --force "${bootstrap_id}" 2>/dev/null || true
+                return 1
+                ;;
+        esac
+        sleep 5
+    done
+    canfar delete --force "${bootstrap_id}" 2>/dev/null || true
+    if [[ "${status}" != "Succeeded" && "${status}" != "Completed" ]]; then
+        echo "Bootstrap session timed out (status: ${status:-unknown})." >&2
+        return 1
+    fi
+    echo "Registry credentials persisted for user ${CANFAR_REGISTRY__USERNAME}."
+}
+
+create_manager_session() {
+    canfar create --name "${SESSION_NAME}" contributed "${FULL_IMAGE}" 2>&1
+}
+
 curl_auth=( )
 if [[ -f "${HOME}/.ssl/cadcproxy.pem" ]]; then
     curl_auth=(--cert "${HOME}/.ssl/cadcproxy.pem")
@@ -94,6 +179,13 @@ if ! canfar auth show >/dev/null 2>&1; then
 fi
 
 maybe_registry_auth
+load_docker_registry_auth || true
+if bootstrap_canfar_registry_on_arc; then
+    :
+elif [[ -z "${CANFAR_REGISTRY__USERNAME:-}" || -z "${CANFAR_REGISTRY__SECRET:-}" ]]; then
+    echo "Warning: no Harbor registry credentials — headless worker/preflight may fail." >&2
+    echo "Set CANFAR_REGISTRY__* or docker login ${REGISTRY}" >&2
+fi
 
 if [[ -z "${MANAGER_URL}" ]]; then
     echo "CANFAR Ray Milestone B test"
@@ -101,7 +193,7 @@ if [[ -z "${MANAGER_URL}" ]]; then
     echo "  session name:  ${SESSION_NAME}"
     echo ""
     echo "Creating contributed ray-manager session..."
-    CREATE_OUT="$(canfar create --name "${SESSION_NAME}" contributed "${FULL_IMAGE}" 2>&1)" || {
+    CREATE_OUT="$(create_manager_session)" || {
         echo "${CREATE_OUT}" >&2
         exit 1
     }

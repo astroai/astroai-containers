@@ -58,17 +58,32 @@ def run_preflight(
 
     store.log_event("preflight_start", manager_ip=manager_ip, probe_name=probe_name)
 
-    launch = canfar.create_headless(
-        name=probe_name,
-        image=settings.probe_image,
-        cores=1,
-        ram=2,
-        env={
-            "RAY_NETWORK_PROBE": "1",
-            "PROBE_MANAGER_IP": manager_ip,
-            "PROBE_PORTS": ports,
-        },
-    )[0]
+    probe_id: str | None = None
+    try:
+        launch = canfar.create_headless(
+            name=probe_name,
+            image=settings.probe_image,
+            cores=1,
+            ram=2,
+            env={
+                "RAY_NETWORK_PROBE": "1",
+                "PROBE_MANAGER_IP": manager_ip,
+                "PROBE_PORTS": ports,
+            },
+        )[0]
+    except RuntimeError as exc:
+        report = PreflightReport(
+            passed=False,
+            manager_ip=manager_ip,
+            worker_ip=None,
+            worker_to_manager=[],
+            manager_to_worker=[],
+            probe_session_id=None,
+            message=str(exc),
+        )
+        store.log_event("preflight_done", **report.as_dict())
+        _persist_preflight(store, settings, report)
+        return report
 
     probe_id = launch.session_id
     try:
@@ -123,7 +138,8 @@ def run_preflight(
         _persist_preflight(store, settings, report)
         return report
     finally:
-        canfar.destroy(probe_id)
+        if probe_id:
+            canfar.destroy(probe_id)
 
 
 def _persist_preflight(store: StateStore, settings: ManagerSettings, report: PreflightReport) -> None:

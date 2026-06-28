@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 import time
 from dataclasses import dataclass
@@ -29,6 +28,10 @@ class SessionLaunch:
 class CanfarOps:
     def __init__(self) -> None:
         self._session = Session()
+
+    def _fresh_session(self) -> Session:
+        """New session client so registry/auth config reflects current env."""
+        return Session()
 
     def auth_status(self) -> AuthStatus:
         config = Configuration()
@@ -71,22 +74,33 @@ class CanfarOps:
         env: dict[str, Any] | None = None,
         replicas: int = 1,
     ) -> list[SessionLaunch]:
+        session = self._fresh_session()
+        if not _registry_configured(session):
+            raise RuntimeError(
+                "Harbor registry credentials required for headless worker launches. "
+                "Run: canfar config set registry.username <user> && "
+                "canfar config set registry.secret <secret> "
+                "or set CANFAR_REGISTRY__USERNAME/SECRET in the manager session."
+            )
         registry_env = _registry_env()
         merged_env = dict(registry_env)
         if env:
             merged_env.update(env)
-        ids = self._session.create(
-            name=name,
-            image=image,
-            cores=cores,
-            ram=ram,
-            gpu=gpu,
-            kind="headless",
-            cmd=cmd,
-            args=args,
-            env=merged_env or None,
-            replicas=replicas,
-        )
+        try:
+            ids = session.create(
+                name=name,
+                image=image,
+                cores=cores,
+                ram=ram,
+                gpu=gpu,
+                kind="headless",
+                cmd=cmd,
+                args=args,
+                env=merged_env or None,
+                replicas=replicas,
+            )
+        except Exception as exc:  # noqa: BLE001 — surface CANFAR API errors
+            raise RuntimeError(str(exc)) from exc
         if not ids:
             raise RuntimeError("CANFAR session create returned no session ID")
         launches: list[SessionLaunch] = []
@@ -143,17 +157,24 @@ class CanfarOps:
 
 
 def _registry_env() -> dict[str, str]:
-    """Harbor pull credentials for headless worker launches (maintainer/testing)."""
+    """Harbor pull credentials for headless worker launches."""
+    registry = Configuration().registry
     out: dict[str, str] = {}
-    mapping = {
-        "CANFAR_REGISTRY__USERNAME": os.environ.get("CANFAR_REGISTRY__USERNAME"),
-        "CANFAR_REGISTRY__SECRET": os.environ.get("CANFAR_REGISTRY__SECRET"),
-        "CANFAR_REGISTRY__URL": os.environ.get("CANFAR_REGISTRY__URL"),
-    }
-    for key, val in mapping.items():
-        if val:
-            out[key] = val
+    if registry.username:
+        out["CANFAR_REGISTRY__USERNAME"] = registry.username
+    if registry.secret:
+        out["CANFAR_REGISTRY__SECRET"] = registry.secret
+    if registry.url:
+        out["CANFAR_REGISTRY__URL"] = str(registry.url)
     return out
+
+
+def _registry_configured(session: Session) -> bool:
+    registry = Configuration().registry
+    if registry.username and registry.secret:
+        return True
+    registry = session.config.registry
+    return bool(registry.username and registry.secret)
 
 
 def parse_probe_logs(logs: str) -> dict[str, Any]:

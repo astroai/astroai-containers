@@ -32,6 +32,16 @@ canfar auth login
 
 Credentials persist on **`/arc/home/<you>/`** as `~/.canfar/config.yaml` (and optionally `~/.ssl/cadcproxy.pem`). Ray-manager sessions reuse the same home volume.
 
+For headless worker launches, registry pull auth must also be configured (same file or env):
+
+```bash
+canfar config set registry.url https://images.canfar.net
+canfar config set registry.username <harbor-user>
+canfar config set registry.secret <harbor-cli-secret>
+```
+
+Maintainer smoke tests load docker login credentials and persist them to `/arc/home` via a short headless bootstrap session before creating the manager (`scripts/test-canfar-ray.sh`).
+
 ## Web UI
 
 Contributed **`ray-manager`** serves a browser UI on port **5000** (same as webterm/vscode). Forms POST to `/actions/*` and redirect back with flash messages; JSON automation uses `/api/v1/*`.
