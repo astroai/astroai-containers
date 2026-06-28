@@ -13,7 +13,7 @@ Licensed under [BSD-2-Clause](LICENSE).
 | `notebook` | JupyterLab | **Notebook** |
 | `marimo` | Reactive notebooks | Contributed |
 | `base` | Headless parent (CI, batch, not a portal session) | — |
-| `ray-manager` | Distributed Ray control UI ([canfar-ray](https://github.com/astroai/canfar-ray)) | Contributed |
+| `ray-manager` | Distributed Ray control UI ([docs/RAY.md](docs/RAY.md)) | Contributed |
 | `ray-worker-cpu` | Ray worker (launched by manager, not portal) | Headless |
 
 ## Documentation
@@ -22,6 +22,7 @@ Licensed under [BSD-2-Clause](LICENSE).
 |-----|----------|
 | [docs/USAGE.md](docs/USAGE.md) | **Session users** — AstroAI images, storage, GPU, CADC, workflows |
 | [canfar-lab USAGE](https://github.com/sfabbro/canfar-lab/blob/main/docs/USAGE.md) | **`canfar-lab` CLI** — commands, env, agents |
+| [docs/RAY.md](docs/RAY.md) | **Ray clusters** — manager + worker images (prototype) |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | **Developers** — clone, build, test, open PRs |
 | [docs/OPERATORS.md](docs/OPERATORS.md) | **AstroAI maintainers** — build, push, register images on CANFAR |
 
@@ -68,19 +69,26 @@ dockerfiles/
   vscode/       # contributed: OpenVSCode Server
   notebook/     # notebook: JupyterLab + ipykernel (port 8888)
   marimo/       # contributed: marimo
+  ray-base/     # build-only: base + Ray 3.12 venv
+  ray-manager/  # contributed: Ray head + UI :5000
+  ray-worker-cpu/
+ray/            # manager app + worker scripts
+examples/ray/
+scripts/
+  startup-*.sh  # session + ray-manager entrypoints
+  test-ray-*.sh
+  lib/          # profile helpers (env paths, UI, skaha proxy)
 docs/
   USAGE.md      # user-facing session guide
+  RAY.md        # distributed Ray (manager + workers)
   CONTRIBUTING.md
   OPERATORS.md
-scripts/
-  startup-*.sh  # session entrypoints
-  lib/          # profile helpers (env paths, UI, skaha proxy)
 ```
 
 ## Design
 
 - **Same images for CPU and GPU** — pick the node in the portal; CUDA libs via pixi/uv in the project.
-- **Minimal bake stack** — `python` → `base` → four session images; heavy software via pixi or [CVMFS on CANFAR nodes](https://opencadc.github.io/canfar/platform/cvmfs/) ([source](https://github.com/opencadc/canfar/blob/main/docs/platform/cvmfs.md)).
+- **Minimal bake stack** — `python` → `base` → four session images; Ray adds `ray-base` → `ray-manager` / `ray-worker-cpu` (same `TAG` as `base`); heavy software via pixi or [CVMFS on CANFAR nodes](https://opencadc.github.io/canfar/platform/cvmfs/) ([source](https://github.com/opencadc/canfar/blob/main/docs/platform/cvmfs.md)).
 - **Quick feedback loops** — **`TMP_SRC_DIR`** (`/srcdir`) for code, **`TMP_SCRATCH_DIR`** (`/scratch`) for data/caches, `canfar-lab init` / `canfar-lab resume`, ML caches on `/arc`.
 - **Skaha session types** — Contributed (5000) for webterm/vscode/marimo; Notebook (8888) for notebook.
 - **Authentication** — Jupyter, VS Code, Marimo, and ttyd run without built-in auth. CANFAR Skaha terminates TLS and enforces portal login. Do not expose these images on the public internet without an authenticating reverse proxy.

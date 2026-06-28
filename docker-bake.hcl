@@ -79,3 +79,42 @@ target "marimo" {
   dockerfile = "dockerfiles/marimo/Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/marimo:${TAG}"]
 }
+
+# Ray cluster images (extend base in same bake — shared TAG/deps)
+target "ray-base" {
+  context    = "."
+  dockerfile = "dockerfiles/ray-base/Dockerfile"
+  contexts = {
+    "${REGISTRY}/${OWNER}/base:${TAG}" = "target:base"
+  }
+  tags = ["${REGISTRY}/${OWNER}/ray-base:${TAG}"]
+  args = {
+    REGISTRY = "${REGISTRY}"
+    OWNER    = "${OWNER}"
+    TAG      = "${TAG}"
+  }
+}
+
+target "_ray" {
+  context = "."
+  contexts = {
+    "${REGISTRY}/${OWNER}/ray-base:${TAG}" = "target:ray-base"
+  }
+  args = {
+    REGISTRY = "${REGISTRY}"
+    OWNER    = "${OWNER}"
+    TAG      = "${TAG}"
+  }
+}
+
+target "ray-manager" {
+  inherits   = ["_ray"]
+  dockerfile = "dockerfiles/ray-manager/Dockerfile"
+  tags       = ["${REGISTRY}/${OWNER}/ray-manager:${TAG}"]
+}
+
+target "ray-worker-cpu" {
+  inherits   = ["_ray"]
+  dockerfile = "dockerfiles/ray-worker-cpu/Dockerfile"
+  tags       = ["${REGISTRY}/${OWNER}/ray-worker-cpu:${TAG}"]
+}

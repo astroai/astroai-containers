@@ -11,6 +11,7 @@ Licensed under [BSD-2-Clause](../LICENSE).
 | [USAGE.md](USAGE.md) | **Session users** — working on CANFAR (`TMP_SRC_DIR` / `TMP_SCRATCH_DIR`, pixi/uv, GPU, AI CLIs) |
 | **CONTRIBUTING.md** (this file) | **Developers** — changing this repo |
 | [OPERATORS.md](OPERATORS.md) | **AstroAI maintainers** — build, push, register images on CANFAR |
+| [RAY.md](RAY.md) | **Ray clusters** — manager + worker images |
 | [README.md](../README.md) | Repo overview, build targets, design principles |
 
 In a running session: `less /opt/astroai/USAGE.md` (after the next image release).
@@ -54,6 +55,7 @@ git checkout -b my-change
 | Python / uv / pixi foundation | `dockerfiles/python/Dockerfile` | Yes — full stack |
 | Jupyter config | `config/jupyter_server_config.py` | Yes — `notebook` |
 | CADC client pins | `config/cadc-tools.txt` | Yes — `base` and downstream |
+| Ray deps / manager / worker | `config/ray-deps.txt`, `dockerfiles/ray-*`, `ray/`, `scripts/*ray*` | Yes — `make build-ray` |
 | VS Code UI defaults | `config/openvscode-settings.json` | Yes — `vscode` |
 | Bake graph, tags | `docker-bake.hcl`, `Makefile` | Depends on target |
 

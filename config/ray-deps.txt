@@ -1,0 +1,7 @@
+# Pinned Ray stack (Python 3.12 venv — Ray has no cp313 wheels yet).
+ray[default]==2.43.0
+numpy==2.2.3
+astropy==7.0.1
+pandas==2.2.3
+pyarrow==19.0.1
+fsspec==2025.2.0

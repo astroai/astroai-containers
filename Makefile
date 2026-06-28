@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% push-all push/% test-canfar test-local clean clean-all
+.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar clean clean-all
 
 SHELL := bash
 OWNER ?= astroai
@@ -9,50 +9,67 @@ PYTHON_VERSION ?= 3.13
 
 export OWNER REGISTRY PYTHON_VERSION
 
-ALL_IMAGES := base webterm notebook vscode marimo
+SESSION_IMAGES := base webterm notebook vscode marimo
+RAY_IMAGES := ray-manager ray-worker-cpu
 IMAGE_PREFIX := $(REGISTRY)/$(OWNER)
 
 help:
 	@echo "AstroAI CANFAR containers"
 	@echo "========================="
-	@echo "  make build-all          build full stack"
+	@echo "  make build-all          build session images (python → base → sessions)"
+	@echo "  make build-ray          build ray-manager + ray-worker-cpu (+ base chain)"
 	@echo "  make build/vscode       build one image (+ parents)"
-	@echo "  make push-all           tag and push all images to Harbor"
-	@echo "  make push/vscode        tag and push one image to Harbor"
-	@echo "  make test-local         local smoke test (all session images)"
-	@echo "  make test-canfar        post-push headless verify on CANFAR (needs canfar auth)"
+	@echo "  make push-all           push session images to Harbor"
+	@echo "  make push-ray           push Ray images to Harbor"
+	@echo "  make test-local         verify session images locally"
+	@echo "  make test-ray           Ray container + local cluster tests"
+	@echo "  make test-canfar        post-push headless verify on CANFAR"
 	@echo "  make clean              remove local $(IMAGE_PREFIX)/* images"
 	@echo "  make clean-all          clean + prune buildx cache"
 	@echo ""
 	@echo "  OWNER=$(OWNER)  REGISTRY=$(REGISTRY)  BUILD_TAG=$(BUILD_TAG)  TAG=$(TAG)"
 
-build-all: ## build all session images
+build-all: ## build session images
 	TAG=$(BUILD_TAG) docker buildx bake
+
+build-ray: ## build Ray manager + worker (uses same base TAG)
+	TAG=$(BUILD_TAG) docker buildx bake ray-manager ray-worker-cpu
 
 build/%:
 	TAG=$(BUILD_TAG) docker buildx bake $(notdir $@)
 
-push-all: $(addprefix push/,$(ALL_IMAGES))
+push-all: $(addprefix push/,$(SESSION_IMAGES))
+
+push-ray: $(addprefix push/,$(RAY_IMAGES))
 
 push/python:
 	@echo "ERROR: python image is build-only (internal bake parent); never push to Harbor." >&2
 	@exit 1
 
-push/%:
-	docker tag $(REGISTRY)/$(OWNER)/$(notdir $@):$(BUILD_TAG) $(REGISTRY)/$(OWNER)/$(notdir $@):$(TAG)
-	docker push $(REGISTRY)/$(OWNER)/$(notdir $@):$(TAG)
-	docker tag $(REGISTRY)/$(OWNER)/$(notdir $@):$(BUILD_TAG) $(REGISTRY)/$(OWNER)/$(notdir $@):latest
-	docker push $(REGISTRY)/$(OWNER)/$(notdir $@):latest
+push/ray-base:
+	@echo "ERROR: ray-base is build-only; push ray-manager and ray-worker-cpu." >&2
+	@exit 1
 
-test-local: ## local smoke test (all images: PATH/CADC checks)
-	@for img in $(ALL_IMAGES); do \
+push/%:
+	docker tag $(IMAGE_PREFIX)/$(notdir $@):$(BUILD_TAG) $(IMAGE_PREFIX)/$(notdir $@):$(TAG)
+	docker push $(IMAGE_PREFIX)/$(notdir $@):$(TAG)
+	docker tag $(IMAGE_PREFIX)/$(notdir $@):$(BUILD_TAG) $(IMAGE_PREFIX)/$(notdir $@):latest
+	docker push $(IMAGE_PREFIX)/$(notdir $@):latest
+
+test-local: ## verify session images
+	@for img in webterm notebook vscode marimo base; do \
 		./scripts/test-local.sh "$$img" --verify-only || exit 1; \
 	done
 
-test-canfar: ## post-push headless verification on CANFAR (IMAGE=base TAG=$(TAG))
+test-ray: build-ray ## Ray image checks + local cluster join
+	chmod +x scripts/test-ray-*.sh scripts/ray-head-start.sh scripts/startup-ray-manager.sh ray/worker/start-worker.sh
+	./scripts/test-ray-containers.sh
+	./scripts/test-ray-local.sh
+
+test-canfar:
 	./scripts/test-canfar.sh $(or $(IMAGE),base) $(TAG)
 
-clean: ## remove locally built AstroAI images
+clean:
 	@imgs=($$(docker images --format '{{.Repository}}:{{.Tag}}' '$(IMAGE_PREFIX)/*' 2>/dev/null || true)); \
 	if [[ $${#imgs[@]} -eq 0 || -z "$${imgs[0]}" ]]; then \
 		echo "No $(IMAGE_PREFIX)/* images to remove."; \
@@ -63,5 +80,5 @@ clean: ## remove locally built AstroAI images
 		echo "Removed $(IMAGE_PREFIX)/* images."; \
 	fi
 
-clean-all: clean ## remove images and buildx build cache
+clean-all: clean
 	docker buildx prune -f

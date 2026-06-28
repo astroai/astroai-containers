@@ -18,8 +18,12 @@ For **AstroAI project maintainers** who build, push, and register `images.canfar
 | `vscode` | `images.canfar.net/astroai/vscode:<tag>` | **Contributed** | 5000 | Browser IDE |
 | `notebook` | `images.canfar.net/astroai/notebook:<tag>` | **Notebook** | 8888 | JupyterLab |
 | `marimo` | `images.canfar.net/astroai/marimo:<tag>` | **Contributed** | 5000 | Reactive notebooks |
+| `ray-manager` | `images.canfar.net/astroai/ray-manager:<tag>` | **Contributed** | 5000 | Ray cluster control UI |
+| `ray-worker-cpu` | `images.canfar.net/astroai/ray-worker-cpu:<tag>` | **Headless** | — | Ray worker (manager-launched) |
 
 Each image carries `io.canfar.skaha.session.type` in its OCI labels (`headless`, `contributed`, or `notebook`) for Harbor inventory.
+
+**Ray:** register **`ray-manager`** only in the Science Portal. Do **not** register `ray-worker-cpu` — workers are launched headlessly by the manager (Milestone B) or manually for local tests. See [RAY.md](RAY.md).
 
 ## Harbor registry (public project)
 
@@ -48,6 +52,8 @@ Build and push:
 make build-all
 make push/notebook TAG=26.06
 make push/webterm TAG=26.06
+make build-ray
+make push-ray TAG=26.06
 ```
 
 Do **not** register `base` as a Science Portal session — it is the shared parent layer.
