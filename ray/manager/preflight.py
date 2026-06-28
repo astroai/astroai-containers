@@ -136,6 +136,13 @@ def run_preflight(
         message = None
         if not probe_ok:
             message = f"probe status={status} result={parsed.get('result')}"
+            if worker_checks and all(c.get("result") == "FAIL" for c in worker_checks):
+                message = (
+                    f"{message}; headless probe could not reach manager Ray ports on "
+                    f"{manager_ip}. Manager self-check passed — likely CANFAR "
+                    "session-to-session network isolation between contributed and "
+                    "headless sessions (see docs/ray-build-plan.md §18)."
+                )
         if probe_ok and mgr_checks and not all(c["result"] == "PASS" for c in mgr_checks):
             note = "manager->worker sample checks failed (non-fatal for preflight)"
             message = f"{message}; {note}" if message else note

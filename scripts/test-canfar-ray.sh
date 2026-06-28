@@ -281,18 +281,33 @@ fi
 
 echo ""
 echo "Running network preflight..."
-PF_JSON="$(api_curl -X POST "${MANAGER_URL}/api/v1/preflight/run" || true)"
-echo "${PF_JSON}" | python3 -m json.tool || echo "${PF_JSON}"
-if ! printf '%s' "${PF_JSON}" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('passed') else 1)"; then
-    echo "Network preflight failed." >&2
-    FAILURES=$((FAILURES + 1))
+PF_JSON=""
+if [[ "${CANFAR_RAY_SKIP_PREFLIGHT:-}" == "1" ]]; then
+    echo "SKIP: network preflight (CANFAR_RAY_SKIP_PREFLIGHT=1)"
+    echo "  Cross-session pod TCP is required for Ray workers; skip only when platform blocks it."
+else
+    PF_JSON="$(api_curl -X POST "${MANAGER_URL}/api/v1/preflight/run" || true)"
+    echo "${PF_JSON}" | python3 -m json.tool || echo "${PF_JSON}"
+    if ! printf '%s' "${PF_JSON}" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('passed') else 1)"; then
+        if printf '%s' "${PF_JSON}" | grep -q "session-to-session network isolation"; then
+            echo "Network preflight failed — likely CANFAR platform networking, not an image bug." >&2
+            echo "Set CANFAR_RAY_SKIP_PREFLIGHT=1 to run remaining checks, or ask ops to allow cross-session Ray ports." >&2
+        else
+            echo "Network preflight failed." >&2
+        fi
+        FAILURES=$((FAILURES + 1))
+    fi
 fi
 
 echo ""
 echo "Launching two-worker cluster..."
+PREFLIGHT_REQUIRED=true
+if [[ "${CANFAR_RAY_SKIP_PREFLIGHT:-}" == "1" ]]; then
+    PREFLIGHT_REQUIRED=false
+fi
 CLUSTER_JSON="$(api_curl -X POST "${MANAGER_URL}/api/v1/cluster/create" \
     -H 'Content-Type: application/json' \
-    -d '{"name":"canfar-ray-test","worker_count":2,"cores":1,"ram_gb":4,"min_joined":2,"partial_policy":"accept_partial","require_preflight":true}' || true)"
+    -d "{\"name\":\"canfar-ray-test\",\"worker_count\":2,\"cores\":1,\"ram_gb\":4,\"min_joined\":2,\"partial_policy\":\"accept_partial\",\"require_preflight\":${PREFLIGHT_REQUIRED}}" || true)"
 echo "${CLUSTER_JSON}" | python3 -m json.tool || echo "${CLUSTER_JSON}"
 if ! printf '%s' "${CLUSTER_JSON}" | python3 -c "
 import json, sys
