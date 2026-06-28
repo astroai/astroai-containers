@@ -7,5 +7,6 @@ _build/
 __pycache__/
 .DS_Store
 .vscode/
+config/agent/.upstream-cache/
 .idea/
 *.swp

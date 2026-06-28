@@ -34,6 +34,8 @@ Available tools:
   codewhale  CodeWhale          npm     (needs node — run: astroai-install node)
   swival     Swival             uv      (no Node)
   freebuff   Freebuff           npm     (needs node — run: astroai-install node)
+  ast-grep   ast-grep (sg)      gh      (syntax-aware search; no Node)
+  hyperfine  hyperfine          gh      (shell benchmarking; also in base image)
 
 Install:  astroai-install <tool>
 EOF
@@ -74,6 +76,66 @@ Examples:
   astroai-install --list  # see all available tools
 EOF
     list_tools
+}
+
+install_gh_release_bin() {
+    local repo="$1" asset="$2" binary="$3"
+    require_command gh
+    require_command curl
+    if ! gh auth status &>/dev/null; then
+        astroai_err "gh is not authenticated. Run: gh auth login"
+        exit 1
+    fi
+    local tmp="${TMPDIR:-/tmp}"
+    mkdir -p "${tmp}"
+    astroai_info "Downloading ${asset} from ${repo}..."
+    gh release download -R "${repo}" -p "${asset}" -D "${tmp}"
+    case "${asset}" in
+        *.tar.gz)
+            tar -xzf "${tmp}/${asset}" -C "${tmp}"
+            ;;
+        *.zip)
+            unzip -qo "${tmp}/${asset}" -d "${tmp}"
+            ;;
+        *)
+            astroai_err "Unsupported archive: ${asset}"
+            exit 1
+            ;;
+    esac
+    local found=""
+    found="$(find "${tmp}" -maxdepth 3 -type f -name "${binary}" 2>/dev/null | head -1)"
+    [[ -n "${found}" ]] || { astroai_err "Binary ${binary} not found in ${asset}"; exit 1; }
+    install -m 755 "${found}" "${BIN_DIR}/${binary}"
+    rm -f "${tmp}/${asset}"
+}
+
+install_ast_grep() {
+    ARCH="$(uname -m)"
+    case "${ARCH}" in
+        x86_64)  ASSET="ast-grep-x86_64-unknown-linux-gnu.zip" ;;
+        aarch64) ASSET="ast-grep-aarch64-unknown-linux-gnu.zip" ;;
+        *)       astroai_err "Unsupported architecture: ${ARCH}"; exit 1 ;;
+    esac
+    install_gh_release_bin "ast-grep/ast-grep" "${ASSET}" "sg"
+    ln -sf "${BIN_DIR}/sg" "${BIN_DIR}/ast-grep"
+    verify_install sg
+}
+
+install_hyperfine() {
+    if command -v hyperfine >/dev/null 2>&1; then
+        astroai_ok "✓ hyperfine already on PATH: $(hyperfine --version | head -1)"
+        return 0
+    fi
+    ARCH="$(uname -m)"
+    local ver
+    ver="$(gh release view -R sharkdp/hyperfine --json tagName -q .tagName 2>/dev/null || echo "v1.19.0")"
+    case "${ARCH}" in
+        x86_64)  ASSET="hyperfine-${ver}-x86_64-unknown-linux-gnu.tar.gz" ;;
+        aarch64) ASSET="hyperfine-${ver}-aarch64-unknown-linux-gnu.tar.gz" ;;
+        *)       astroai_err "Unsupported architecture: ${ARCH}"; exit 1 ;;
+    esac
+    install_gh_release_bin "sharkdp/hyperfine" "${ASSET}" "hyperfine"
+    verify_install hyperfine
 }
 
 ensure_bin_dir() {
@@ -260,6 +322,16 @@ case "${TOOL}" in
         uv tool install swival
         astroai_hint "Run: swival   (interactive) or swival \"task\""
         verify_install swival
+        ;;
+    ast-grep)
+        astroai_info "Installing ast-grep (sg)..."
+        install_ast_grep
+        astroai_hint "Try: sg -p 'class \$NAME' -l py"
+        ;;
+    hyperfine)
+        astroai_info "Installing hyperfine..."
+        install_hyperfine
+        astroai_hint "Try: hyperfine 'sleep 0.1' 'sleep 0.05'"
         ;;
     *)
         astroai_err "Unknown tool: ${TOOL}"

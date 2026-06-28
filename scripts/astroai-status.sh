@@ -141,4 +141,9 @@ if [[ -d "$(astroai_scratch_dir)" ]]; then
 fi
 
 echo ""
+if [[ ! -f "${HOME}/.astroai/agent-setup-stamp" ]]; then
+    astroai_hint "AI agents: run astroai-agent-setup once (persists on /arc)"
+else
+    astroai_hint "AI agents: $(cat "${HOME}/.astroai/agent-setup-stamp" 2>/dev/null) — refresh: astroai-agent-setup update"
+fi
 astroai_hint "commands: astroai-help | astroai-home-usage | astroai-env-list"

@@ -82,6 +82,11 @@ if [[ ! -f "${HOME}/.astroai/welcomed" ]]; then
   Getting help:
     astroai-help                    full command list
     less /opt/astroai/USAGE.md      detailed usage guide
+
+  AI coding agents (once per user, persists on /arc):
+    astroai-agent-setup             MCP + skills — run this first
+    astroai-install agent           or claude, goose, opencode, codex
+    astroai-agent-setup update      refresh after image upgrade
 WELCOME
         if [[ "${ASTROAI_SESSION_KIND:-}" == "webterm" ]]; then
             cat <<'WEBTERM'

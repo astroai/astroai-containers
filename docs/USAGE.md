@@ -476,7 +476,8 @@ Heavy ML stacks and project-specific deps belong in **your** pixi/uv project.
 | Tool | Why it's included |
 |------|-------------------|
 | `git`, `git-lfs`, `openssh-client`, `gh`, `delta` | Clone, push, PRs/issues, readable diffs |
-| `rg`, `fd`, `bat`, `tree`, `fzf`, `ctags` | Fast search, find, browse, jump to definitions |
+| `rg`, `fd`, `bat`, `tree`, `fzf`, `ctags`, `hyperfine` | Fast search, find, browse, benchmark, jump to definitions |
+| `sg` (ast-grep) | Syntax-aware search — `astroai-install ast-grep` if missing |
 | `file`, `xxd`, `hexdump` | Inspect file types and binary contents |
 | `patch`, `make`, `shellcheck` | Apply diffs, run Makefiles, lint shell scripts |
 | `gcc`, `g++`, `gfortran`, `ld`, `ar` | GNU C/C++/Fortran + linkers (default for science builds) |
@@ -616,6 +617,50 @@ astroai-install --list            # see everything available
 ```
 
 Binaries land in `~/.local/bin` on `/arc` — they persist across sessions.
+
+### AI coding agents (3 commands)
+
+One setup for **all users** — config persists on `/arc` across sessions.
+
+```bash
+gh auth login
+astroai-agent-setup              # once: MCP + rules + GitHub skills
+astroai-install agent            # pick your CLI: agent, claude, goose, opencode, codex, …
+```
+
+**After an image upgrade** (operators ship new skills/MCP defaults):
+
+```bash
+astroai-agent-setup update
+```
+
+**Inside a git repo** (optional, commit to share with teammates):
+
+```bash
+astroai-agent-setup project
+```
+
+What you get:
+
+| Piece | Purpose |
+|-------|---------|
+| MCP (Context7, GitHub, memory, fetch) | Docs lookup, GitHub, persistence |
+| Cursor/Claude/Goose/OpenCode/Codex configs | Same MCP everywhere you work |
+| Rules | AstroAI paths, Python, efficient search |
+| GitHub skills | [ast-grep](https://github.com/ast-grep/agent-skill), [skill-forge](https://github.com/pavelzw/skill-forge) (matplotlib, pr-review, …) |
+| `astroai-workflow` skill | CANFAR cheat sheet for agents |
+
+Then use **normal commands** — nothing extra to memorize:
+
+```bash
+pixi install && pixi run python script.py
+uv sync && uv run pytest -q
+rg 'pattern' --type py
+```
+
+Check install: `cat ~/.astroai/agent-setup-stamp`
+
+Advanced: `astroai-agent-setup --list` for per-agent bundles; `astroai-agent-setup --help`
 
 ### What's available
 

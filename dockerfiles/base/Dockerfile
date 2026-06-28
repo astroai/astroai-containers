@@ -41,6 +41,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git-delta \
     git-lfs \
     htop \
+    hyperfine \
     iproute2 \
     jq \
     less \
@@ -104,6 +105,7 @@ RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${ASTROAI_DEFAULT_SRC_DIR}
     && chmod 1777 "${ASTROAI_DEFAULT_SRC_DIR}"
 
 COPY config/cadc-tools.txt /opt/astroai/cadc-tools.txt
+COPY config/agent/ /opt/astroai/agent/
 COPY scripts/patch-clint-py313.sh /tmp/patch-clint-py313.sh
 RUN uv venv /opt/astroai/venv/cadc \
     && uv pip install --python /opt/astroai/venv/cadc -r /opt/astroai/cadc-tools.txt \
@@ -117,6 +119,7 @@ COPY scripts/astroai-env-save scripts/astroai-env-resume scripts/astroai-env-lis
     scripts/astroai-home-usage scripts/astroai-cache-prune \
     scripts/astroai-help.sh scripts/astroai-status.sh scripts/astroai-new.sh \
     scripts/astroai-clone.sh scripts/astroai-debug.sh scripts/astroai-install.sh \
+    scripts/astroai-agent-setup.sh \
     scripts/astroai-session-archive.sh scripts/astroai-data-sync.sh \
     scripts/astroai-project-init.sh scripts/astroai-kernel-register scripts/canfar-verify.sh \
     /opt/astroai/bin/
@@ -127,6 +130,7 @@ RUN chmod a+rx /opt/astroai/bin/* /opt/astroai/lib/* \
     && ln -sf astroai-clone.sh /opt/astroai/bin/astroai-clone \
     && ln -sf astroai-debug.sh /opt/astroai/bin/astroai-debug \
     && ln -sf astroai-install.sh /opt/astroai/bin/astroai-install \
+    && ln -sf astroai-agent-setup.sh /opt/astroai/bin/astroai-agent-setup \
     && ln -sf astroai-session-archive.sh /opt/astroai/bin/astroai-session-archive \
     && ln -sf astroai-data-sync.sh /opt/astroai/bin/astroai-data-stage \
     && ln -sf astroai-data-sync.sh /opt/astroai/bin/astroai-data-sync \
