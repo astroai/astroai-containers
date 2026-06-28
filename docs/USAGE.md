@@ -38,8 +38,8 @@ All four images share the same tools and storage model. **CPU and GPU use the
 same image** — if you need a GPU, pick a **GPU node** when you launch. The
 platform attaches the driver; your project supplies CUDA libraries via pixi or uv.
 
-> `base` and `full` are headless parent images used for CI jobs and local
-> Docker runs — you don't launch them from the portal.
+> `base` is the headless parent image used for CI jobs and local Docker runs —
+> you don't launch it from the portal.
 
 ### 2. Set up GitHub (once)
 
@@ -552,7 +552,7 @@ The image has **no system `node` or `npm`** — JupyterLab runs without Node
 - **JupyterLab source extensions** from npm (rare — prefer pip extensions)
 
 **Recommended: `astroai-install node`** — installs Node.js persistently to
-`~/.local/bin` on `/arc`. Alternatively: **`full`** image, pixi project,
+`~/.local/bin` on `/arc`. Alternatively: pixi project under **`TMP_SRC_DIR`**
 or `module load nodejs` from CVMFS.
 
 #### pixi project approach

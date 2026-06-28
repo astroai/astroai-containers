@@ -67,7 +67,7 @@ if [[ "${VERIFY_ONLY}" -eq 1 ]]; then
     echo "  TMP_SRC_DIR=${TMP_SRC_DIR:-?}  TMP_SCRATCH_DIR=${TMP_SCRATCH_DIR:-?}"
     echo ""
 
-    # Simulate startup: session images use common-init; headless images (base, full) use profile only.
+    # Simulate startup: session images use common-init; headless base uses profile only.
     run_docker bash -lc '
         if [[ -f /cadc/common-init.sh ]]; then
             source /cadc/common-init.sh

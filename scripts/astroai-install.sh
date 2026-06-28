@@ -108,7 +108,7 @@ require_npm() {
     astroai_hint "Install Node.js first:"
     astroai_cmd "  astroai-install node"
     echo "" >&2
-    astroai_hint "Or use the full image (node/npm pre-installed), pixi under TMP_SRC_DIR, or CVMFS module load nodejs."
+    astroai_hint "Or use pixi under TMP_SRC_DIR, or CVMFS module load nodejs."
     exit 1
 }
 

@@ -9,7 +9,7 @@ PYTHON_VERSION ?= 3.13
 
 export OWNER REGISTRY PYTHON_VERSION
 
-ALL_IMAGES := base webterm notebook vscode marimo full
+ALL_IMAGES := base webterm notebook vscode marimo
 IMAGE_PREFIX := $(REGISTRY)/$(OWNER)
 
 help:

@@ -18,7 +18,6 @@ For **AstroAI project maintainers** who build, push, and register `images.canfar
 | `vscode` | `images.canfar.net/astroai/vscode:<tag>` | **Contributed** | 5000 | Browser IDE |
 | `notebook` | `images.canfar.net/astroai/notebook:<tag>` | **Notebook** | 8888 | JupyterLab |
 | `marimo` | `images.canfar.net/astroai/marimo:<tag>` | **Contributed** | 5000 | Reactive notebooks |
-| `full` | `images.canfar.net/astroai/full:<tag>` | *(not launched)* | — | Base + Node.js LTS (`npm` CLIs) |
 
 Each image carries `io.canfar.skaha.session.type` in its OCI labels (`headless`, `contributed`, or `notebook`) for Harbor inventory.
 
@@ -285,11 +284,10 @@ Seven of eleven tools install without Node. Codex uses `gh release download` (re
 
 ### npm-based agents and Node.js
 
-Pi, CodeWhale, and Freebuff are npm-only. Operators have three options:
-
-1. **Don't pre-seed them in `base`** — users run `astroai-install node` once (pixi global → `~/.local/bin`, persists on `/arc`), then `astroai-install pi`, `astroai-install codewhale`, or `astroai-install freebuff`.
-2. **Add Node to the base image** (`apt install nodejs npm` — ~200 MB). This lets `npm install -g` work out of the box. Update USAGE.md's "Not in the image" list if you do this.
-3. **Create a separate "full" image** (`astroai/full`) with Node.js LTS pre-installed — see `dockerfiles/full/Dockerfile`. Users who need npm CLIs without setup can launch `full` instead of `base`; everyone else runs `astroai-install node` once on `/arc`.
+Pi, CodeWhale, and Freebuff are npm-only. Users run `astroai-install node` once
+(pixi global → `~/.local/bin`, persists on `/arc`), then install the npm-based
+agents. Alternatives: `pixi add nodejs` under **`TMP_SRC_DIR`**, or CVMFS
+`module load nodejs`.
 
 ### Operator implications
 

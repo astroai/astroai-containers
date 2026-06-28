@@ -12,8 +12,7 @@ Licensed under [BSD-2-Clause](LICENSE).
 | `vscode` | Browser IDE (OpenVSCode Server) | Contributed |
 | `notebook` | JupyterLab | **Notebook** |
 | `marimo` | Reactive notebooks | Contributed |
-| `full` | Headless + Node.js LTS (npm CLIs without setup) | — |
-| `base` | Headless parent (not a portal session) | — |
+| `base` | Headless parent (CI, batch, not a portal session) | — |
 
 ## Documentation
 
@@ -62,7 +61,6 @@ make push/vscode TAG=26.06
 dockerfiles/
   python/       # 3.13-slim + uv + pixi
   base/         # headless: git, monitoring, CLI, astroai-* wrappers
-  full/         # headless + Node.js LTS
   webterm/      # contributed: ttyd + tmux
   vscode/       # contributed: OpenVSCode Server
   notebook/     # notebook: JupyterLab + ipykernel (port 8888)

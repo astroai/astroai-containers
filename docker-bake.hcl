@@ -17,7 +17,7 @@ variable "PYTHON_VERSION" {
 }
 
 group "default" {
-  targets = ["base", "webterm", "notebook", "vscode", "marimo", "full"]
+  targets = ["base", "webterm", "notebook", "vscode", "marimo"]
 }
 
 target "python" {
@@ -78,10 +78,4 @@ target "marimo" {
   inherits   = ["_interface"]
   dockerfile = "dockerfiles/marimo/Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/marimo:${TAG}"]
-}
-
-target "full" {
-  inherits   = ["_interface"]
-  dockerfile = "dockerfiles/full/Dockerfile"
-  tags       = ["${REGISTRY}/${OWNER}/full:${TAG}"]
 }
