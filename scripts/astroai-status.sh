@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# AstroAI session status summary.
+# AstroAI storage quotas, home/project space, and running processes.
 
 [[ -f /etc/profile.d/astroai.sh ]] && source /etc/profile.d/astroai.sh
 for _libdir in /opt/astroai/lib "$(dirname "${BASH_SOURCE[0]}")/lib" "$(dirname "${BASH_SOURCE[0]}")/../lib"; do
@@ -13,7 +13,7 @@ done
 
 usage() {
     cat <<'EOF' >&2
-astroai-status — session snapshot: user, GPU, git, disk, age.
+astroai-status — quotas, home/project space, and processes.
 Usage: astroai-status
   --help for details
 EOF
@@ -21,7 +21,7 @@ EOF
 
 help_full() {
     cat <<'EOF'
-astroai-status — session snapshot: user, GPU, git, disk, age.
+astroai-status — quotas, home/project space, and processes.
 
 Usage:
   astroai-status
@@ -30,10 +30,11 @@ Options:
   -h          Short help (stderr, exit 1)
   --help      This help (stdout, exit 0)
 
-Prints a quick overview of the current AstroAI session:
-  user, home, work and scratch directories, caches,
-  session age, GPU status, git branch, CADC tools,
-  top processes, and disk quotas.
+Prints:
+  • /arc quota usage for home and accessible project workspaces
+  • Largest directories under $HOME on shared storage
+  • Top-level usage for the current /arc/projects workspace (if any)
+  • Top processes by CPU
 
 No arguments required.
 EOF
@@ -50,95 +51,75 @@ case "${1:-}" in
         ;;
 esac
 
-astroai_title "AstroAI session status"
+astroai_title "AstroAI status"
 astroai_divider
-astroai_kv "user:" "${USER}  home: ${HOME}"
-astroai_kv "work (TMP_SRC_DIR):" "${TMP_SRC_DIR:-not set}"
-astroai_kv "scratch (TMP_SCRATCH_DIR):" "$(astroai_scratch_dir) ($(if astroai_scratch_available; then echo writable; else echo unavailable; fi))"
-astroai_kv "pwd:" "${PWD}"
-astroai_kv "tmp:" "${TMPDIR:-/tmp}"
-astroai_kv "caches:" "uv=${UV_CACHE_DIR:-?} pixi=${PIXI_CACHE_DIR:-?} conda=${MAMBA_PKGS_DIRS:-?} npm=${NPM_CONFIG_CACHE:-?}"
 
-# Session age (written by common-init.sh at startup)
-if [[ -f "${HOME}/.astroai/session-started" ]]; then
-    _start_epoch="$(cat "${HOME}/.astroai/session-started" 2>/dev/null || echo 0)"
-    if [[ "${_start_epoch}" -gt 0 ]]; then
-        _now="$(date +%s)"
-        _age_sec=$(( _now - _start_epoch ))
-        if [[ "${_age_sec}" -ge 3600 ]]; then
-            _age="$(( _age_sec / 3600 ))h $(( (_age_sec % 3600) / 60 ))m"
-        else
-            _age="$(( _age_sec / 60 ))m"
-        fi
-        _start_fmt="$(date -d "@${_start_epoch}" '+%H:%M %Z' 2>/dev/null || echo unknown)"
-        astroai_kv "session:" "started ${_start_fmt} (${_age} ago)"
-    fi
-fi
-
-astroai_kv "uptime:" "$(uptime 2>/dev/null | sed 's/^.*up//' | sed 's/,.*//' | xargs || echo unknown)"
-
-if [[ -n "${ASTROAI_PROFILE_LOADED:-}" ]]; then
-    astroai_kv "profile:" "sourced"
+echo ""
+astroai_heading "Quotas (/arc)"
+if [[ -d "${HOME}" ]]; then
+    astroai_quota_line "${HOME}" "home"
 else
-    astroai_warn "profile: not sourced"
+    astroai_hint "  home: not mounted"
 fi
 
-if [[ -d /cvmfs/soft.computecanada.ca/config/profile ]]; then
-    astroai_kv "cvmfs:" "available (source /cvmfs/soft.computecanada.ca/config/profile/bash.sh)"
-else
-    astroai_hint "cvmfs:   not mounted (may be lazy — access a known path first)"
-fi
-
-if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi &>/dev/null; then
-    astroai_kv "gpu:" "$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null | head -1)"
-else
-    astroai_hint "gpu:   not visible (CPU node or no driver)"
-fi
-
-kind="$(astroai_detect_project 2>/dev/null || true)"
-if [[ -n "${kind}" ]]; then
-    astroai_kv "project:" "${kind} ($(basename "${PWD}"))"
-else
-    astroai_hint "project: none (cd $(astroai_src_dir) && pixi init)"
-fi
-
-if command -v uv >/dev/null 2>&1; then
-    uv_py_dir="$(uv python dir 2>/dev/null || echo unknown)"
-    if [[ "${uv_py_dir}" == /usr/local/* ]]; then
-        astroai_warn "uv:    python dir ${uv_py_dir} (root-only — run: source /etc/profile.d/astroai.sh)"
-    else
-        astroai_kv "uv:" "python dir ${uv_py_dir}"
-    fi
-fi
-
-if git rev-parse --is-inside-work-tree &>/dev/null; then
-    astroai_kv "git:" "$(git branch --show-current 2>/dev/null) $(git status -sb 2>/dev/null | head -1)"
+if [[ -d /arc/projects ]]; then
+    for proj in /arc/projects/*/; do
+        [[ -d "${proj}" && -r "${proj}" ]] || continue
+        astroai_quota_line "${proj}" "$(basename "${proj}")"
+    done
 fi
 
 echo ""
-astroai_heading "cadc:"
-for tool in cadcget cadcput vcp cadc-tap canfar cadc-get-cert; do
-    if command -v "${tool}" >/dev/null 2>&1; then
-        ver="$("${tool}" --version 2>&1 | head -1 || echo ok)"
-        astroai_kv "  ${tool}" "${ver}"
-    else
-        astroai_hint "  ${tool} not installed"
+astroai_heading "Home (${HOME})"
+_home_entries=(
+    ".cache:ML/tool caches"
+    ".pixi:pixi global envs"
+    ".local/share/micromamba:micromamba root"
+    ".local:user tools and data"
+    ".astroai:env save manifests"
+    ".config:application config"
+)
+
+_home_total=0
+for entry in "${_home_entries[@]}"; do
+    dir="${entry%%:*}"
+    label="${entry#*:}"
+    path="${HOME}/${dir}"
+    if [[ -e "${path}" ]]; then
+        human="$(du -sh "${path}" 2>/dev/null | awk '{print $1}')"
+        bytes="$(du -sb "${path}" 2>/dev/null | awk '{print $1}')"
+        if astroai_ui_enabled; then
+            printf '  %b%-10s%b %8s  %s\n' $'\033[1m' "${dir}" $'\033[0m' "${human}" "${label}"
+        else
+            printf "  %-10s %8s  %s\n" "${dir}" "${human}" "${label}"
+        fi
+        _home_total=$((_home_total + bytes))
     fi
 done
 
-echo ""
-astroai_heading "processes (top by CPU):"
-ps aux --sort=-%cpu 2>/dev/null | head -6 | tail -5 | sed 's/^/  /' || true
+if [[ "${_home_total}" -gt 0 ]]; then
+    _home_h="$(numfmt --to=iec-i --suffix=B "${_home_total}" 2>/dev/null || echo "?")"
+    astroai_kv "Tracked:" "~${_home_h}"
+fi
+
+_pct="$(astroai_quota_used_pct "${HOME}" 2>/dev/null || true)"
+if [[ -n "${_pct}" && "${_pct}" -ge 80 ]]; then
+    astroai_hint "  → astroai-home-usage for full breakdown · astroai-home-clean --all-safe"
+fi
 
 echo ""
-astroai_heading "disk:"
-astroai_quota_line "${HOME}" "home" 2>/dev/null || true
-if [[ -d "$(astroai_src_dir)" ]]; then
-    astroai_quota_line "$(astroai_src_dir)" "src" 2>/dev/null || true
+astroai_heading "Project space"
+_proj="$(astroai_find_arc_project_root 2>/dev/null || true)"
+if [[ -n "${_proj}" ]]; then
+    astroai_kv "cwd:" "${_proj}"
+    du -sh "${_proj}"/* 2>/dev/null | sort -hr | head -8 | sed 's/^/  /' || astroai_hint "  (empty)"
+else
+    astroai_hint "  not under /arc/projects (team workspaces live there)"
 fi
-if [[ -d "$(astroai_scratch_dir)" ]]; then
-    astroai_quota_line "$(astroai_scratch_dir)" "scratch" 2>/dev/null || true
-fi
+
+echo ""
+astroai_heading "Processes (top CPU)"
+ps aux --sort=-%cpu 2>/dev/null | head -6 | tail -5 | sed 's/^/  /' || true
 
 echo ""
 if [[ ! -f "${HOME}/.astroai/agent-setup-stamp" ]]; then
@@ -146,4 +127,4 @@ if [[ ! -f "${HOME}/.astroai/agent-setup-stamp" ]]; then
 else
     astroai_hint "AI agents: $(cat "${HOME}/.astroai/agent-setup-stamp" 2>/dev/null) — refresh: astroai-agent-setup update"
 fi
-astroai_hint "commands: astroai-help | astroai-home-usage | astroai-env-list"
+astroai_hint "more: astroai-home-usage · astroai-debug"

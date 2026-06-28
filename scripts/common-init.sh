@@ -75,7 +75,7 @@ if [[ ! -f "${HOME}/.astroai/welcomed" ]]; then
     astroai-session-archive         save everything before closing
 
   Storage:
-    TMP_SRC_DIR     code + env (see astroai-status)
+    TMP_SRC_DIR     code + env (see astroai-debug)
     TMP_SCRATCH_DIR datasets + caches when mounted
     /arc/home       persistent config, saves, AI tools in ~/.local
 

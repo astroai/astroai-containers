@@ -45,8 +45,10 @@ check "login shell: cadc-tap" login_shell 'command -v cadc-tap >/dev/null'
 check "login shell: vcp" login_shell 'command -v vcp >/dev/null'
 check "login shell: cadc-get-cert" login_shell 'command -v cadc-get-cert >/dev/null'
 check "login shell: astroai-help" login_shell 'command -v astroai-help >/dev/null'
+check "login shell: astroai-agent-setup" login_shell 'command -v astroai-agent-setup >/dev/null'
+check "agent bundle manifest" test -f /opt/astroai/agent/manifest.json
 
-for tool in gh rg fd bat fzf uv pixi micromamba mamba patch make file xxd hexdump lsof ss host ncdu shellcheck ctags \
+for tool in gh rg fd bat fzf hyperfine uv pixi micromamba mamba patch make file xxd hexdump lsof ss host ncdu shellcheck ctags \
     gcc g++ gfortran ld ar rustc cargo \
     cmake ninja autoconf automake libtoolize flex bison; do
     check "login shell: ${tool}" login_shell "command -v ${tool} >/dev/null"

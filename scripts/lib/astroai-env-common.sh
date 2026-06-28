@@ -148,7 +148,7 @@ astroai_check_quota() {
         astroai_warn "  ⚠  ${label}: ${used_pct}% used — CRITICAL (near quota limit)"
         return 2
     elif [[ "${used_pct}" -ge 90 ]]; then
-        astroai_warn "  ⚠  ${label}: ${used_pct}% used — prune soon (astroai-cache-prune --all-safe)"
+        astroai_warn "  ⚠  ${label}: ${used_pct}% used — prune soon (astroai-home-clean --all-safe)"
         return 1
     elif [[ "${used_pct}" -ge 80 ]]; then
         astroai_warn "  ⚠  ${label}: ${used_pct}% used — monitor (astroai-home-usage)"

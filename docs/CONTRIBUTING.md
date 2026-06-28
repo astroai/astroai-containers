@@ -76,7 +76,7 @@ After changing `base` or `scripts/astroai-profile.sh`, verify uv paths:
 ./scripts/test-local.sh webterm 5000
 # in the container:
 source /etc/profile.d/astroai.sh
-astroai-status                  # uv python dir should be under $HOME, not /usr/local
+astroai-debug                   # paths, caches, uv python dir under $HOME
 uv run python -c "print('ok')"
 ```
 

@@ -187,7 +187,7 @@ __astroai_quota_reminder() {
         _level="monitor"
         _color='\033[1;33m'  # yellow
     fi
-    printf '\n  %b⚠  home: %d%% used (%s) — astroai-cache-prune --all-safe%b\n\n' "${_color}" "${_used_pct}" "${_level}" '\033[0m'
+    printf '\n  %b⚠  home: %d%% used (%s) — astroai-home-clean --all-safe%b\n\n' "${_color}" "${_used_pct}" "${_level}" '\033[0m'
 }
 
 # ── Pre-exit auto-archive (once per git repo per session) ──

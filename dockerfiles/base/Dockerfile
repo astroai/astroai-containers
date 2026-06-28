@@ -116,7 +116,7 @@ RUN uv venv /opt/astroai/venv/cadc \
 COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh scripts/lib/astroai-load.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
 COPY scripts/astroai-env-save scripts/astroai-env-resume scripts/astroai-env-list \
     scripts/astroai-workspace-save.sh scripts/astroai-workspace-restore.sh \
-    scripts/astroai-home-usage scripts/astroai-cache-prune \
+    scripts/astroai-home-usage scripts/astroai-home-clean scripts/astroai-cache-prune \
     scripts/astroai-help.sh scripts/astroai-status.sh scripts/astroai-new.sh \
     scripts/astroai-clone.sh scripts/astroai-debug.sh scripts/astroai-install.sh \
     scripts/astroai-agent-setup.sh \

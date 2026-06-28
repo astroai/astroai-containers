@@ -314,7 +314,7 @@ Session images include built-in quota awareness for `/arc/home` (personal) and `
 | Touchpoint | When | What it does |
 |-----------|------|-------------|
 | Session start (`common-init.sh`) | Every new session | Runs `astroai_quota_startup_check` — silently probes home and project quota via `df`; prints warnings only if a threshold is crossed |
-| `astroai-status` | User runs it manually | Shows quota-aware disk lines with usage percentage and alert level for scratch, home, and current project |
+| `astroai-status` | User runs it manually | Quota lines for home and projects, home dir breakdown, current project usage, top processes |
 | `astroai-home-usage` | User runs it manually | Opens with a quota overview for home and all accessible projects, plus a percentage summary |
 
 ### Threshold levels
@@ -322,7 +322,7 @@ Session images include built-in quota awareness for `/arc/home` (personal) and `
 | Level | Threshold | Message | Action |
 |-------|-----------|---------|--------|
 | Monitor | ≥ 80% | `⚠ monitor (astroai-home-usage)` | No action needed — user sees a heads-up |
-| High | ≥ 90% | `⚠ high — prune soon (astroai-cache-prune --all-safe)` | Encourage cache pruning |
+| High | ≥ 90% | `⚠ high — prune soon (astroai-home-clean --all-safe)` | Encourage home cleanup |
 | Critical | ≥ 95% | `⚠ CRITICAL — near quota limit` | Immediate pruning required; env save may fail |
 
 ### How quota is measured
@@ -345,7 +345,8 @@ At session start, `astroai_quota_startup_check` walks up from the current workin
 **Support:** When a user reports `env-save` failures or `No space left on device` errors, check:
 1. `astroai-debug` Disk section — shows **`TMP_SRC_DIR`**, **`TMP_SCRATCH_DIR`**, and `/arc/home` free space
 2. `astroai-home-usage` — breaks down what's consuming the user's quota
-3. `astroai-cache-prune --all-safe` — clears pip/uv/npm/pixi caches
+3. `astroai-home-clean --all-safe` — clears re-downloadable junk under `/arc/home`
+4. `astroai-cache-prune --all-safe` — clears scratch download caches if needed
 
 **Quota visibility is passive:** The checks read usage percentages from the filesystem — they do not enforce limits or block writes. The platform controls actual quota enforcement at the CephFS level.
 
@@ -414,7 +415,7 @@ Session ends → TMP_SRC_DIR and TMP_SCRATCH_DIR wiped
 **Common failure modes operators can help with:**
 
 - **Git push fails** — no remote configured, or GitHub auth token expired. Guide user through `gh auth login` or `git remote add origin`.
-- **Env save fails** — quota full. Check `astroai-home-usage`, recommend `astroai-cache-prune --all-safe`, retry save.
+- **Env save fails** — quota full. Check `astroai-home-usage`, recommend `astroai-home-clean --all-safe`, retry save.
 - **Data sync not run** — `/scratch` is unrecoverable after session expiry. Emphasize this in onboarding; the `astroai-session-archive` summary reminds users but doesn't run `astroai-data-sync` automatically (it doesn't know which data to sync).
 
 **Capacity planning:**

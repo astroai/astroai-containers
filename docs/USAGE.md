@@ -55,7 +55,7 @@ Follow the prompts — browser auth or paste a token. Done.
 ### 3. Start a project
 
 ```bash
-astroai-status                    # quick sanity check: gpu, disk, git
+astroai-status                    # quotas, home/project space, processes
 astroai-new mylab                 # creates a pixi project in the work directory
 cd mylab
 pixi add numpy astropy
@@ -100,7 +100,7 @@ pixi run python analysis.py
 That's it — you're up and running. The rest of this guide covers storage details,
 GPU workflows, team workspaces, and everything else.
 
-**Handy commands:** `astroai-help` · `astroai-status` · `less /opt/astroai/USAGE.md`
+**Handy commands:** `astroai-help` · `astroai-status` · `astroai-home-usage` · `less /opt/astroai/USAGE.md`
 
 ---
 
@@ -122,7 +122,7 @@ wiped when the session ends). AstroAI keeps code and data separate:
 | `/cvmfs/` | DRAC / Alliance software (read-only) | Persistent on nodes; lazy-mounted |
 
 On Contributed session startup, `common-init` **`cd`s to `TMP_SRC_DIR`**.
-Run `astroai-status` to see resolved paths (`work:` and `scratch:`).
+Run `astroai-debug` to see resolved paths (`TMP_SRC_DIR`, `TMP_SCRATCH_DIR`, caches).
 
 ### The golden rule
 
@@ -148,8 +148,8 @@ Legacy alias: `ASTROAI_WORK_ROOT` still works when `TMP_SRC_DIR` is unset.
 | **`TMP_SRC_DIR`** (`/srcdir`) | Repos, active `.pixi`/`.venv` envs | Assuming it persists — always `git push` |
 | **`TMP_SCRATCH_DIR`** (`/scratch`) | Staged datasets, training outputs, download caches | Assuming it persists — `astroai-data-sync` |
 | `~/.astroai/saves/` | Lockfile manifests (small) | `--full` packs unless necessary |
-| `~/.cache/huggingface` | OK — `astroai-cache-prune --hf` | Large model re-downloads |
-| `~/.cache/torch`, matplotlib, other ML | Manual cleanup (not in cache-prune) | Unbounded caches |
+| `~/.cache/huggingface` | OK — `astroai-home-clean --hf` | Large model re-downloads |
+| `~/.cache/torch`, matplotlib, other ML | `astroai-home-clean --ml` | Unbounded caches |
 | `~/.local/bin` | AI tools, small user binaries | Large vendored SDKs |
 | `/arc/projects/<group>/` | Shared datasets, team env-saves | Personal scratch copies |
 
@@ -440,7 +440,7 @@ gh run list --limit 5             # recent CI runs
 | Command | What it does |
 |---------|-------------|
 | `astroai-help` | Full command list (this doc is the long form) |
-| `astroai-status` | Session snapshot: user, GPU, git, disk, session age |
+| `astroai-status` | Quotas, home/project space, top processes |
 | `astroai-new [name]` | New project under `TMP_SRC_DIR` (`--uv`, `--no-git`, `--no-gh`, `--astro`) |
 | `astroai-clone <owner/repo> [dir]` | Clone + install deps |
 | `astroai-env-save [name]` | Save lockfiles + manifest (~KB) (`--full`, `--to`) |
@@ -454,7 +454,8 @@ gh run list --limit 5             # recent CI runs
 | `astroai-data-stage <src> [dst]` | Copy persistent → scratch |
 | `astroai-data-sync <src> <dst>` | Copy scratch → persistent |
 | `astroai-home-usage` | Disk breakdown under `$HOME` |
-| `astroai-cache-prune` | Clear caches (`--all-safe`, `--pip`, `--uv`, `--npm`, `--pixi`, `--conda`, `--hf`) |
+| `astroai-home-clean` | Clear re-downloadable junk on `/arc` (`--all-safe`, `--stale-pkg`, `--ml`, `--hf`, `--dry-run`) |
+| `astroai-cache-prune` | Clear scratch download caches (`--all-safe`, `--pip`, `--uv`, `--npm`, `--pixi`, `--conda`, `--hf`) |
 | `astroai-install <tool>` | Install AI tools to `~/.local/bin` (`--list`) |
 | `astroai-debug` | Diagnostic report (`--stdout`, `--file`) |
 
@@ -756,9 +757,11 @@ If scratch isn't mounted, caches fall back under `TMP_SRC_DIR/.cache-$USER/`.
 When `/arc` quota feels tight:
 
 ```bash
-astroai-home-usage                # see what's using space
-astroai-cache-prune --all-safe    # scratch: pip/uv/npm/pixi/conda caches
-astroai-cache-prune --hf          # /arc: Hugging Face models only
+astroai-home-usage                  # see what's using space
+astroai-home-clean --dry-run --all-safe   # preview /arc cleanup
+astroai-home-clean --all-safe       # stale pkg caches, ML, logs on /arc
+astroai-home-clean --hf              # also drop Hugging Face models (expensive)
+astroai-cache-prune --all-safe        # scratch: pip/uv/npm/pixi/conda caches
 ```
 
 ---
@@ -862,7 +865,7 @@ AstroAI profile (`/etc/profile.d/astroai.sh`) sets unless overridden:
 | `TMP_SCRATCH_DIR` | `/scratch` | Datasets, download caches, `TMPDIR` parent |
 | `ASTROAI_WORK_ROOT` | — | Legacy alias for code root (deprecated) |
 
-Run `astroai-status` to see resolved values.
+Run `astroai-debug` to see resolved values.
 
 ---
 
@@ -906,9 +909,9 @@ Share the log: `cat ~/.astroai/debug-<timestamp>.log`
 | `gh: not authenticated` | `gh auth login` — token persists on `/arc`. Required for `astroai-install codex`. |
 | Wrong npm package | Codex: `@openai/codex` · OpenCode: `opencode-ai` · Pi: `@earendil-works/pi-coding-agent` · Claude/Cursor: prefer curl via `astroai-install`. |
 | pip build fails | Add compilers/libs with pixi, not system apt. |
-| `uv` permission denied on `/usr/local` | `source /etc/profile.d/astroai.sh` (or `bash -l`) must run first — it redirects uv paths to `~/.local`. Check with `astroai-status`. |
+| `uv` permission denied on `/usr/local` | `source /etc/profile.d/astroai.sh` (or `bash -l`) must run first — it redirects uv paths to `~/.local`. Check with `astroai-debug`. |
 | `canfar` / `cadcget` not found | Open a login shell (`bash -l`) or new tmux window. Run `/opt/astroai/bin/canfar-verify.sh`. |
-| `/arc` quota pressure | `astroai-home-usage` then `astroai-cache-prune --all-safe`. |
+| `/arc` quota pressure | `astroai-home-usage` then `astroai-home-clean --all-safe`. |
 | `ls /cvmfs` looks empty | Normal — CVMFS mounts lazily. `source /cvmfs/soft.computecanada.ca/config/profile/bash.sh` then `module avail`. |
 | Jupyter 404 behind proxy | Notebook sessions use port **8888** and path `/session/notebook/<id>/`. See [OPERATORS.md](OPERATORS.md). |
 | Jupyter opens at `/` not project dir | Stock platform launcher — `cd "${TMP_SRC_DIR}"` manually or ask ops for the AstroAI startup override. |

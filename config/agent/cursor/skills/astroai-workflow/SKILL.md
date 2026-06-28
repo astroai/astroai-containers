@@ -46,6 +46,8 @@ uv run python script.py
 
 ```bash
 astroai-help
-astroai-status
+astroai-status                   # quotas, home/project space
+astroai-debug                    # paths, caches, uv python dir
+astroai-home-clean --all-safe    # when /arc quota is tight
 less /opt/astroai/USAGE.md
 ```
