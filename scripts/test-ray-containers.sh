@@ -29,6 +29,9 @@ check "ray-manager startup.sh" docker run --rm --entrypoint test "${MGR}" -x /sk
 check "ray-worker entrypoint" docker run --rm --entrypoint test "${WRK}" -x /opt/astroai/bin/start-ray-worker.sh
 check "ray installed" docker run --rm --entrypoint python "${WRK}" -c "import ray; print(ray.__version__)"
 check "ray version pin" docker run --rm --entrypoint python "${WRK}" -c "import ray; assert ray.__version__=='2.43.0'"
+check "network probe script" docker run --rm --entrypoint test "${WRK}" -x /opt/astroai/bin/ray-network-probe.sh
+check "canfar in manager" docker run --rm --entrypoint python "${MGR}" -c "import canfar"
+check "manager app loads" docker run --rm --entrypoint python "${MGR}" -c "import sys; sys.path.insert(0,'/opt/astroai/ray-manager'); import app"
 check "worker rejects missing env" bash -c "! docker run --rm \"${WRK}\" 2>/dev/null"
 
 echo ""

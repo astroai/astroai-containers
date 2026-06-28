@@ -26,5 +26,7 @@ ENV PATH="/opt/astroai/venv/ray/bin:/opt/astroai/venv/cadc/bin:${PATH}"
 
 COPY ray/worker/start-worker.sh /opt/astroai/bin/start-ray-worker.sh
 COPY scripts/ray-head-start.sh /opt/astroai/bin/ray-head-start.sh
+COPY scripts/ray-network-probe.sh /opt/astroai/bin/ray-network-probe.sh
 COPY examples/ray/ /opt/astroai/examples/ray/
-RUN chmod a+rx /opt/astroai/bin/start-ray-worker.sh /opt/astroai/bin/ray-head-start.sh
+RUN chmod a+rx /opt/astroai/bin/start-ray-worker.sh /opt/astroai/bin/ray-head-start.sh \
+    /opt/astroai/bin/ray-network-probe.sh

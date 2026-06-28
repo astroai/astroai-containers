@@ -1,0 +1,190 @@
+#!/bin/bash -e
+# Milestone B smoke test on CANFAR: contributed ray-manager + worker via session API.
+#
+# Requires: canfar CLI authenticated (canfar auth login) with config on /arc/home
+# so the manager session inherits credentials.
+#
+# Usage:
+#   ./scripts/test-canfar-ray.sh [tag]
+#   RAY_MANAGER_URL=https://.../session/contributed/xyz ./scripts/test-canfar-ray.sh
+#
+# Environment:
+#   REGISTRY, OWNER, CANFAR_TEST_TIMEOUT (default 1800)
+#   CANFAR_REGISTRY__* / REGISTRY_USER — Harbor pull for worker image (see test-canfar.sh)
+
+TAG="${1:-${TAG:-26.06}}"
+OWNER="${OWNER:-astroai}"
+REGISTRY="${REGISTRY:-images.canfar.net}"
+TIMEOUT="${CANFAR_TEST_TIMEOUT:-1800}"
+FULL_IMAGE="${REGISTRY}/${OWNER}/ray-manager:${TAG}"
+TAG_SAFE="$(printf '%s' "${TAG}" | tr '.:/+' '-' | tr -cd 'a-zA-Z0-9-')"
+SESSION_NAME="ray-mgr-test-${TAG_SAFE}-$(date -u +%Y%m%d%H%M%S)"
+MANAGER_URL="${RAY_MANAGER_URL:-}"
+SESSION_ID=""
+FAILURES=0
+
+maybe_registry_auth() {
+    if [[ -n "${CANFAR_REGISTRY__USERNAME:-}" && -n "${CANFAR_REGISTRY__SECRET:-}" ]]; then
+        export CANFAR_REGISTRY__URL="${CANFAR_REGISTRY__URL:-https://${REGISTRY}}"
+        return 0
+    fi
+    if [[ -n "${REGISTRY_USER:-}" && -n "${REGISTRY_PASSWORD:-}" ]]; then
+        export CANFAR_REGISTRY__USERNAME="${REGISTRY_USER}"
+        export CANFAR_REGISTRY__SECRET="${REGISTRY_PASSWORD}"
+        export CANFAR_REGISTRY__URL="${CANFAR_REGISTRY__URL:-https://${REGISTRY}}"
+        return 0
+    fi
+}
+
+curl_auth=( )
+if [[ -f "${HOME}/.ssl/cadcproxy.pem" ]]; then
+    curl_auth=(--cert "${HOME}/.ssl/cadcproxy.pem")
+elif [[ -n "${CANFAR_TOKEN:-}" ]]; then
+    curl_auth=(-H "Authorization: Bearer ${CANFAR_TOKEN}")
+fi
+
+api_curl() {
+    curl -fsS "${curl_auth[@]}" "$@"
+}
+
+canfar_ps_field() {
+    local match_key="$1" match_val="$2" want_field="$3"
+    canfar ps -a --json 2>/dev/null | python3 -c "
+import json, sys
+match_key, match_val, want_field = sys.argv[1:4]
+raw = sys.stdin.read().strip()
+if not raw:
+    raise SystemExit(0)
+for marker in ('[', '{'):
+    idx = raw.find(marker)
+    if idx >= 0:
+        raw = raw[idx:]
+        break
+try:
+    rows = json.loads(raw)
+except json.JSONDecodeError:
+    raise SystemExit(0)
+if isinstance(rows, dict):
+    rows = [rows]
+for row in rows:
+    if row.get(match_key) == match_val:
+        val = row.get(want_field, '')
+        if val:
+            print(val)
+        break
+" "${match_key}" "${match_val}" "${want_field}" || true
+}
+
+cleanup() {
+    if [[ -n "${SESSION_ID}" && -z "${RAY_MANAGER_URL:-}" ]]; then
+        echo ""
+        echo "Deleting manager session ${SESSION_ID}..."
+        canfar delete --force "${SESSION_ID}" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+
+if ! command -v canfar >/dev/null 2>&1; then
+    echo "canfar CLI not found." >&2
+    exit 1
+fi
+if ! canfar auth show >/dev/null 2>&1; then
+    echo "canfar not authenticated. Run: canfar auth login" >&2
+    exit 1
+fi
+
+maybe_registry_auth
+
+if [[ -z "${MANAGER_URL}" ]]; then
+    echo "CANFAR Ray Milestone B test"
+    echo "  manager image: ${FULL_IMAGE}"
+    echo "  session name:  ${SESSION_NAME}"
+    echo ""
+    echo "Creating contributed ray-manager session..."
+    CREATE_OUT="$(canfar create --name "${SESSION_NAME}" contributed "${FULL_IMAGE}" 2>&1)" || {
+        echo "${CREATE_OUT}" >&2
+        exit 1
+    }
+    echo "${CREATE_OUT}"
+    SESSION_ID="$(printf '%s\n' "${CREATE_OUT}" | sed -n 's/.*(ID:[[:space:]]*\([^)]*\)).*/\1/p' | awk '{print $1}')"
+    [[ -n "${SESSION_ID}" ]] || SESSION_ID="$(canfar_ps_field name "${SESSION_NAME}" id)"
+    [[ -n "${SESSION_ID}" ]] || { echo "Could not parse session ID." >&2; exit 1; }
+
+    echo "Waiting for manager session (ID ${SESSION_ID})..."
+    deadline=$((SECONDS + TIMEOUT))
+    status=""
+    while (( SECONDS < deadline )); do
+        status="$(canfar_ps_field id "${SESSION_ID}" status)"
+        [[ "${status}" == "Running" ]] && break
+        [[ "${status}" == "Failed" || "${status}" == "Error" ]] && break
+        sleep 10
+    done
+    if [[ "${status}" != "Running" ]]; then
+        echo "Manager session status: ${status:-timeout}" >&2
+        canfar logs "${SESSION_ID}" 2>&1 | tail -50 >&2 || true
+        exit 1
+    fi
+    MANAGER_URL="$(canfar_ps_field id "${SESSION_ID}" connectURL)"
+    [[ -n "${MANAGER_URL}" ]] || { echo "No connectURL for manager session." >&2; exit 1; }
+fi
+
+MANAGER_URL="${MANAGER_URL%/}"
+echo "Manager URL: ${MANAGER_URL}"
+
+echo "Waiting for /readyz..."
+deadline=$((SECONDS + 600))
+while (( SECONDS < deadline )); do
+    if api_curl "${MANAGER_URL}/readyz" >/dev/null 2>&1; then
+        break
+    fi
+    sleep 5
+done
+api_curl "${MANAGER_URL}/readyz" | python3 -m json.tool
+
+echo ""
+echo "Checking CANFAR auth status from manager..."
+AUTH_JSON="$(api_curl "${MANAGER_URL}/api/v1/auth/status" || true)"
+echo "${AUTH_JSON}" | python3 -m json.tool || echo "${AUTH_JSON}"
+if ! printf '%s' "${AUTH_JSON}" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('authenticated') else 1)"; then
+    echo ""
+    echo "Manager is not authenticated to CANFAR." >&2
+    echo "Run 'canfar auth login' once from an AstroAI webterm (persists under /arc/home), then retry." >&2
+    exit 1
+fi
+
+echo ""
+echo "Running network preflight..."
+PF_JSON="$(api_curl -X POST "${MANAGER_URL}/api/v1/preflight/run" || true)"
+echo "${PF_JSON}" | python3 -m json.tool || echo "${PF_JSON}"
+if ! printf '%s' "${PF_JSON}" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('passed') else 1)"; then
+    echo "Network preflight failed." >&2
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo ""
+echo "Launching one worker..."
+LAUNCH_JSON="$(api_curl -X POST "${MANAGER_URL}/api/v1/workers/launch" \
+    -H 'Content-Type: application/json' \
+    -d '{"cores":1,"ram_gb":4,"require_preflight":true}' || true)"
+echo "${LAUNCH_JSON}" | python3 -m json.tool || echo "${LAUNCH_JSON}"
+if ! printf '%s' "${LAUNCH_JSON}" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+w = d.get('worker') or {}
+sys.exit(0 if w.get('ray_joined') else 1)
+"; then
+    echo "Worker did not join Ray cluster." >&2
+    FAILURES=$((FAILURES + 1))
+fi
+
+echo ""
+echo "Destroying workers..."
+api_curl -X POST "${MANAGER_URL}/api/v1/workers/destroy-all" | python3 -m json.tool || true
+
+echo ""
+if [[ "${FAILURES}" -eq 0 ]]; then
+    echo "CANFAR Ray Milestone B test passed."
+    exit 0
+fi
+echo "CANFAR Ray Milestone B test failed." >&2
+exit 1

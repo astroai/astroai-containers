@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar clean clean-all
+.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-ray clean clean-all
 
 SHELL := bash
 OWNER ?= astroai
@@ -24,6 +24,7 @@ help:
 	@echo "  make test-local         verify session images locally"
 	@echo "  make test-ray           Ray container + local cluster tests"
 	@echo "  make test-canfar        post-push headless verify on CANFAR"
+	@echo "  make test-canfar-ray    Milestone B: manager launches worker on CANFAR"
 	@echo "  make clean              remove local $(IMAGE_PREFIX)/* images"
 	@echo "  make clean-all          clean + prune buildx cache"
 	@echo ""
@@ -62,12 +63,17 @@ test-local: ## verify session images
 	done
 
 test-ray: build-ray ## Ray image checks + local cluster join
-	chmod +x scripts/test-ray-*.sh scripts/ray-head-start.sh scripts/startup-ray-manager.sh ray/worker/start-worker.sh
+	chmod +x scripts/test-ray-*.sh scripts/ray-head-start.sh scripts/startup-ray-manager.sh \
+		scripts/ray-network-probe.sh ray/worker/start-worker.sh
 	./scripts/test-ray-containers.sh
 	./scripts/test-ray-local.sh
 
 test-canfar:
 	./scripts/test-canfar.sh $(or $(IMAGE),base) $(TAG)
+
+test-canfar-ray: ## Milestone B — CANFAR manager + worker join
+	chmod +x scripts/test-canfar-ray.sh
+	./scripts/test-canfar-ray.sh $(TAG)
 
 clean:
 	@imgs=($$(docker images --format '{{.Repository}}:{{.Tag}}' '$(IMAGE_PREFIX)/*' 2>/dev/null || true)); \

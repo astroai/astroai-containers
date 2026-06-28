@@ -3,6 +3,10 @@
 
 set -o pipefail
 
+if [[ "${RAY_NETWORK_PROBE:-}" == "1" ]]; then
+    exec /opt/astroai/bin/ray-network-probe.sh
+fi
+
 RAY_BIN="${RAY_BIN:-/opt/astroai/venv/ray/bin/ray}"
 PYTHON_BIN="${PYTHON_BIN:-/opt/astroai/venv/ray/bin/python}"
 
