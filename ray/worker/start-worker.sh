@@ -75,6 +75,13 @@ ray_args=(
 )
 
 if [[ "${RAY_WORKER_GPUS}" != "0" ]]; then
+    if ! command -v nvidia-smi >/dev/null 2>&1; then
+        die "RAY_WORKER_GPUS=${RAY_WORKER_GPUS} but nvidia-smi not found — launch workers with CANFAR gpu=${RAY_WORKER_GPUS}"
+    fi
+    gpu_visible="$(nvidia-smi -L 2>/dev/null | grep -c '^GPU ' || true)"
+    if [[ "${gpu_visible}" -lt "${RAY_WORKER_GPUS}" ]]; then
+        die "RAY_WORKER_GPUS=${RAY_WORKER_GPUS} but nvidia-smi reports ${gpu_visible} GPU(s)"
+    fi
     ray_args+=(--num-gpus="${RAY_WORKER_GPUS}")
 fi
 

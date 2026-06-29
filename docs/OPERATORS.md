@@ -19,13 +19,15 @@ For **AstroAI project maintainers** who build, push, and register `images.canfar
 | `notebook` | `images.canfar.net/astroai/notebook:<tag>` | **Notebook** | 8888 | JupyterLab |
 | `marimo` | `images.canfar.net/astroai/marimo:<tag>` | **Contributed** | 5000 | Reactive notebooks |
 | `ray-manager` | `images.canfar.net/astroai/ray-manager:<tag>` | **Contributed** | 5000 | Ray cluster control UI |
-| `ray-worker-cpu` | `images.canfar.net/astroai/ray-worker-cpu:<tag>` | **Headless** | — | Ray worker (manager-launched) |
+| `ray-worker` | `images.canfar.net/astroai/ray-worker:<tag>` | **Headless** | — | Ray worker CPU or GPU (manager-launched) |
+
+`ray-worker-cpu:<tag>` is a Harbor alias of `ray-worker` (same digest).
 
 Each image carries `io.canfar.skaha.session.type` in its OCI labels (`headless`, `contributed`, or `notebook`) for Harbor inventory.
 
-**Ray:** register **`ray-manager`** only in the Science Portal. Do **not** register `ray-worker-cpu` — workers are launched headlessly by the manager. See [RAY.md](RAY.md).
+**Ray:** register **`ray-manager`** only in the Science Portal. Do **not** register `ray-worker` — workers are launched headlessly by the manager. See [RAY.md](RAY.md).
 
-Users must run `canfar auth login` once from another AstroAI session so credentials persist under `/arc/home` (`~/.canfar/config.yaml`). Maintainers validate Ray with `make test-canfar-ray TAG=26.06` after push (UI smoke + 2-worker cluster).
+Users must run `canfar auth login` once from another AstroAI session so credentials persist under `/arc/home` (`~/.canfar/config.yaml`). Maintainers validate Ray with `make test-canfar-ray TAG=26.06` after push (UI smoke + 2-worker cluster). GPU: `make test-canfar-ray-gpu TAG=26.06` on production.
 
 ## Harbor registry (public project)
 

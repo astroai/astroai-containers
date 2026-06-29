@@ -13,7 +13,7 @@ CLUSTER_ID="local-test"
 FAILURES=0
 
 MGR="${REGISTRY}/${OWNER}/ray-manager:${TAG}"
-WRK="${REGISTRY}/${OWNER}/ray-worker-cpu:${TAG}"
+WRK="${REGISTRY}/${OWNER}/ray-worker:${TAG}"
 
 cleanup() {
     docker rm -f "ray-mgr-${CLUSTER_ID}" "ray-wrk-${CLUSTER_ID}" 2>/dev/null || true

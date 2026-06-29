@@ -153,46 +153,34 @@ Recommended Ray head behavior:
 - no public Ray Client or dashboard exposure;
 - no authentication assumptions based on the contributed-session browser cookie.
 
-### 4.3 CPU worker image
+### 4.3 Worker image (CPU and GPU)
 
-Suggested name:
+Name:
 
 ```text
-images.canfar.net/<project>/canfar-ray-worker-cpu:<version>
+images.canfar.net/<project>/ray-worker:<version>
 ```
+
+Legacy Harbor alias: `ray-worker-cpu:<version>` (same digest).
+
+Built on `astroai/base` + `ray-base` — **no separate CUDA image**. GPU workers use CANFAR `gpu=N` at session launch; the entrypoint verifies `nvidia-smi` when `RAY_WORKER_GPUS>0`. ML/CUDA stacks belong in user pixi/uv projects (same as notebook/webterm).
 
 Responsibilities:
 
-- join the manager's Ray head using environment variables;
-- use the CPU count passed by the manager;
+- join the manager's Ray head using environment variables (`RAY_HEAD_IP`, `RAY_HEAD_PORT`, `RAY_WORKER_GPUS`);
+- use the CPU/GPU counts passed by the manager;
 - use `/scratch/ray/<cluster-id>/` for Ray temporary and spill data;
 - remain alive using `ray start --block`;
 - check the manager heartbeat periodically;
 - exit if the heartbeat is stale beyond a configured threshold;
 - emit useful startup and failure diagnostics;
 - verify that the worker Ray version matches the manager version;
+- fail clearly when GPUs are requested but not visible;
 - shut down cleanly on `SIGTERM`.
 
-### 4.4 GPU worker image
+### 4.4 GPU validation (Milestone E)
 
-Suggested name:
-
-```text
-images.canfar.net/<project>/canfar-ray-worker-gpu:<version>
-```
-
-Derived from a CANFAR-compatible CUDA runtime image.
-
-Additional responsibilities:
-
-- include a Ray version identical to the manager;
-- include the agreed ML framework, for example PyTorch;
-- verify GPU visibility with `nvidia-smi` or the framework runtime;
-- pass the GPU count to Ray;
-- include a basic NCCL or distributed-training smoke test;
-- fail clearly when the requested GPU is not visible.
-
-Keep the CPU and GPU worker entrypoint contract identical.
+No separate GPU worker image. Validate on CANFAR production with `make test-canfar-ray-gpu TAG=<version>` (1 worker, `gpus=1`, Ray reports GPU resources).
 
 ---
 

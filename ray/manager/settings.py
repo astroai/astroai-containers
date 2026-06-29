@@ -24,7 +24,7 @@ class ManagerSettings:
         tag = os.environ.get("RAY_IMAGE_TAG", os.environ.get("BUILD_TAG", "latest"))
         registry = os.environ.get("REGISTRY", "images.canfar.net")
         owner = os.environ.get("OWNER", "astroai")
-        default_worker = f"{registry}/{owner}/ray-worker-cpu:{tag}"
+        default_worker = f"{registry}/{owner}/ray-worker:{tag}"
         return cls(
             cluster_id=os.environ.get("RAY_CLUSTER_ID", "default"),
             ray_version=os.environ.get("RAY_VERSION_EXPECTED", "2.43.0"),

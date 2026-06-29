@@ -20,7 +20,7 @@ check() {
 }
 
 MGR="${REGISTRY}/${OWNER}/ray-manager:${TAG}"
-WRK="${REGISTRY}/${OWNER}/ray-worker-cpu:${TAG}"
+WRK="${REGISTRY}/${OWNER}/ray-worker:${TAG}"
 
 echo "Ray container verification"
 echo "=========================="

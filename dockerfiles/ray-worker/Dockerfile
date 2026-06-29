@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Ray CPU worker — headless; joins manager Ray head via env contract.
+# Ray worker — headless CPU or GPU (CANFAR gpu=N at launch); joins manager via env contract.
 
 ARG REGISTRY=images.canfar.net
 ARG OWNER=astroai

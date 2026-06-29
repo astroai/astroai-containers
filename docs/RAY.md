@@ -1,13 +1,15 @@
 # Distributed Ray on CANFAR
 
-User-owned Ray clusters: a **contributed `ray-manager` session** (port 5000) launches **headless `ray-worker-cpu` sessions** over pod networking. Persistent state uses **`/arc/home/<user>/`** (or **`/arc/projects/<group>/`** for team workspaces) — never the `/arc` mount root. **`/scratch`** is required for spill/temp on all nodes.
+User-owned Ray clusters: a **contributed `ray-manager` session** (port 5000) launches **headless `ray-worker` sessions** over pod networking. One worker image serves **CPU and GPU** nodes — request GPUs per worker in the UI or API (`gpus=N`); CANFAR schedules GPU nodes and the worker entrypoint verifies `nvidia-smi`. ML/CUDA stacks belong in user pixi/uv projects (same as other AstroAI images). Persistent state uses **`/arc/home/<user>/`** (or **`/arc/projects/<group>/`** for team workspaces) — never the `/arc` mount root. **`/scratch`** is required for spill/temp on all nodes.
 
 ## Images
 
 | Image | Skaha type | Portal |
 |-------|------------|--------|
 | `ray-manager` | Contributed | Register — users launch this |
-| `ray-worker-cpu` | Headless | **Do not register** — manager launches workers |
+| `ray-worker` | Headless | **Do not register** — manager launches workers |
+
+`ray-worker-cpu:<tag>` on Harbor is a **legacy alias** of `ray-worker` (same image). There is no separate GPU worker image.
 
 `ray-base` is build-only (extends `base` with a Python 3.12 Ray venv).
 
@@ -18,6 +20,7 @@ make build-ray BUILD_TAG=26.06
 make test-ray                              # local: 1-worker, 2-worker + recovery
 make push-ray TAG=26.06
 make test-canfar-ray TAG=26.06             # CANFAR: 2-worker cluster lifecycle
+make test-canfar-ray-gpu TAG=26.06         # CANFAR: 1 GPU worker (production)
 ```
 
 Ray layers use the **same bake `TAG` as `base`** — no separate `BASE_TAG` pin.
@@ -63,7 +66,7 @@ Local smoke: `./scripts/test-ray-ui-local.sh` (included in `make test-ray`). On 
 ## Cluster workflow (Milestone C)
 
 1. **Run network preflight** — verifies pod-to-pod TCP for Ray ports
-2. **Create cluster** — specify worker count, CPU/RAM, min joined, partial-start policy
+2. **Create cluster** — specify worker count, CPU/RAM, **GPUs per worker**, min joined, partial-start policy
 3. **Use Ray** — connect with `ray.init(address="auto")` from the manager or your code
 4. **Stop cluster** — destroys all worker sessions and marks cluster `Stopped`
 
@@ -108,3 +111,4 @@ Full spec: [ray-build-plan.md](ray-build-plan.md).
 | B | CANFAR auth, preflight, worker via API | Done |
 | C | Multi-worker cluster, stop, reconcile, recovery | Done |
 | D | Astronomy workload validation | Planned |
+| E | GPU worker validation (single `ray-worker` image) | In progress |

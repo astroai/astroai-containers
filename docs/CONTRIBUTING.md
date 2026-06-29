@@ -107,6 +107,7 @@ Commit the updated wheel with any doc changes in this repo.
 ```bash
 make test-ray BUILD_TAG=local          # Ray images, local cluster, manager UI, canfar-lab loop
 make test-canfar-ray TAG=26.06         # after push: CANFAR manager UI + 2-worker cluster
+make test-canfar-ray-gpu TAG=26.06     # production: 1 GPU worker cluster
 ```
 
 | Script | What it checks |

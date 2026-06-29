@@ -307,6 +307,7 @@ def action_create_cluster(
     worker_count: int = Form(2),
     cores: int = Form(1),
     ram_gb: int = Form(4),
+    gpus: int = Form(0),
     min_joined: int = Form(2),
     partial_policy: str = Form("accept_partial"),
 ) -> RedirectResponse:
@@ -315,6 +316,7 @@ def action_create_cluster(
         worker_count=worker_count,
         cores=cores,
         ram_gb=ram_gb,
+        gpus=gpus,
         min_joined=min_joined,
         partial_policy=partial_policy,  # type: ignore[arg-type]
         require_preflight=True,
@@ -461,6 +463,7 @@ def index(request: Request) -> str:
       <label>Workers <input name="worker_count" type="number" value="2" min="1" max="16"></label>
       <label>CPUs/worker <input name="cores" type="number" value="1" min="1"></label>
       <label>RAM GB/worker <input name="ram_gb" type="number" value="4" min="1"></label>
+      <label>GPUs/worker <input name="gpus" type="number" value="0" min="0" max="8"></label>
       <label>Min joined <input name="min_joined" type="number" value="2" min="1"></label>
       <label>Partial policy
         <select name="partial_policy">

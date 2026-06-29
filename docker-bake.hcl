@@ -113,8 +113,11 @@ target "ray-manager" {
   tags       = ["${REGISTRY}/${OWNER}/ray-manager:${TAG}"]
 }
 
-target "ray-worker-cpu" {
+target "ray-worker" {
   inherits   = ["_ray"]
-  dockerfile = "dockerfiles/ray-worker-cpu/Dockerfile"
-  tags       = ["${REGISTRY}/${OWNER}/ray-worker-cpu:${TAG}"]
+  dockerfile = "dockerfiles/ray-worker/Dockerfile"
+  tags = [
+    "${REGISTRY}/${OWNER}/ray-worker:${TAG}",
+    "${REGISTRY}/${OWNER}/ray-worker-cpu:${TAG}",
+  ]
 }

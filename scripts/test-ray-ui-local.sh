@@ -58,6 +58,7 @@ echo "==========================="
 
 check "HTML title" grep -q "CANFAR Ray Manager" <<< "${HTML}"
 check "create cluster form" grep -q 'action="/actions/create-cluster"' <<< "${HTML}"
+check "gpus form field" grep -q 'name="gpus"' <<< "${HTML}"
 check "preflight action" grep -q 'action="/actions/preflight"' <<< "${HTML}"
 check "stop cluster action" grep -q 'action="/actions/stop-cluster"' <<< "${HTML}"
 check "clean orphans action" grep -q 'action="/actions/clean-orphans"' <<< "${HTML}"

@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-ray clean clean-all
+.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-ray test-canfar-ray-gpu clean clean-all
 
 SHELL := bash
 OWNER ?= astroai
@@ -10,14 +10,14 @@ PYTHON_VERSION ?= 3.13
 export OWNER REGISTRY PYTHON_VERSION
 
 SESSION_IMAGES := base webterm notebook vscode marimo
-RAY_IMAGES := ray-manager ray-worker-cpu
+RAY_IMAGES := ray-manager ray-worker
 IMAGE_PREFIX := $(REGISTRY)/$(OWNER)
 
 help:
 	@echo "AstroAI CANFAR containers"
 	@echo "========================="
 	@echo "  make build-all          build session images (python → base → sessions)"
-	@echo "  make build-ray          build ray-manager + ray-worker-cpu (+ base chain)"
+	@echo "  make build-ray          build ray-manager + ray-worker (+ base chain)"
 	@echo "  make build/vscode       build one image (+ parents)"
 	@echo "  make push-all           push session images to Harbor"
 	@echo "  make push-ray           push Ray images to Harbor"
@@ -25,6 +25,7 @@ help:
 	@echo "  make test-ray           Ray container + local cluster + UI tests"
 	@echo "  make test-canfar        post-push headless verify on CANFAR"
 	@echo "  make test-canfar-ray    CANFAR: manager UI + 2-worker cluster lifecycle"
+	@echo "  make test-canfar-ray-gpu CANFAR: 1 GPU worker cluster (production)"
 	@echo "  make clean              remove local $(IMAGE_PREFIX)/* images"
 	@echo "  make clean-all          clean + prune buildx cache"
 	@echo ""
@@ -34,7 +35,7 @@ build-all: ## build session images
 	TAG=$(BUILD_TAG) docker buildx bake
 
 build-ray: ## build Ray manager + worker (uses same base TAG)
-	TAG=$(BUILD_TAG) docker buildx bake ray-manager ray-worker-cpu
+	TAG=$(BUILD_TAG) docker buildx bake ray-manager ray-worker
 
 build/%:
 	TAG=$(BUILD_TAG) docker buildx bake $(notdir $@)
@@ -42,13 +43,21 @@ build/%:
 push-all: $(addprefix push/,$(SESSION_IMAGES))
 
 push-ray: $(addprefix push/,$(RAY_IMAGES))
+	@# Harbor alias — same digest as ray-worker
+	docker tag $(IMAGE_PREFIX)/ray-worker:$(TAG) $(IMAGE_PREFIX)/ray-worker-cpu:$(TAG)
+	docker push $(IMAGE_PREFIX)/ray-worker-cpu:$(TAG)
+	docker tag $(IMAGE_PREFIX)/ray-worker:$(TAG) $(IMAGE_PREFIX)/ray-worker-cpu:latest
+	docker push $(IMAGE_PREFIX)/ray-worker-cpu:latest
+
+# Production Ray push: bake TAG into manager env (RAY_IMAGE_TAG) — use BUILD_TAG=$(TAG).
+#   make build-ray BUILD_TAG=26.06 TAG=26.06 && make push-ray TAG=26.06 BUILD_TAG=26.06
 
 push/python:
 	@echo "ERROR: python image is build-only (internal bake parent); never push to Harbor." >&2
 	@exit 1
 
 push/ray-base:
-	@echo "ERROR: ray-base is build-only; push ray-manager and ray-worker-cpu." >&2
+	@echo "ERROR: ray-base is build-only; push ray-manager and ray-worker." >&2
 	@exit 1
 
 push/%:
@@ -77,6 +86,11 @@ test-canfar:
 test-canfar-ray: ## CANFAR manager UI + 2-worker cluster lifecycle
 	chmod +x scripts/test-canfar-ray.sh
 	./scripts/test-canfar-ray.sh $(TAG)
+
+test-canfar-ray-gpu: ## CANFAR 1-worker cluster with gpu=1
+	chmod +x scripts/test-canfar-ray.sh
+	CANFAR_RAY_GPUS=1 CANFAR_RAY_WORKER_COUNT=1 CANFAR_RAY_MIN_JOINED=1 \
+		./scripts/test-canfar-ray.sh $(TAG)
 
 clean:
 	@imgs=($$(docker images --format '{{.Repository}}:{{.Tag}}' '$(IMAGE_PREFIX)/*' 2>/dev/null || true)); \

@@ -11,12 +11,19 @@
 # Environment:
 #   REGISTRY, OWNER, CANFAR_TEST_TIMEOUT (default 1800)
 #   CANFAR_REGISTRY__* / REGISTRY_USER — Harbor pull for worker image (see test-canfar.sh)
+#   CANFAR_RAY_GPUS (default 0) — set to 1 for GPU worker test
+#   CANFAR_RAY_WORKER_COUNT (default 2, or 1 when CANFAR_RAY_GPUS=1)
+#   CANFAR_RAY_MIN_JOINED (default matches worker_count)
 
 TAG="${1:-${TAG:-26.06}}"
 OWNER="${OWNER:-astroai}"
 REGISTRY="${REGISTRY:-images.canfar.net}"
 TIMEOUT="${CANFAR_TEST_TIMEOUT:-1800}"
+CANFAR_RAY_GPUS="${CANFAR_RAY_GPUS:-0}"
+CANFAR_RAY_WORKER_COUNT="${CANFAR_RAY_WORKER_COUNT:-$(( CANFAR_RAY_GPUS > 0 ? 1 : 2 ))}"
+CANFAR_RAY_MIN_JOINED="${CANFAR_RAY_MIN_JOINED:-${CANFAR_RAY_WORKER_COUNT}}"
 FULL_IMAGE="${REGISTRY}/${OWNER}/ray-manager:${TAG}"
+WORKER_IMAGE="${REGISTRY}/${OWNER}/ray-worker:${TAG}"
 TAG_SAFE="$(printf '%s' "${TAG}" | tr '.:/+' '-' | tr -cd 'a-zA-Z0-9-')"
 SESSION_NAME="ray-mgr-test-${TAG_SAFE}-$(date -u +%Y%m%d%H%M%S)"
 MANAGER_URL="${RAY_MANAGER_URL:-}"
@@ -368,6 +375,12 @@ WORKER_IMG="$(printf '%s' "${STATUS_JSON}" | python3 -c "import json,sys; print(
 echo "  worker_image: ${WORKER_IMG}"
 if [[ -n "${WORKER_IMG}" && "${WORKER_IMG}" == *":${TAG}" ]]; then
     echo "  ok  worker image uses tag ${TAG}"
+    if [[ "${WORKER_IMG}" == *"/ray-worker:"* || "${WORKER_IMG}" == *"/ray-worker-cpu:"* ]]; then
+        echo "  ok  worker image name (ray-worker)"
+    else
+        echo "  FAIL worker image name (expected ray-worker, got ${WORKER_IMG})" >&2
+        FAILURES=$((FAILURES + 1))
+    fi
 else
     echo "  FAIL worker image tag (expected *:${TAG}, got ${WORKER_IMG})" >&2
     FAILURES=$((FAILURES + 1))
@@ -406,14 +419,18 @@ print(json.dumps(d.get('preflight') or {}))
 fi
 
 echo ""
-echo "Launching two-worker cluster..."
+if [[ "${CANFAR_RAY_GPUS}" != "0" ]]; then
+    echo "Launching GPU cluster (${CANFAR_RAY_WORKER_COUNT} worker(s), gpus=${CANFAR_RAY_GPUS})..."
+else
+    echo "Launching cluster (${CANFAR_RAY_WORKER_COUNT} worker(s))..."
+fi
 PREFLIGHT_REQUIRED=true
 if [[ "${CANFAR_RAY_SKIP_PREFLIGHT:-}" == "1" ]]; then
     PREFLIGHT_REQUIRED=false
 fi
 CLUSTER_ACCEPT="$(api_curl -o /dev/null -w '%{http_code}' -X POST "${MANAGER_URL}/api/v1/cluster/create?async=1" \
     -H 'Content-Type: application/json' \
-    -d "{\"name\":\"canfar-ray-test\",\"worker_count\":2,\"cores\":1,\"ram_gb\":4,\"min_joined\":2,\"partial_policy\":\"accept_partial\",\"require_preflight\":${PREFLIGHT_REQUIRED}}" 2>/dev/null || true)"
+    -d "{\"name\":\"canfar-ray-test\",\"worker_count\":${CANFAR_RAY_WORKER_COUNT},\"cores\":1,\"ram_gb\":4,\"gpus\":${CANFAR_RAY_GPUS},\"min_joined\":${CANFAR_RAY_MIN_JOINED},\"partial_policy\":\"accept_partial\",\"require_preflight\":${PREFLIGHT_REQUIRED}}" 2>/dev/null || true)"
 CLUSTER_ACCEPT="${CLUSTER_ACCEPT:-000}"
 if [[ "${CLUSTER_ACCEPT}" != "202" ]]; then
     echo "Cluster create async start failed (HTTP ${CLUSTER_ACCEPT})." >&2
@@ -427,13 +444,32 @@ echo "${CLUSTER_JSON}" | python3 -m json.tool || echo "${CLUSTER_JSON}"
 if ! printf '%s' "${CLUSTER_JSON}" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
-sys.exit(0 if d.get('success') and d.get('joined_workers', 0) >= 2 else 1)
+need = int('${CANFAR_RAY_MIN_JOINED}')
+sys.exit(0 if d.get('success') and d.get('joined_workers', 0) >= need else 1)
 "; then
-    echo "Two-worker cluster did not reach healthy state." >&2
+    echo "Cluster did not reach healthy state (need ${CANFAR_RAY_MIN_JOINED} joined)." >&2
     FAILURES=$((FAILURES + 1))
     dump_persisted_worker_logs "${CLUSTER_JSON}"
     dump_persisted_worker_logs "$(api_curl "${MANAGER_URL}/api/v1/status" 2>/dev/null || true)"
     dump_canfar_cli_worker_logs "${CLUSTER_JSON}"
+fi
+
+if [[ "${CANFAR_RAY_GPUS}" != "0" ]] && [[ "${FAILURES}" -eq 0 ]]; then
+    echo ""
+    echo "Checking Ray GPU resources on joined workers..."
+    GPU_JSON="$(api_curl "${MANAGER_URL}/api/v1/ray/nodes" 2>/dev/null || true)"
+    echo "${GPU_JSON}" | python3 -m json.tool || echo "${GPU_JSON}"
+    if ! printf '%s' "${GPU_JSON}" | python3 -c "
+import json, sys
+nodes = json.load(sys.stdin).get('nodes') or []
+gpu_total = sum(float(n.get('Resources', {}).get('GPU', 0) or 0) for n in nodes)
+sys.exit(0 if gpu_total >= float('${CANFAR_RAY_GPUS}') else 1)
+"; then
+        echo "Ray cluster did not report expected GPU resources." >&2
+        FAILURES=$((FAILURES + 1))
+    else
+        echo "  ok  Ray reports GPU resources"
+    fi
 fi
 
 echo ""
@@ -446,7 +482,11 @@ api_curl -X POST "${MANAGER_URL}/api/v1/workers/destroy-all" | python3 -m json.t
 
 echo ""
 if [[ "${FAILURES}" -eq 0 ]]; then
-    echo "CANFAR Ray Milestone B test passed."
+    if [[ "${CANFAR_RAY_GPUS}" != "0" ]]; then
+        echo "CANFAR Ray GPU test passed."
+    else
+        echo "CANFAR Ray Milestone B test passed."
+    fi
     exit 0
 fi
 echo "CANFAR Ray Milestone B test failed." >&2
