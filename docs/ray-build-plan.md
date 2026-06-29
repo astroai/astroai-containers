@@ -246,7 +246,7 @@ canfar-ray/
 
 `/skaha/startup.sh` must:
 
-1. Validate that `/arc` and `/scratch` are mounted and writable where expected.
+1. Validate that **`/arc/home/<user>`** (or `$HOME` when already under `/arc/home`) and **`/scratch`** are writable where expected.
 2. Determine the current pod IP.
 3. Create a per-session Ray temporary directory under `/scratch`.
 4. Start the Ray head with fixed ports.
@@ -442,7 +442,7 @@ RAY_LOG_LEVEL
 The worker entrypoint must:
 
 1. Validate all required values.
-2. Verify `/arc` and `/scratch`.
+2. Verify **`/scratch`** and shared **`/arc/home/<user>`** (for manager heartbeat). Do not require the `/arc` mount root.
 3. Confirm that the installed Ray version matches `RAY_VERSION_EXPECTED`.
 4. Determine its pod IP.
 5. Test TCP connectivity to the Ray head.
@@ -731,7 +731,7 @@ Mock the CANFAR client and Ray state API.
 Run in this order:
 
 1. Launch manager contributed session.
-2. Verify `/arc` and `/scratch`.
+2. Verify **`/arc/home/<user>`** and **`/scratch`** (not `/arc` root).
 3. Complete CANFAR API authentication.
 4. Run network preflight.
 5. Launch one CPU worker.

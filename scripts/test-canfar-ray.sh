@@ -148,7 +148,7 @@ for w in data.get('workers') or []:
 " 2>/dev/null || true)"
     [[ -n "${session_ids}" ]] || return 0
     echo ""
-    echo "Persisted worker logs (from manager /arc):"
+    echo "Persisted worker logs (from manager /arc/home):"
     while IFS= read -r sid; do
         [[ -n "${sid}" ]] || continue
         echo "--- ${sid} ---"

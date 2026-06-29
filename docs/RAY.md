@@ -1,6 +1,6 @@
 # Distributed Ray on CANFAR
 
-User-owned Ray clusters: a **contributed `ray-manager` session** (port 5000) launches **headless `ray-worker-cpu` sessions** over pod networking. Manager sessions use **`/arc`** and **`/scratch`**. Headless workers require **`/scratch`**; **`/arc` is optional** — when absent, the worker skips the manager heartbeat monitor and continues (see `start-worker.sh`).
+User-owned Ray clusters: a **contributed `ray-manager` session** (port 5000) launches **headless `ray-worker-cpu` sessions** over pod networking. Persistent state uses **`/arc/home/<user>/`** (or **`/arc/projects/<group>/`** for team workspaces) — never the `/arc` mount root. **`/scratch`** is required for spill/temp on all nodes.
 
 ## Images
 

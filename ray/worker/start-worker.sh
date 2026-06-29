@@ -34,12 +34,28 @@ installed="$("${PYTHON_BIN}" -c 'import ray; print(ray.__version__)' 2>/dev/null
 
 [[ -d /scratch && -w /scratch ]] || die "/scratch not writable"
 
-if [[ -d /arc && -w /arc ]]; then
-    ARC_WRITABLE=1
+# CANFAR persistent storage: use /arc/home/$USER (or $HOME when already set there),
+# not the /arc mount root. Team data lives under /arc/projects/<group>/ (POSIX ACL).
+_session_user="${USER:-$(id -un)}"
+_canfar_home="/arc/home/${_session_user}"
+if [[ -d "${_canfar_home}" && -w "${_canfar_home}" ]]; then
+    export HOME="${_canfar_home}"
+elif [[ -n "${HOME:-}" && -d "${HOME}" && -w "${HOME}" ]]; then
+    :
 else
-    ARC_WRITABLE=0
-    echo "WARN: /arc not writable — headless session without shared ARC; heartbeat monitor disabled" >&2
+    echo "WARN: ${_canfar_home} not writable — shared /arc/home unavailable; heartbeat monitor disabled" >&2
+    echo "  (CANFAR mounts user data at /arc/home/\$USER or /arc/projects/<group>/, not /arc root)" >&2
     export RAY_SKIP_HEARTBEAT=1
+fi
+
+if [[ "${RAY_SKIP_HEARTBEAT:-}" != "1" ]]; then
+    case "${RAY_MANAGER_HEARTBEAT_PATH}" in
+        /arc/home/*) ;;
+        *)
+            echo "WARN: heartbeat path must be under /arc/home/<user> (got ${RAY_MANAGER_HEARTBEAT_PATH}); disabling monitor" >&2
+            export RAY_SKIP_HEARTBEAT=1
+            ;;
+    esac
 fi
 
 mkdir -p "${RAY_SPILL_DIR}"
@@ -65,7 +81,7 @@ fi
 export RAY_spill_dir="${RAY_SPILL_DIR}"
 
 if [[ "${RAY_SKIP_HEARTBEAT:-}" == "1" ]]; then
-    echo "Skipping manager heartbeat monitor (/arc unavailable on this session)" >&2
+    echo "Skipping manager heartbeat monitor (no shared /arc/home for this session)" >&2
 else
 (
     while true; do
