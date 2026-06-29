@@ -234,7 +234,8 @@ The report has 10 sections:
 | Profile | `CANFAR_LAB_PROFILE_LOADED` guard, image PATH, session env via canfar-lab |
 | GPU | `nvidia-smi` query (GPU index, driver, VRAM, temp, utilization) + GPU process listing |
 | Disk | **`TMP_SRC_DIR`**, **`TMP_SCRATCH_DIR`**, and HOME `df`, top directories by size |
-| Tools | Version check for pre-installed dev, file, and CADC tools |
+| Tools | Version check for pre-installed dev, file, and CADC tools (includes `canfar`) |
+| CANFAR | `canfar auth show` when the `canfar` CLI is on PATH (JSON: `canfar_auth` on `canfar-lab doctor --json`) |
 | Project | Pixi/uv project detection, lockfile size, `.pixi`/`.venv` directory size |
 | Network | HTTPS reachability to pypi.org, github.com, conda.anaconda.org, files.pythonhosted.org |
 | Environment | Key env vars (PATH, HOME, XDG, UV, PIXI, CUDA, etc.) with tokens/keys redacted |
@@ -255,7 +256,9 @@ kubectl exec <pod> -- canfar-lab doctor --stdout
 
 ### Operator use cases
 
-**Triage user reports:** Ask the user to run `canfar-lab doctor` and share the log (`cat ~/.canfar/lab/debug-*.log`). The report answers the most common support questions in one file — are **`TMP_SRC_DIR`** / **`TMP_SCRATCH_DIR`** writable? Is the profile sourced? Are tools present? Is the network reachable?
+**Triage user reports:** Ask the user to run `canfar-lab doctor` and share the log (`cat ~/.canfar/lab/debug-*.log`). The report answers the most common support questions in one file — are **`TMP_SRC_DIR`** / **`TMP_SCRATCH_DIR`** writable? Is the profile sourced? Are tools present? Is **`canfar auth show`** healthy? Is the network reachable?
+
+For a quick CANFAR platform view without the full doctor report, `canfar-lab status` also prints **`canfar auth show`** and **`canfar ps`** (machine-readable: `canfar-lab --json status`).
 
 **Fleet health:** Run `canfar-lab doctor --stdout` across all running containers to spot patterns — stale sessions with zero scratch usage, quota-pressure nodes, or CVMFS mount failures.
 
@@ -325,8 +328,7 @@ Session images include built-in quota awareness for `/arc/home` (personal) and `
 | Touchpoint | When | What it does |
 |-----------|------|-------------|
 | Session start (`common-init.sh`) | Every new session | Runs `astroai_quota_startup_check` — silently probes home and project quota via `df`; prints warnings only if a threshold is crossed |
-| `canfar-lab status` | User runs it manually | Quota lines for home and projects, home dir breakdown, current project usage, top processes |
-| `canfar-lab status` | User runs it manually | Opens with a quota overview for home and all accessible projects, plus a percentage summary |
+| `canfar-lab status` | User runs it manually | Quota overview for home and projects, home dir breakdown, **`canfar auth show`**, **`canfar ps`**, top processes |
 
 ### Threshold levels
 

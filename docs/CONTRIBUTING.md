@@ -55,6 +55,7 @@ git checkout -b my-change
 | Python / uv / pixi foundation | `dockerfiles/python/Dockerfile` | Yes — full stack |
 | Jupyter config | `config/jupyter_server_config.py` | Yes — `notebook` |
 | CADC client pins | `config/cadc-tools.txt` | Yes — `base` and downstream |
+| **`canfar-lab` CLI** | Vendored wheel in `vendor/canfar_lab-0.1.0-py3-none-any.whl` | Yes — `base` and downstream |
 | Ray deps / manager / worker | `config/ray-deps.txt`, `dockerfiles/ray-*`, `ray/`, `scripts/*ray*` | Yes — `make build-ray` |
 | VS Code UI defaults | `config/openvscode-settings.json` | Yes — `vscode` |
 | Bake graph, tags | `docker-bake.hcl`, `Makefile` | Depends on target |
@@ -83,6 +84,23 @@ uv run python -c "print('ok')"
 ```
 
 Rebuild the **parent** when you change shared layers — e.g. profile changes need `make build/base` (or `build/webterm` which pulls parents).
+
+## Refreshing the vendored `canfar-lab` wheel
+
+Session images install `canfar-lab` from the wheel in `vendor/`, not from PyPI. After pulling upstream [sfabbro/canfar-lab](https://github.com/sfabbro/canfar-lab):
+
+```bash
+cd ../canfar-lab
+uv run pytest -q
+uv build
+cp dist/canfar_lab-0.1.0-py3-none-any.whl ../containers/vendor/
+cd ../containers
+make build-all BUILD_TAG=local
+make test-ray BUILD_TAG=local
+make test-local BUILD_TAG=local
+```
+
+Commit the updated wheel with any doc changes in this repo.
 
 ## Ray and canfar-lab tests
 

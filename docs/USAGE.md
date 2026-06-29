@@ -58,7 +58,7 @@ Follow the prompts — browser auth or paste a token. Done.
 ### 3. Start a project
 
 ```bash
-canfar-lab status                    # quotas, home/project space, processes
+canfar-lab status                    # quotas, CANFAR auth/sessions, processes
 canfar-lab init mylab                 # creates a pixi project in the work directory
 cd mylab
 pixi add numpy astropy
@@ -492,7 +492,7 @@ gh run list --limit 5             # recent CI runs
 | Command | What it does |
 |---------|-------------|
 | `canfar-lab guide` | Full command list (this doc is the long form) |
-| `canfar-lab status` | Quotas, home/project space, top processes |
+| `canfar-lab status` | Quotas, home/project space, **`canfar auth show`**, **`canfar ps`**, top processes |
 | `canfar-lab init [name]` | New project under `TMP_SRC_DIR` (`--uv`, `--no-git`, `--no-gh`, `--astro`) |
 | `canfar-lab clone <owner/repo> [dir]` | Clone + install deps (`--from-env`, `--from`) |
 | `canfar-lab save [name]` | Save lockfiles + manifest (~KB) (`--full`, `--to`) |
@@ -505,12 +505,11 @@ gh run list --limit 5             # recent CI runs
 | `canfar-lab project init <name>` | Team workspace on `/arc/projects` (`--members`) |
 | `canfar-lab data stage <src> [dst]` | Copy persistent → scratch |
 | `canfar-lab data sync <src> <dst>` | Copy scratch → persistent |
-| `canfar-lab status` | Disk breakdown under `$HOME` |
 | `canfar-lab clean home` | Clear re-downloadable junk on `/arc` (`--all-safe`, `--stale-pkg`, `--ml`, `--hf`, `--dry-run`) |
 | `canfar-lab clean cache` | Clear scratch download caches (`--all-safe`, `--pip`, `--uv`, `--npm`, `--pixi`, `--conda`, `--hf`) |
 | `canfar-lab agent install <tool>` | Install AI tools to `$CANFAR_LAB_BIN_DIR` (`--list`) |
 | `canfar-lab agent models free` | Apply free-tier model presets (OpenRouter + Kilo) |
-| `canfar-lab doctor` | Diagnostic report (`--stdout`, `--file`) |
+| `canfar-lab doctor` | Session paths, tool availability, **`canfar auth show`** (`--json`, `--stdout`, `--file`) |
 
 Most `astroai-*` commands support `-h` (short summary on stderr, exit 1) and
 `--help` (detailed help on stdout, exit 0). `canfar-lab guide` prints this index.
@@ -949,6 +948,7 @@ canfar-lab doctor --file /path/out    # save to custom path
 | GPU | nvidia-smi summary and processes (or CPU node notice) |
 | Disk | `TMP_SRC_DIR`, `TMP_SCRATCH_DIR`, and HOME `df`, top dirs |
 | Tools | Version check for git, gh, uv, pixi, jq, rg, fd, bat, and more |
+| CANFAR | `canfar auth show` when logged in (or “Not authenticated”) |
 | Project | Pixi/uv detection, lockfile size, env size |
 | Network | Reachability check for pypi.org, github.com, conda |
 | Environment | Key env vars (sanitized — tokens and keys hidden) |
