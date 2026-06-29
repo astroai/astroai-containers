@@ -111,4 +111,4 @@ Full spec: [ray-build-plan.md](ray-build-plan.md).
 | B | CANFAR auth, preflight, worker via API | Done |
 | C | Multi-worker cluster, stop, reconcile, recovery | Done |
 | D | Astronomy workload validation | Planned |
-| E | GPU worker validation (single `ray-worker` image) | In progress |
+| E | GPU worker validation (single `ray-worker` image) | Done |
