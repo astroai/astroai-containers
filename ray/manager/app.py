@@ -12,6 +12,7 @@ from fastapi import FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from background_tasks import active_operation, start_background
 from canfar_ops import CanfarOps
 from cluster import (
     ClusterCreateRequest,
@@ -19,6 +20,7 @@ from cluster import (
     create_cluster,
     retry_worker,
     stop_cluster,
+    validate_cluster_create,
 )
 from preflight import run_preflight
 from ray_cluster import count_live_nodes, list_ray_nodes, ray_address, ray_running
@@ -114,33 +116,76 @@ def api_cluster_reconcile() -> JSONResponse:
     return JSONResponse(_cluster_payload(state))
 
 
+def _cluster_create_request(body: ClusterCreateBody) -> ClusterCreateRequest:
+    return ClusterCreateRequest(
+        name=body.name or _settings.cluster_id,
+        worker_count=body.worker_count,
+        cores=body.cores,
+        ram_gb=body.ram_gb,
+        gpus=body.gpus,
+        min_joined=body.min_joined,
+        partial_policy=body.partial_policy,
+        require_preflight=body.require_preflight,
+    )
+
+
+def _start_cluster_create(req: ClusterCreateRequest) -> None:
+    create_cluster(
+        settings=_settings,
+        canfar=_canfar,
+        store=_store,
+        heartbeat_path=str(_heartbeat_path()),
+        req=req,
+    )
+
+
 @app.post("/api/v1/preflight/run")
-def api_preflight_run() -> JSONResponse:
+def api_preflight_run(async_mode: bool = Query(default=False, alias="async")) -> JSONResponse:
     _touch_heartbeat()
+    if async_mode:
+        op = active_operation()
+        if op and op.running:
+            raise HTTPException(status_code=409, detail=f"Operation in progress: {op.kind}")
+        if not start_background("preflight", lambda: run_preflight(_settings, _canfar, _store)):
+            raise HTTPException(status_code=409, detail="Operation already in progress")
+        payload = _cluster_payload(_store.load())
+        payload["accepted"] = True
+        return JSONResponse(payload, status_code=202)
+
     report = run_preflight(_settings, _canfar, _store)
     code = 200 if report.passed else 503
     return JSONResponse(report.as_dict(), status_code=code)
 
 
 @app.post("/api/v1/cluster/create")
-def api_cluster_create(body: ClusterCreateBody) -> JSONResponse:
+def api_cluster_create(
+    body: ClusterCreateBody,
+    async_mode: bool = Query(default=False, alias="async"),
+) -> JSONResponse:
     _touch_heartbeat()
+    req = _cluster_create_request(body)
+    try:
+        validate_cluster_create(canfar=_canfar, store=_store, req=req)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if async_mode:
+        op = active_operation()
+        if op and op.running:
+            raise HTTPException(status_code=409, detail=f"Operation in progress: {op.kind}")
+        if not start_background("cluster_create", lambda: _start_cluster_create(req)):
+            raise HTTPException(status_code=409, detail="Operation already in progress")
+        payload = _cluster_payload(_store.load())
+        payload["accepted"] = True
+        return JSONResponse(payload, status_code=202)
+
     try:
         result = create_cluster(
             settings=_settings,
             canfar=_canfar,
             store=_store,
             heartbeat_path=str(_heartbeat_path()),
-            req=ClusterCreateRequest(
-                name=body.name or _settings.cluster_id,
-                worker_count=body.worker_count,
-                cores=body.cores,
-                ram_gb=body.ram_gb,
-                gpus=body.gpus,
-                min_joined=body.min_joined,
-                partial_policy=body.partial_policy,
-                require_preflight=body.require_preflight,
-            ),
+            req=req,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -240,11 +285,19 @@ def api_ray_nodes() -> JSONResponse:
 
 @app.post("/actions/preflight")
 def action_preflight() -> RedirectResponse:
-    report = run_preflight(_settings, _canfar, _store)
-    if report.passed:
-        return RedirectResponse(redirect_with_flash("/", "ok", "Network preflight passed"), status_code=303)
+    op = active_operation()
+    if op and op.running:
+        return RedirectResponse(
+            redirect_with_flash("/", "warn", f"Already running: {op.kind}"),
+            status_code=303,
+        )
+    if not start_background("preflight", lambda: run_preflight(_settings, _canfar, _store)):
+        return RedirectResponse(
+            redirect_with_flash("/", "warn", "Could not start preflight"),
+            status_code=303,
+        )
     return RedirectResponse(
-        redirect_with_flash("/", "error", report.message or "Network preflight failed"),
+        redirect_with_flash("/", "ok", "Network preflight started — refresh for results"),
         status_code=303,
     )
 
@@ -257,27 +310,35 @@ def action_create_cluster(
     min_joined: int = Form(2),
     partial_policy: str = Form("accept_partial"),
 ) -> RedirectResponse:
+    req = ClusterCreateRequest(
+        name=_settings.cluster_id,
+        worker_count=worker_count,
+        cores=cores,
+        ram_gb=ram_gb,
+        min_joined=min_joined,
+        partial_policy=partial_policy,  # type: ignore[arg-type]
+        require_preflight=True,
+    )
     try:
-        result = create_cluster(
-            settings=_settings,
-            canfar=_canfar,
-            store=_store,
-            heartbeat_path=str(_heartbeat_path()),
-            req=ClusterCreateRequest(
-                name=_settings.cluster_id,
-                worker_count=worker_count,
-                cores=cores,
-                ram_gb=ram_gb,
-                min_joined=min_joined,
-                partial_policy=partial_policy,  # type: ignore[arg-type]
-                require_preflight=True,
-            ),
-        )
+        validate_cluster_create(canfar=_canfar, store=_store, req=req)
     except RuntimeError as exc:
         return RedirectResponse(redirect_with_flash("/", "error", str(exc)), status_code=303)
-    msg = result.message or f"Cluster {result.state.phase}: {len(_store.joined_workers(result.state))} workers joined"
-    flash = "ok" if result.success else "warn"
-    return RedirectResponse(redirect_with_flash("/", flash, msg), status_code=303)
+
+    op = active_operation()
+    if op and op.running:
+        return RedirectResponse(
+            redirect_with_flash("/", "warn", f"Already running: {op.kind}"),
+            status_code=303,
+        )
+    if not start_background("cluster_create", lambda: _start_cluster_create(req)):
+        return RedirectResponse(
+            redirect_with_flash("/", "warn", "Could not start cluster create"),
+            status_code=303,
+        )
+    return RedirectResponse(
+        redirect_with_flash("/", "ok", "Cluster create started — refresh for progress"),
+        status_code=303,
+    )
 
 
 @app.post("/actions/stop-cluster")
@@ -425,7 +486,8 @@ def index(request: Request) -> str:
 
 
 def _cluster_payload(state: Any) -> dict[str, Any]:
-    return {
+    op = active_operation()
+    payload = {
         "ray_address": ray_address(),
         "manager_ip": manager_pod_ip(),
         "ray_version": _settings.ray_version,
@@ -438,4 +500,16 @@ def _cluster_payload(state: Any) -> dict[str, Any]:
         "preflight": state.preflight if state else None,
         "workers": [asdict(w) for w in state.workers] if state else [],
         "joined_workers": len(_store.joined_workers(state)) if state else 0,
+        "operation": op.as_dict() if op else None,
     }
+    if state and state.phase not in {"Creating", "Idle"}:
+        joined = payload["joined_workers"]
+        target = state.worker_count or len(state.workers)
+        if joined >= target and target > 0:
+            payload["success"] = True
+        elif joined >= state.min_joined and joined > 0:
+            payload["success"] = True
+            payload["message"] = f"Partial cluster: {joined}/{target} workers joined"
+        elif state.phase in {"Failed", "Stopped"}:
+            payload["success"] = False
+    return payload

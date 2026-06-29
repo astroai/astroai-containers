@@ -82,8 +82,8 @@ State persists at `~/.canfar-ray/clusters/<cluster-id>/state.json`. Headless wor
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/v1/auth/status` | CANFAR credential check |
-| `POST /api/v1/preflight/run` | Network preflight |
-| `POST /api/v1/cluster/create` | Launch N workers (`worker_count`, policy, resources) |
+| `POST /api/v1/preflight/run` | Network preflight (`?async=1` returns 202 immediately; poll `GET /api/v1/status`) |
+| `POST /api/v1/cluster/create` | Launch N workers (`?async=1` avoids ingress timeout; poll status) |
 | `POST /api/v1/cluster/stop` | Stop cluster and destroy workers |
 | `POST /api/v1/cluster/reconcile` | Refresh CANFAR/Ray state |
 | `POST /api/v1/cluster/clean-orphans` | Destroy untracked worker sessions |

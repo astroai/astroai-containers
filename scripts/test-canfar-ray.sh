@@ -157,6 +157,49 @@ for w in data.get('workers') or []:
     done <<< "${session_ids}"
 }
 
+wait_for_manager_operation() {
+    local timeout="${1:-${TIMEOUT}}"
+    local label="${2:-operation}"
+    echo "Waiting for ${label} (timeout ${timeout}s)..."
+    local deadline=$((SECONDS + timeout))
+    local last_phase=""
+    while (( SECONDS < deadline )); do
+        local status_json
+        status_json="$(api_curl "${MANAGER_URL}/api/v1/status" 2>/dev/null || true)"
+        [[ -n "${status_json}" ]] || { sleep 10; continue; }
+        local running phase joined
+        running="$(printf '%s' "${status_json}" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+op = d.get('operation') or {}
+print('1' if op.get('running') else '0')
+" 2>/dev/null || echo 1)"
+        phase="$(printf '%s' "${status_json}" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+c = d.get('cluster') or {}
+print(c.get('phase') or '')
+" 2>/dev/null || true)"
+        joined="$(printf '%s' "${status_json}" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print(d.get('joined_workers', 0))
+" 2>/dev/null || echo 0)"
+        if [[ "${phase}" != "${last_phase}" ]]; then
+            echo "  phase=${phase} joined=${joined} operation_running=${running}"
+            last_phase="${phase}"
+        fi
+        if [[ "${running}" == "0" ]]; then
+            printf '%s' "${status_json}"
+            return 0
+        fi
+        sleep 10
+    done
+    echo "Timed out waiting for ${label}." >&2
+    api_curl "${MANAGER_URL}/api/v1/status" 2>/dev/null || true
+    return 1
+}
+
 canfar_ps_field() {
     local match_key="$1" match_val="$2" want_field="$3"
     canfar ps -a --json 2>/dev/null | python3 -c "
@@ -312,16 +355,28 @@ if [[ "${CANFAR_RAY_SKIP_PREFLIGHT:-}" == "1" ]]; then
     echo "SKIP: network preflight (CANFAR_RAY_SKIP_PREFLIGHT=1)"
     echo "  Cross-session pod TCP is required for Ray workers; skip only when platform blocks it."
 else
-    PF_JSON="$(api_curl -X POST "${MANAGER_URL}/api/v1/preflight/run" || true)"
-    echo "${PF_JSON}" | python3 -m json.tool || echo "${PF_JSON}"
-    if ! printf '%s' "${PF_JSON}" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('passed') else 1)"; then
-        if printf '%s' "${PF_JSON}" | grep -q "session-to-session network isolation"; then
-            echo "Network preflight failed — likely CANFAR platform networking, not an image bug." >&2
-            echo "Set CANFAR_RAY_SKIP_PREFLIGHT=1 to run remaining checks, or ask ops to allow cross-session Ray ports." >&2
-        else
-            echo "Network preflight failed." >&2
-        fi
+    PF_ACCEPT="$(api_curl -o /dev/null -w '%{http_code}' -X POST "${MANAGER_URL}/api/v1/preflight/run?async=1" || echo 000)"
+    if [[ "${PF_ACCEPT}" != "202" ]]; then
+        echo "Preflight async start failed (HTTP ${PF_ACCEPT})." >&2
         FAILURES=$((FAILURES + 1))
+    else
+        echo "Preflight accepted (202); polling status..."
+        PF_STATUS="$(wait_for_manager_operation 600 preflight || true)"
+        PF_JSON="$(printf '%s' "${PF_STATUS}" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+print(json.dumps(d.get('preflight') or {}))
+" 2>/dev/null || true)"
+        echo "${PF_JSON}" | python3 -m json.tool || echo "${PF_JSON}"
+        if ! printf '%s' "${PF_JSON}" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('passed') else 1)"; then
+            if printf '%s' "${PF_JSON}" | grep -q "session-to-session network isolation"; then
+                echo "Network preflight failed — likely CANFAR platform networking, not an image bug." >&2
+                echo "Set CANFAR_RAY_SKIP_PREFLIGHT=1 to run remaining checks, or ask ops to allow cross-session Ray ports." >&2
+            else
+                echo "Network preflight failed." >&2
+            fi
+            FAILURES=$((FAILURES + 1))
+        fi
     fi
 fi
 
@@ -331,9 +386,17 @@ PREFLIGHT_REQUIRED=true
 if [[ "${CANFAR_RAY_SKIP_PREFLIGHT:-}" == "1" ]]; then
     PREFLIGHT_REQUIRED=false
 fi
-CLUSTER_JSON="$(api_curl -X POST "${MANAGER_URL}/api/v1/cluster/create" \
+CLUSTER_ACCEPT="$(api_curl -o /dev/null -w '%{http_code}' -X POST "${MANAGER_URL}/api/v1/cluster/create?async=1" \
     -H 'Content-Type: application/json' \
-    -d "{\"name\":\"canfar-ray-test\",\"worker_count\":2,\"cores\":1,\"ram_gb\":4,\"min_joined\":2,\"partial_policy\":\"accept_partial\",\"require_preflight\":${PREFLIGHT_REQUIRED}}" || true)"
+    -d "{\"name\":\"canfar-ray-test\",\"worker_count\":2,\"cores\":1,\"ram_gb\":4,\"min_joined\":2,\"partial_policy\":\"accept_partial\",\"require_preflight\":${PREFLIGHT_REQUIRED}}" || echo 000)"
+if [[ "${CLUSTER_ACCEPT}" != "202" ]]; then
+    echo "Cluster create async start failed (HTTP ${CLUSTER_ACCEPT})." >&2
+    CLUSTER_JSON="$(api_curl "${MANAGER_URL}/api/v1/status" 2>/dev/null || true)"
+    FAILURES=$((FAILURES + 1))
+else
+    echo "Cluster create accepted (202); polling status..."
+    CLUSTER_JSON="$(wait_for_manager_operation "${TIMEOUT}" cluster-create || true)"
+fi
 echo "${CLUSTER_JSON}" | python3 -m json.tool || echo "${CLUSTER_JSON}"
 if ! printf '%s' "${CLUSTER_JSON}" | python3 -c "
 import json, sys

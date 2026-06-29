@@ -42,14 +42,13 @@ class ClusterCreateResult:
     message: str | None = None
 
 
-def create_cluster(
+def validate_cluster_create(
     *,
-    settings: ManagerSettings,
     canfar: CanfarOps,
     store: StateStore,
-    heartbeat_path: str,
     req: ClusterCreateRequest,
-) -> ClusterCreateResult:
+) -> None:
+    """Raise RuntimeError when cluster create cannot start."""
     auth = canfar.auth_status()
     if not auth.authenticated:
         raise RuntimeError(auth.message or "CANFAR authentication required")
@@ -63,11 +62,28 @@ def create_cluster(
 
     min_joined = req.min_joined if req.min_joined is not None else req.worker_count
     min_joined = max(1, min(min_joined, req.worker_count))
+    if min_joined > req.worker_count:
+        raise RuntimeError("min_joined cannot exceed worker_count")
 
     if req.require_preflight:
         preflight = (existing.preflight if existing else None) or {}
         if not preflight.get("passed"):
             raise RuntimeError("Network preflight has not passed. Run preflight first.")
+
+
+def create_cluster(
+    *,
+    settings: ManagerSettings,
+    canfar: CanfarOps,
+    store: StateStore,
+    heartbeat_path: str,
+    req: ClusterCreateRequest,
+) -> ClusterCreateResult:
+    validate_cluster_create(canfar=canfar, store=store, req=req)
+
+    existing = store.load()
+    min_joined = req.min_joined if req.min_joined is not None else req.worker_count
+    min_joined = max(1, min(min_joined, req.worker_count))
 
     state = ClusterState(
         cluster_id=settings.cluster_id,
