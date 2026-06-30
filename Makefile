@@ -70,6 +70,7 @@ test-local: ## verify session images
 	@for img in webterm notebook vscode marimo base; do \
 		./scripts/test-local.sh "$$img" --verify-only || exit 1; \
 	done
+	./scripts/test-status-arc-project.sh
 
 test-ray: build-ray build/base ## Ray image checks + local cluster join + UI
 	chmod +x scripts/test-ray-*.sh scripts/test-canfar-lab-loop.sh scripts/ray-head-start.sh \

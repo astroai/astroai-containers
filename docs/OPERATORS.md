@@ -237,7 +237,7 @@ paths, cache locations, tool availability on PATH, home quota usage, and
 | CANFAR | `canfar auth show` when logged in (JSON key: `canfar_auth` on `canfar-lab doctor --json`) |
 | Quota | Home directory usage percentage |
 
-For quotas, home breakdown, **`canfar ps`**, and top CPU processes, use
+For quotas, home breakdown, team projects (access/ACL/GMS/vault), **`canfar ps`**, and top CPU processes, use
 **`canfar-lab status`** (`canfar-lab status --json` for scripts).
 
 ### Running inside a container
@@ -266,7 +266,7 @@ For a quick CANFAR platform view, `canfar-lab status` also prints **`canfar auth
 
 ## AI coding tools (`canfar-lab agent install`)
 
-Session images ship a curated set of dev CLIs (`gh`, `rg`, `fd`, `bat`, `fzf`, `delta`, `tldr`) but do **not** bundle AI agent binaries or Node.js — those change too fast to pin in an image. Users install them on-demand with `canfar-lab agent install`, which handles the right installer per tool and verifies each install. All tools land in `~/.local/bin` on `/arc` (persistent across sessions).
+Session images ship a curated set of dev CLIs (`gh`, `rg`, `fd`, `bat`, `fzf`, `delta`, `tldr`) but do **not** bundle AI agent binaries or Node.js — those change too fast to pin in an image. Users install them on-demand with `canfar-lab agent install`, which handles the right installer per tool and verifies each install. Binaries land in **`$CANFAR_LAB_BIN_DIR`** (scratch `.local/bin` by default; team/home fallback when scratch is absent).
 
 ### Available tools
 
@@ -313,7 +313,7 @@ agents. Alternatives: `pixi add nodejs` under **`TMP_SRC_DIR`**, or CVMFS
 - Pre-seed audited versions in the Dockerfile (binary verified at build time)
 - Block curl-based installers at the network level (but this also disables `canfar-lab agent install`)
 
-**Audit trail:** `canfar-lab doctor` checks 19 pre-installed system tools but does not list user-installed AI agents. If fleet-wide AI tool tracking is needed, consider adding a separate audit script (`ls ~/.local/bin/agent ~/.local/bin/claude ~/.local/bin/agy ~/.local/bin/opencode ~/.local/bin/codex ~/.local/bin/copilot ~/.local/bin/goose ~/.local/bin/pi ~/.local/bin/codewhale ~/.local/bin/swival ~/.local/bin/freebuff`).
+**Audit trail:** `canfar-lab doctor` checks **9** pre-installed tools (`git`, `gh`, `pixi`, `uv`, `jq`, `rg`, `canfar`, `rsync`, `jupyter`) but does not list user-installed AI agents. If fleet-wide AI tool tracking is needed, consider a separate audit script listing **`$CANFAR_LAB_BIN_DIR`** (e.g. `agent`, `claude`, `codex`, …).
 
 ## Quota monitoring
 
@@ -324,7 +324,7 @@ Session images include built-in quota awareness for `/arc/home` (personal) and `
 | Touchpoint | When | What it does |
 |-----------|------|-------------|
 | Session start (`common-init.sh`) | Every new session | Runs `astroai_quota_startup_check` — silently probes home and project quota via `df`; prints warnings only if a threshold is crossed |
-| `canfar-lab status` | User runs it manually | Quota overview for home and projects, home dir breakdown, **`canfar auth show`**, **`canfar ps`**, top processes |
+| `canfar-lab status` | User runs it manually | Quota overview (POSIX + optional vos vault), team projects (access/ACL/GMS/vault), home breakdown, **`canfar auth show`**, **`canfar ps`**, top processes |
 
 ### Threshold levels
 
@@ -341,7 +341,9 @@ Session images include built-in quota awareness for `/arc/home` (personal) and `
 df /arc/home/user | awk 'NR>1 {used=$3; size=$2; printf "%.0f", (used/size)*100}'
 ```
 
-Uses standard `df` on the CephFS mount — works without `quota` command or platform API access.
+Uses standard `df` on the CephFS mount for home and `/arc/projects/*`. When CADC auth
+and `vos` are available, **`canfar-lab status --json`** also reports VOSpace **vault**
+quotas and read/write groups per container (`vault` key).
 
 ### Project quota detection
 

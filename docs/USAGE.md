@@ -58,7 +58,7 @@ Follow the prompts — browser auth or paste a token. Done.
 ### 3. Start a project
 
 ```bash
-canfar-lab status                    # quotas, CANFAR auth/sessions, processes
+canfar-lab status                    # quotas, team projects, GMS/vault, CANFAR auth/sessions, processes
 canfar-lab init mylab                 # creates a pixi project in the work directory
 cd mylab
 pixi add numpy astropy
@@ -528,7 +528,7 @@ gh run list --limit 5             # recent CI runs
 | Command | What it does |
 |---------|-------------|
 | `canfar-lab guide` | Full command list (this doc is the long form) |
-| `canfar-lab status` | Quotas, home/project space, **`canfar auth show`**, **`canfar ps`**, top processes |
+| `canfar-lab status` | Quotas, home breakdown, team projects (access/ACL/GMS/vault), **`canfar auth show`**, **`canfar ps`**, top processes |
 | `canfar-lab init [name]` | New project under `TMP_SRC_DIR` (`--uv`, `--no-git`, `--no-gh`) |
 | `canfar-lab clone <owner/repo> [dir]` | Clone + install deps (`--from-env`, `--from`) |
 | `canfar-lab save [name]` | Save lockfiles + manifest (~KB) (`--full`, `--to`) |
@@ -643,8 +643,9 @@ The image has **no system `node` or `npm`** — JupyterLab runs without Node
 - **npm-based AI agents** (Pi, CodeWhale, Freebuff, Codex, OpenCode)
 - **JupyterLab source extensions** from npm (rare — prefer pip extensions)
 
-**Recommended: `canfar-lab agent install node`** — installs Node.js persistently to
-`~/.local/bin` on `/arc`. Alternatively: pixi project under **`TMP_SRC_DIR`**
+**Recommended: `canfar-lab agent install node`** — installs Node.js to **`$CANFAR_LAB_BIN_DIR`**
+(default `${TMP_SCRATCH_DIR}/.local/bin` when scratch is mounted; falls back to team
+project or home `.local/bin`). Alternatively: pixi project under **`TMP_SRC_DIR`**
 or `module load nodejs` from CVMFS.
 
 #### pixi project approach
@@ -981,8 +982,9 @@ canfar-lab doctor --json | jq .
 canfar-lab --json doctor
 ```
 
-For quotas, home breakdown, **`canfar ps`**, and top processes, use
-**`canfar-lab status`** (`canfar-lab status --json` for scripts).
+For quotas, home breakdown, team project membership (POSIX access, ACL groups, GMS,
+VOSpace vault), **`canfar ps`**, and top processes, use **`canfar-lab status`**
+(`canfar-lab status --json` for scripts).
 
 | Field / section | What it shows |
 |-----------------|---------------|
@@ -990,6 +992,10 @@ For quotas, home breakdown, **`canfar ps`**, and top processes, use
 | Tools | Whether `git`, `gh`, `pixi`, `uv`, `canfar`, `rsync`, `jupyter`, … are on PATH |
 | CANFAR | Output of `canfar auth show` when authenticated |
 | Quota | Home directory usage percentage |
+
+**`canfar-lab status --json`** adds `arc_project`, `arc_projects` (with `access`,
+`acl_groups`, `gms_member`, nested `vault`), top-level `gms_groups`, and `vault`
+(vos API nodes + quotas). See [canfar-lab cli.md](https://github.com/sfabbro/canfar-lab/blob/main/docs/cli.md).
 
 ---
 
