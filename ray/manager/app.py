@@ -280,7 +280,8 @@ def api_workers_destroy_all() -> JSONResponse:
 
 @app.get("/api/v1/ray/nodes")
 def api_ray_nodes() -> JSONResponse:
-    return JSONResponse({"nodes": list_ray_nodes(), "alive": count_live_nodes()})
+    nodes = list_ray_nodes()
+    return JSONResponse({"nodes": nodes, "alive": count_live_nodes(nodes=nodes)})
 
 
 @app.post("/actions/preflight")
@@ -456,7 +457,7 @@ def index(request: Request) -> str:
   <p>Cluster phase: <strong>{cluster_phase}</strong> · workers joined: {joined}/{target or '—'}</p>
   <p>CANFAR auth: {auth_line}</p>
   <p>Network preflight: {pf_line}</p>
-  <p>Live Ray nodes: {count_live_nodes()}</p>
+  <p>Live Ray nodes: {count_live_nodes(nodes=list_ray_nodes())}</p>
   <h2>Create cluster</h2>
   <form method="post" action="/actions/create-cluster">
     <div class="grid">
@@ -490,6 +491,7 @@ def index(request: Request) -> str:
 
 def _cluster_payload(state: Any) -> dict[str, Any]:
     op = active_operation()
+    nodes = list_ray_nodes()
     payload = {
         "ray_address": ray_address(),
         "manager_ip": manager_pod_ip(),
@@ -497,7 +499,7 @@ def _cluster_payload(state: Any) -> dict[str, Any]:
         "cluster_id": _settings.cluster_id,
         "heartbeat_path": str(_heartbeat_path()),
         "ray_running": ray_running(),
-        "ray_nodes_alive": count_live_nodes(),
+        "ray_nodes_alive": count_live_nodes(nodes=nodes),
         "worker_image": _settings.worker_image,
         "cluster": asdict(state) if state else None,
         "preflight": state.preflight if state else None,
