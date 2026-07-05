@@ -65,9 +65,11 @@ def parse_worker_ip_from_logs(logs: str) -> str | None:
     return None
 
 
-def live_worker_node_ips() -> set[str]:
+def live_worker_node_ips(nodes: list[dict[str, Any]] | None = None) -> set[str]:
     ips: set[str] = set()
-    for node in list_ray_nodes():
+    if nodes is None:
+        nodes = list_ray_nodes()
+    for node in nodes:
         if not node.get("Alive"):
             continue
         addr = str(node.get("NodeManagerAddress") or "")
@@ -76,9 +78,11 @@ def live_worker_node_ips() -> set[str]:
     return ips
 
 
-def node_ip_to_id() -> dict[str, str]:
+def node_ip_to_id(nodes: list[dict[str, Any]] | None = None) -> dict[str, str]:
     mapping: dict[str, str] = {}
-    for node in list_ray_nodes():
+    if nodes is None:
+        nodes = list_ray_nodes()
+    for node in nodes:
         if not node.get("Alive"):
             continue
         addr = str(node.get("NodeManagerAddress") or "")
