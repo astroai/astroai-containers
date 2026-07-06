@@ -280,7 +280,9 @@ def api_workers_destroy_all() -> JSONResponse:
 
 @app.get("/api/v1/ray/nodes")
 def api_ray_nodes() -> JSONResponse:
-    return JSONResponse({"nodes": list_ray_nodes(), "alive": count_live_nodes()})
+    # ⚡ Bolt: Fetch nodes once to avoid double subprocess penalty
+    nodes = list_ray_nodes()
+    return JSONResponse({"nodes": nodes, "alive": count_live_nodes(nodes)})
 
 
 @app.post("/actions/preflight")
