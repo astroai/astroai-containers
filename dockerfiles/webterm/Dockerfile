@@ -64,6 +64,8 @@ RUN printf '%s\n' \
     'setw -g window-status-format " #[fg=colour245,bold]#I#[fg=colour245]:#[fg=colour252]#W "' \
     'setw -g window-status-current-format " #[fg=colour117,bold]#I#[fg=colour117]:#[fg=colour255,bold]#W "' \
     'setw -g window-status-separator ""' \
+    'set -s set-clipboard on' \
+    'set -g allow-passthrough on' \
     'setw -g mode-keys vi' \
     > /etc/tmux.conf
 
