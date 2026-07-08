@@ -371,184 +371,326 @@ def main():
       from { opacity: 1; }
       to { opacity: 0; }
     }
+
+    .astroai-ctx {
+      position: fixed;
+      z-index: 2000;
+      min-width: 180px;
+      padding: 6px;
+      border-radius: 8px;
+      background: #313244;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .astroai-ctx button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: #cdd6f4;
+      text-align: left;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font: 500 12px/1.2 Inter, sans-serif;
+      cursor: pointer;
+    }
+
+    .astroai-ctx button:hover {
+      background: rgba(203, 166, 247, 0.15);
+      color: #fff;
+    }
     </style>
     """
 
     # Define custom JS
-    # ttyd 1.7.7 has no ClipboardAddon; inject OSC 52 + paste via window.term.
-    js_content = """
+    # ttyd 1.7.7 has no ClipboardAddon; inject OSC 52 + paste/copy UX via window.term.
+    js_content = r"""
     <script>
-    function copyCmd(cmd) {
-      navigator.clipboard.writeText(cmd).then(() => {
-        showToast('Copied \\"' + cmd + '\\" — paste with Cmd+V / Ctrl+Shift+V or Paste.');
-      }).catch(err => {
-        console.error('Could not copy command: ', err);
-        showToast('Clipboard write failed (permission?).');
-      });
-    }
+    (function () {
+      var lastOscCopy = '';
+      var ctxMenu = null;
 
-    function showToast(message) {
-      let container = document.getElementById('toast-container');
-      if (!container) {
-        container = document.createElement('div');
-        container.id = 'toast-container';
-        container.className = 'toast-container';
-        document.body.appendChild(container);
+      function isMac() {
+        return /Mac|iPhone|iPad|iPod/.test(navigator.platform || '') ||
+          /Mac/.test(navigator.userAgent || '');
       }
-      const toast = document.createElement('div');
-      toast.className = 'toast';
-      toast.innerText = message;
-      container.appendChild(toast);
-      setTimeout(() => {
-        toast.remove();
-      }, 3000);
-    }
 
-    function toggleSidebar() {
-      const sidebar = document.getElementById('sidebar');
-      const toggleBtn = document.getElementById('toggle-sidebar-btn');
-      if (sidebar.classList.contains('collapsed')) {
-        sidebar.classList.remove('collapsed');
-        toggleBtn.innerText = 'Collapse Sidebar';
-      } else {
-        sidebar.classList.add('collapsed');
-        toggleBtn.innerText = 'Expand Sidebar';
-      }
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 350);
-    }
-
-    function toggleFullscreen() {
-      const sidebar = document.getElementById('sidebar');
-      const toggleBtn = document.getElementById('toggle-sidebar-btn');
-      sidebar.classList.add('collapsed');
-      toggleBtn.innerText = 'Expand Sidebar';
-      window.dispatchEvent(new Event('resize'));
-      showToast('Sidebar collapsed for focus view.');
-    }
-
-    function writeClipboardText(text) {
-      if (!text) return Promise.reject(new Error('empty'));
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text);
-      }
-      return new Promise(function(resolve, reject) {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        try {
-          if (document.execCommand('copy')) resolve();
-          else reject(new Error('execCommand copy failed'));
-        } catch (e) {
-          reject(e);
-        } finally {
-          ta.remove();
+      function showToast(message) {
+        var container = document.getElementById('toast-container');
+        if (!container) {
+          container = document.createElement('div');
+          container.id = 'toast-container';
+          container.className = 'toast-container';
+          document.body.appendChild(container);
         }
-      });
-    }
-
-    function decodeOsc52Payload(data) {
-      // OSC 52: Ps ; Pd  — Ps may be c/p/s or empty; Pd is base64 (or ? for query).
-      const semi = data.indexOf(';');
-      if (semi < 0) return null;
-      const b64 = data.substring(semi + 1);
-      if (!b64 || b64 === '?') return null;
-      try {
-        const bin = atob(b64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        return new TextDecoder().decode(bytes);
-      } catch (e) {
-        return null;
+        var toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerText = message;
+        container.appendChild(toast);
+        setTimeout(function () { toast.remove(); }, 2800);
       }
-    }
 
-    function installOsc52Handler(term) {
-      if (!term || !term.parser || typeof term.parser.registerOscHandler !== 'function') return false;
-      if (term.__astroaiOsc52) return true;
-      term.parser.registerOscHandler(52, function(data) {
-        const text = decodeOsc52Payload(data);
-        if (text == null) return false;
-        writeClipboardText(text).then(function() {
-          showToast('Copied to clipboard');
-        }).catch(function() {});
+      function writeClipboardText(text) {
+        if (!text) return Promise.reject(new Error('empty'));
+        lastOscCopy = text;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          return navigator.clipboard.writeText(text).catch(function () {
+            return execCommandCopy(text);
+          });
+        }
+        return execCommandCopy(text);
+      }
+
+      function execCommandCopy(text) {
+        return new Promise(function (resolve, reject) {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          ta.setSelectionRange(0, text.length);
+          try {
+            if (document.execCommand('copy')) resolve();
+            else reject(new Error('execCommand copy failed'));
+          } catch (e) {
+            reject(e);
+          } finally {
+            ta.remove();
+          }
+        });
+      }
+
+      function decodeOsc52Payload(data) {
+        var semi = data.indexOf(';');
+        if (semi < 0) return null;
+        var b64 = data.substring(semi + 1);
+        if (!b64 || b64.charAt(0) === '?') return null;
+        try {
+          var bin = atob(b64);
+          var bytes = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return new TextDecoder().decode(bytes);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function installOsc52Handler(term) {
+        if (!term || !term.parser || typeof term.parser.registerOscHandler !== 'function') return false;
+        if (term.__astroaiOsc52) return true;
+        term.parser.registerOscHandler(52, function (data) {
+          var text = decodeOsc52Payload(data);
+          if (text == null) return false;
+          writeClipboardText(text).then(function () {
+            showToast('Copied (' + text.length + ' chars)');
+          }).catch(function () {});
+          return true;
+        });
+        term.__astroaiOsc52 = true;
         return true;
-      });
-      term.__astroaiOsc52 = true;
-      return true;
-    }
-
-    function pasteIntoTerminal(text) {
-      if (!text) return;
-      const term = window.term;
-      if (term && typeof term.paste === 'function') {
-        term.paste(text);
-        return;
       }
-      if (term && typeof term.input === 'function') {
-        term.input(text);
-        return;
-      }
-      showToast('Terminal not ready — try Cmd+V / Ctrl+Shift+V.');
-    }
 
-    function copySelection() {
-      const term = window.term;
-      const sel = term && typeof term.getSelection === 'function' ? term.getSelection() : '';
-      if (sel) {
-        writeClipboardText(sel).then(function() {
-          showToast('Selection copied');
-        }).catch(function() {
+      function installSelectionAutoCopy(term) {
+        if (!term || typeof term.onSelectionChange !== 'function') return;
+        if (term.__astroaiSelCopy) return;
+        term.__astroaiSelCopy = true;
+        term.onSelectionChange(function () {
+          var sel = term.getSelection ? term.getSelection() : '';
+          if (!sel) return;
+          writeClipboardText(sel).catch(function () {});
+        });
+      }
+
+      function pasteIntoTerminal(text) {
+        if (!text) return false;
+        var term = window.term;
+        if (term && typeof term.paste === 'function') {
+          term.paste(text);
+          return true;
+        }
+        if (term && typeof term.input === 'function') {
+          term.input('\x1b[200~' + text + '\x1b[201~');
+          return true;
+        }
+        return false;
+      }
+
+      function getTermSelection() {
+        var term = window.term;
+        return (term && term.getSelection) ? (term.getSelection() || '') : '';
+      }
+
+      function copySelection() {
+        var sel = getTermSelection() || lastOscCopy;
+        if (!sel) {
+          showToast('No selection — drag to select (or Toggle mouse, then drag).');
+          return;
+        }
+        writeClipboardText(sel).then(function () {
+          showToast('Copied (' + sel.length + ' chars)');
+        }).catch(function () {
           showToast('Clipboard write failed (permission?).');
         });
-        return;
       }
-      showToast('No selection — mouse-drag (tmux), or Ctrl-b m then drag + Copy.');
-    }
 
-    function pasteFromClipboard() {
-      if (!navigator.clipboard || !navigator.clipboard.readText) {
-        showToast('Paste: Cmd+V (Mac) or Ctrl+Shift+V (Linux/Windows).');
-        return;
-      }
-      navigator.clipboard.readText().then(function(text) {
-        if (!text) {
-          showToast('Clipboard is empty.');
+      function pasteFromClipboard() {
+        function failHint() {
+          showToast(isMac()
+            ? 'Use Cmd+V to paste (clipboard permission blocked).'
+            : 'Use Ctrl+Shift+V to paste (clipboard permission blocked).');
+        }
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+          failHint();
           return;
         }
-        pasteIntoTerminal(text);
-        showToast('Pasted');
-      }).catch(function() {
-        showToast('Clipboard read blocked — use Cmd+V / Ctrl+Shift+V.');
-      });
-    }
+        navigator.clipboard.readText().then(function (text) {
+          if (!text) {
+            showToast('Clipboard is empty.');
+            return;
+          }
+          if (pasteIntoTerminal(text)) showToast('Pasted (' + text.length + ' chars)');
+          else failHint();
+        }).catch(failHint);
+      }
 
-    function mouseSelectTip() {
-      // ponytail: cannot toggle tmux from the browser without injecting keys into the PTY.
-      showToast('Ctrl-b m toggles tmux mouse. Off = native drag-select + Copy; On = OSC 52 copy.');
-    }
-
-    function waitForTermAndInstallClipboard() {
-      let tries = 0;
-      const timer = setInterval(function() {
-        tries += 1;
-        if (window.term && installOsc52Handler(window.term)) {
-          clearInterval(timer);
-          return;
+      function sendTmuxKeys(keys) {
+        var term = window.term;
+        if (!term || typeof term.input !== 'function') {
+          showToast('Terminal not ready.');
+          return false;
         }
-        if (tries > 80) clearInterval(timer);
-      }, 250);
-    }
+        term.input(keys);
+        return true;
+      }
 
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', waitForTermAndInstallClipboard);
-    } else {
-      waitForTermAndInstallClipboard();
-    }
+      function toggleTmuxMouse() {
+        if (sendTmuxKeys('\x02m')) {
+          showToast('Toggled tmux mouse (status line shows on/off).');
+        }
+      }
+
+      function hideCtxMenu() {
+        if (ctxMenu) {
+          ctxMenu.remove();
+          ctxMenu = null;
+        }
+      }
+
+      function showCtxMenu(x, y) {
+        hideCtxMenu();
+        ctxMenu = document.createElement('div');
+        ctxMenu.className = 'astroai-ctx';
+        ctxMenu.style.left = x + 'px';
+        ctxMenu.style.top = y + 'px';
+        [
+          { label: 'Copy', fn: copySelection },
+          { label: 'Paste', fn: pasteFromClipboard },
+          { label: 'Toggle tmux mouse', fn: toggleTmuxMouse }
+        ].forEach(function (item) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = item.label;
+          b.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            hideCtxMenu();
+            item.fn();
+          });
+          ctxMenu.appendChild(b);
+        });
+        document.body.appendChild(ctxMenu);
+      }
+
+      function copyCmd(cmd) {
+        writeClipboardText(cmd).then(function () {
+          showToast('Copied "' + cmd + '" — Paste or ' + (isMac() ? 'Cmd+V' : 'Ctrl+Shift+V'));
+        }).catch(function () {
+          showToast('Clipboard write failed (permission?).');
+        });
+      }
+
+      function toggleSidebar() {
+        var sidebar = document.getElementById('sidebar');
+        var toggleBtn = document.getElementById('toggle-sidebar-btn');
+        if (sidebar.classList.contains('collapsed')) {
+          sidebar.classList.remove('collapsed');
+          toggleBtn.innerText = 'Collapse Sidebar';
+        } else {
+          sidebar.classList.add('collapsed');
+          toggleBtn.innerText = 'Expand Sidebar';
+        }
+        setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 350);
+      }
+
+      function toggleFullscreen() {
+        var sidebar = document.getElementById('sidebar');
+        var toggleBtn = document.getElementById('toggle-sidebar-btn');
+        sidebar.classList.add('collapsed');
+        toggleBtn.innerText = 'Expand Sidebar';
+        window.dispatchEvent(new Event('resize'));
+        showToast('Sidebar collapsed for focus view.');
+      }
+
+      function onKeydown(e) {
+        var key = (e.key || '').toLowerCase();
+        var sel = getTermSelection();
+        // Mac: Cmd+C copies selection. Linux: Ctrl+Shift+C only — never steal Ctrl+C (SIGINT).
+        var wantCopy = isMac()
+          ? (e.metaKey && key === 'c' && !e.shiftKey)
+          : (e.ctrlKey && e.shiftKey && key === 'c');
+        if (wantCopy && sel) {
+          e.preventDefault();
+          writeClipboardText(sel).then(function () {
+            showToast('Copied (' + sel.length + ' chars)');
+          }).catch(function () {});
+        }
+      }
+
+      function onContextMenu(e) {
+        var wrap = document.getElementById('terminal-container-wrapper');
+        if (!wrap || !wrap.contains(e.target)) return;
+        e.preventDefault();
+        showCtxMenu(e.clientX, e.clientY);
+      }
+
+      function waitForTermAndInstallClipboard() {
+        var tries = 0;
+        var timer = setInterval(function () {
+          tries += 1;
+          if (window.term) {
+            installOsc52Handler(window.term);
+            installSelectionAutoCopy(window.term);
+            if (window.term.__astroaiOsc52) {
+              clearInterval(timer);
+              return;
+            }
+          }
+          if (tries > 80) clearInterval(timer);
+        }, 250);
+      }
+
+      window.copyCmd = copyCmd;
+      window.showToast = showToast;
+      window.toggleSidebar = toggleSidebar;
+      window.toggleFullscreen = toggleFullscreen;
+      window.copySelection = copySelection;
+      window.pasteFromClipboard = pasteFromClipboard;
+      window.toggleTmuxMouse = toggleTmuxMouse;
+
+      document.addEventListener('keydown', onKeydown, true);
+      document.addEventListener('click', hideCtxMenu);
+      document.addEventListener('contextmenu', onContextMenu);
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', waitForTermAndInstallClipboard);
+      } else {
+        waitForTermAndInstallClipboard();
+      }
+    })();
     </script>
     """
 
@@ -594,6 +736,7 @@ def main():
             <div class="cheat-item"><span class="key">Ctrl+b o</span><span>Switch Pane</span></div>
             <div class="cheat-item"><span class="key">Ctrl+b z</span><span>Toggle Zoom</span></div>
             <div class="cheat-item"><span class="key">Ctrl+b [</span><span>Copy Mode</span></div>
+            <div class="cheat-item"><span class="key">v / y</span><span>Select / Yank</span></div>
             <div class="cheat-item"><span class="key">Ctrl+b m</span><span>Toggle mouse</span></div>
           </div>
         </div>
@@ -620,7 +763,7 @@ def main():
           <div class="top-actions">
             <button class="btn-action" onclick="copySelection()">Copy</button>
             <button class="btn-action" onclick="pasteFromClipboard()">Paste</button>
-            <button class="btn-action" onclick="mouseSelectTip()">Mouse tip</button>
+            <button class="btn-action" onclick="toggleTmuxMouse()">Toggle mouse</button>
             <button class="btn-action" onclick="toggleFullscreen()">Fullscreen</button>
           </div>
         </header>

@@ -19,6 +19,8 @@ TTYD_ARGS=(
     -t 'theme={"background":"#1e1e2e","foreground":"#cdd6f4","cursor":"#f5e0dc","selectionBackground":"#585b70"}'
     -t fontSize=15
     -t fontFamily="Menlo, monospace"
+    # Prefer right-click for our Copy/Paste menu over xterm word-select.
+    -t rightClickSelectsWord=false
 )
 
 exec ttyd "${TTYD_ARGS[@]}" \

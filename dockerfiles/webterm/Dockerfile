@@ -67,12 +67,26 @@ RUN printf '%s\n' \
     'setw -g window-status-separator ""' \
     'set -s set-clipboard on' \
     'set -g allow-passthrough on' \
+    'set -g focus-events on' \
+    'set -g aggressive-resize on' \
+    'set -s escape-time 10' \
+    'set -g base-index 1' \
+    'setw -g pane-base-index 1' \
     'setw -g mode-keys vi' \
-    'bind-key -T copy-mode-vi y send-keys -X copy-selection-and-cancel' \
-    'bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-selection-and-cancel' \
-    'bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-selection-and-cancel' \
+    'bind-key -T copy-mode-vi v send-keys -X begin-selection' \
+    'bind-key -T copy-mode-vi y send-keys -X copy-pipe-and-cancel "/opt/astroai/bin/osc52-copy"' \
+    'bind-key -T copy-mode-vi Enter send-keys -X copy-pipe-and-cancel "/opt/astroai/bin/osc52-copy"' \
+    'bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "/opt/astroai/bin/osc52-copy"' \
+    'bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe-and-cancel "/opt/astroai/bin/osc52-copy"' \
     'bind-key m set -g mouse \; display-message "mouse #{?mouse,on,off} (off = native browser select)"' \
-    > /etc/tmux.conf
+    > /etc/tmux.conf \
+    && if tmux -V | awk '{ver=$2; gsub(/[^0-9.].*/,"",ver); split(ver,a,"."); exit !(a[1]>3 || (a[1]==3 && a[2]+0>=2))}'; then \
+         printf '%s\n' 'set -as terminal-features ",*:clipboard"' >> /etc/tmux.conf; \
+       fi
+
+
+COPY scripts/osc52-copy /opt/astroai/bin/osc52-copy
+RUN chmod a+rx /opt/astroai/bin/osc52-copy
 
 COPY config/starship.toml /etc/starship.toml
 COPY scripts/build-custom-webterm-ui.py /tmp/build-custom-webterm-ui.py

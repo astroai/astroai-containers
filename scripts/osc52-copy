@@ -1,0 +1,20 @@
+#!/bin/sh
+# Emit OSC 52 (selection "c") for stdin text so xterm.js can copy to the OS clipboard.
+# Used by tmux copy-pipe-and-cancel. Prefer the pane tty so the sequence reaches ttyd.
+# ponytail: ceiling = OSC 52 size limits; huge yanks may truncate in browser/tmux.
+set -eu
+b64=$(base64 -w0 2>/dev/null || base64 | tr -d '\n')
+seq=$(printf '\033]52;c;%s\a' "$b64")
+# tmux sets TMUX_PANE; try pane tty, then /dev/tty, then stdout.
+if [ -n "${TMUX_PANE:-}" ] && command -v tmux >/dev/null 2>&1; then
+    tty=$(tmux display-message -p -t "${TMUX_PANE}" '#{pane_tty}' 2>/dev/null || true)
+    if [ -n "${tty}" ] && [ -w "${tty}" ]; then
+        printf '%s' "$seq" >"${tty}"
+        exit 0
+    fi
+fi
+if [ -w /dev/tty ]; then
+    printf '%s' "$seq" >/dev/tty
+    exit 0
+fi
+printf '%s' "$seq"

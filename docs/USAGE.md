@@ -884,11 +884,11 @@ tmux attach -t astroai            # reattach after reconnect
 
 | Action | How |
 |--------|-----|
-| Copy with mouse | Drag-select in the terminal — tmux sends OSC 52 to the browser clipboard |
-| Copy selection | Top-bar **Copy** (uses xterm selection when native select is on) |
-| Paste | `Cmd+V` (Mac) / `Ctrl+Shift+V` (Linux/Windows), or top-bar **Paste** |
-| Native browser select | `Ctrl-b` `m` toggles tmux mouse off so the browser can drag-select |
-| Keyboard copy-mode | `Ctrl-b` `[`, move, `y` to yank |
+| Copy with mouse | Drag-select — tmux yanks via OSC 52 to the OS clipboard (toast confirms) |
+| Copy / Paste buttons | Top bar, or **right-click** the terminal for a small menu |
+| Paste | `Cmd+V` (Mac) / `Ctrl+Shift+V` (Linux/Windows), top-bar **Paste**, or right-click → Paste |
+| Toggle tmux mouse | Top-bar **Toggle mouse**, right-click menu, or `Ctrl-b` `m` — off = native browser drag-select (auto-copies) |
+| Keyboard copy-mode | `Ctrl-b` `[`, then `v` to select, `y` / Enter to yank |
 
 **View files in the terminal** (also on notebook/vscode/base):
 
@@ -905,10 +905,11 @@ peek -t hex data.bin           # short hex dump
 |------|--------|
 | `Ctrl-b` `c` | New window (tab) |
 | `Ctrl-b` `n` / `p` | Next / previous window |
-| `Ctrl-b` `0`–`9` | Jump to window number |
+| `Ctrl-b` `1`–`9` | Jump to window number (windows start at 1) |
 | `Ctrl-b` `w` | Interactive window list |
 | `Ctrl-b` `%` / `"` | Split pane vertical / horizontal |
 | `Ctrl-b` `m` | Toggle mouse (off = native browser select) |
+| `Ctrl-b` `[` then `v` / `y` | Copy-mode: begin selection / yank to clipboard |
 
 For real GUI-style tabs, use the **vscode** session instead.
 
