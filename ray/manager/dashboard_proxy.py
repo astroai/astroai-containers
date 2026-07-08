@@ -86,7 +86,8 @@ router = APIRouter()
 
 @router.get(DASHBOARD_PREFIX)
 def dashboard_redirect() -> RedirectResponse:
-    return RedirectResponse(url=f"{DASHBOARD_PREFIX}/", status_code=307)
+    # Relative redirect keeps the browser under /session/contrib/<id>/ on CANFAR.
+    return RedirectResponse(url="dashboard/", status_code=307)
 
 
 @router.api_route(

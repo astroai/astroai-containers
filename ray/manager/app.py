@@ -28,7 +28,7 @@ from ray_cluster import count_live_nodes, list_ray_nodes, ray_address, ray_runni
 from reconcile import reconcile_cluster
 from settings import ManagerSettings, manager_pod_ip
 from state_store import StateStore
-from ui import PAGE_STYLE, flash_html, phase_class, redirect_with_flash
+from ui import PAGE_STYLE, flash_html, phase_class, public_path, redirect_with_flash
 from workers import destroy_all_workers, destroy_worker, launch_worker
 from worker_logs import archive_session_logs, read_worker_logs
 
@@ -396,7 +396,7 @@ def api_dashboard_status() -> JSONResponse:
     return JSONResponse(
         {
             "ready": dashboard_ready(),
-            "path": "/dashboard/",
+            "path": public_path("/dashboard/"),
             "upstream": "127.0.0.1:8265",
         }
     )
@@ -415,22 +415,34 @@ def index(request: Request) -> str:
     dash_ok = dashboard_ready()
     op = active_operation()
 
+    # Browser-visible paths (include /session/contrib/<id> on CANFAR).
+    p_dash = public_path("/dashboard/")
+    p_status = public_path("/api/v1/status")
+    p_dash_status = public_path("/api/v1/dashboard/status")
+    p_auth = public_path("/api/v1/auth/status")
+    p_health = public_path("/healthz")
+    p_create = public_path("/actions/create-cluster")
+    p_preflight = public_path("/actions/preflight")
+    p_reconcile = public_path("/actions/reconcile")
+    p_stop = public_path("/actions/stop-cluster")
+    p_orphans = public_path("/actions/clean-orphans")
+
     workers_html = ""
     if state and state.workers:
         rows = []
         for w in state.workers:
             retry = ""
             if w.phase in {"CANFAR Failed", "Ray Unhealthy", "Orphaned"}:
+                retry_action = public_path(f"/actions/retry-worker/{w.session_id}")
                 retry = (
                     f'<form class="inline" method="post" '
-                    f'action="/actions/retry-worker/{w.session_id}">'
+                    f'action="{retry_action}">'
                     f'<button class="btn btn-ghost" type="submit">Retry</button></form>'
                 )
             logs_link = ""
             if w.logs_path or _store.worker_log_file(w.session_id).is_file():
-                logs_link = (
-                    f' <a href="/api/v1/workers/{w.session_id}/logs" target="_blank">logs</a>'
-                )
+                logs_href = public_path(f"/api/v1/workers/{w.session_id}/logs")
+                logs_link = f' <a href="{logs_href}" target="_blank">logs</a>'
             joined_label = "joined" if w.ray_joined else "pending"
             rows.append(
                 f"<tr><td>{w.name}</td><td><code>{w.session_id}</code></td>"
@@ -469,11 +481,13 @@ def index(request: Request) -> str:
     if target > 0:
         progress_pct = min(100, int(round(100.0 * joined / target)))
     dash_cta = (
-        '<a class="btn btn-primary" href="/dashboard/" target="_blank" rel="noopener">'
+        f'<a class="btn btn-primary" href="{p_dash}" target="_blank" rel="noopener">'
         "Open Ray Dashboard</a>"
         if dash_ok
-        else '<a class="btn btn-primary" href="/dashboard/" title="Dashboard may still be starting">'
-        "Open Ray Dashboard</a>"
+        else (
+            f'<a class="btn btn-primary" href="{p_dash}" '
+            'title="Dashboard may still be starting">Open Ray Dashboard</a>'
+        )
     )
     dash_status = (
         '<span class="phase-ok">ready</span>'
@@ -510,7 +524,7 @@ def index(request: Request) -> str:
     </div>
     <div class="cta-row">
       {dash_cta}
-      <a class="btn" href="/api/v1/status" target="_blank">JSON status</a>
+      <a class="btn" href="{p_status}" target="_blank">JSON status</a>
     </div>
   </div>
   {flash_html(flash, flash_msg)}
@@ -534,7 +548,7 @@ def index(request: Request) -> str:
     <div class="card">
       <div class="label">Ray Dashboard</div>
       <div class="value" id="dash-status">{dash_status}</div>
-      <div class="sub">proxied at /dashboard/</div>
+      <div class="sub">proxied at {p_dash}</div>
     </div>
   </div>
   <div class="panel">
@@ -545,7 +559,7 @@ def index(request: Request) -> str:
   </div>
   <div class="panel">
     <h2>Create cluster</h2>
-    <form method="post" action="/actions/create-cluster">
+    <form method="post" action="{p_create}">
       <div class="grid">
         <label>Workers <input name="worker_count" type="number" value="2" min="1" max="16"></label>
         <label>CPUs/worker <input name="cores" type="number" value="1" min="1"></label>
@@ -566,10 +580,10 @@ def index(request: Request) -> str:
   <div class="panel">
     <h2>Maintenance</h2>
     <div class="actions">
-      <form method="post" action="/actions/preflight"><button class="btn" type="submit">Run network preflight</button></form>
-      <form method="post" action="/actions/reconcile"><button class="btn" type="submit">Reconcile state</button></form>
-      <form method="post" action="/actions/stop-cluster" onsubmit="return confirm('Stop the cluster and terminate all workers?');"><button class="btn btn-danger" type="submit">Stop cluster</button></form>
-      <form method="post" action="/actions/clean-orphans" onsubmit="return confirm('Clean orphaned worker sessions?');"><button class="btn" type="submit">Clean orphaned workers</button></form>
+      <form method="post" action="{p_preflight}"><button class="btn" type="submit">Run network preflight</button></form>
+      <form method="post" action="{p_reconcile}"><button class="btn" type="submit">Reconcile state</button></form>
+      <form method="post" action="{p_stop}" onsubmit="return confirm('Stop the cluster and terminate all workers?');"><button class="btn btn-danger" type="submit">Stop cluster</button></form>
+      <form method="post" action="{p_orphans}" onsubmit="return confirm('Clean orphaned worker sessions?');"><button class="btn" type="submit">Clean orphaned workers</button></form>
     </div>
   </div>
   <div class="panel">
@@ -577,9 +591,9 @@ def index(request: Request) -> str:
     {workers_html or '<p class="muted">No workers recorded.</p>'}
   </div>
   <p class="footer">
-    <a href="/dashboard/">Ray Dashboard</a> ·
-    <a href="/api/v1/auth/status">Auth status</a> ·
-    <a href="/healthz">healthz</a> ·
+    <a href="{p_dash}">Ray Dashboard</a> ·
+    <a href="{p_auth}">Auth status</a> ·
+    <a href="{p_health}">healthz</a> ·
     Ray {_settings.ray_version}
   </p>
 </div>
@@ -594,8 +608,8 @@ def index(request: Request) -> str:
   async function refresh() {{
     try {{
       const [status, dash] = await Promise.all([
-        fetch("/api/v1/status").then(r => r.json()),
-        fetch("/api/v1/dashboard/status").then(r => r.json()),
+        fetch("{p_status}").then(r => r.json()),
+        fetch("{p_dash_status}").then(r => r.json()),
       ]);
       const cluster = status.cluster || {{}};
       const phase = cluster.phase || "Idle";
@@ -644,7 +658,7 @@ def _cluster_payload(state: Any) -> dict[str, Any]:
         "ray_running": ray_running(),
         "ray_nodes_alive": count_live_nodes(nodes=nodes),
         "dashboard_ready": dashboard_ready(),
-        "dashboard_path": "/dashboard/",
+        "dashboard_path": public_path("/dashboard/"),
         "worker_image": _settings.worker_image,
         "cluster": asdict(state) if state else None,
         "preflight": state.preflight if state else None,

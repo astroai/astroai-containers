@@ -3,7 +3,33 @@
 from __future__ import annotations
 
 import html
+import os
 from urllib.parse import quote
+
+
+def public_prefix() -> str:
+    """Browser-visible path prefix for CANFAR contributed sessions.
+
+    Ingress serves the app at ``/session/contrib/<skaha_sessionid>/`` and strips
+    that prefix before forwarding to the container (which still sees ``/``).
+    Absolute links like ``/dashboard/`` therefore escape the session and hit
+    ``https://workloads.canfar.net/dashboard/``. Prefix public URLs when the
+    session id is present.
+    """
+    session_id = (os.environ.get("skaha_sessionid") or "").strip()
+    if not session_id:
+        return ""
+    return f"/session/contrib/{session_id}"
+
+
+def public_path(path: str = "/") -> str:
+    """Map an app-absolute path (``/dashboard/``) to the browser-visible URL."""
+    if not path.startswith("/"):
+        path = "/" + path
+    prefix = public_prefix()
+    if path == "/":
+        return f"{prefix}/" if prefix else "/"
+    return f"{prefix}{path}"
 
 
 def flash_html(flash: str | None, message: str | None) -> str:
@@ -19,7 +45,8 @@ def flash_html(flash: str | None, message: str | None) -> str:
 
 
 def redirect_with_flash(path: str, flash: str, message: str) -> str:
-    return f"{path}?flash={quote(flash)}&msg={quote(message)}"
+    target = public_path(path)
+    return f"{target}?flash={quote(flash)}&msg={quote(message)}"
 
 
 def phase_class(phase: str) -> str:

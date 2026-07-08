@@ -60,7 +60,7 @@ Contributed **`ray-manager`** serves a browser UI on port **5000** (same as webt
 | `/actions/*` | Form POSTs for cluster lifecycle (redirect + flash) |
 | `/api/v1/*` | JSON automation |
 
-The Ray head starts with `--include-dashboard=true` bound to **localhost only**. CANFAR ingress exposes only port 5000, so the manager strips `/dashboard` and proxies HTTP + WebSockets to the Dashboard. Always open `/dashboard/` with the trailing slash.
+The Ray head starts with `--include-dashboard=true` bound to **localhost only**. CANFAR ingress exposes only port 5000 under `/session/contrib/<session-id>/` (prefix stripped before the container). The manager therefore emits browser links as `/session/contrib/<id>/dashboard/` (from `skaha_sessionid`) so **Open Ray Dashboard** stays inside the session URL — never bare `https://workloads.canfar.net/dashboard/`. Always open the dashboard with a trailing slash.
 
 After launch, open the session connect URL and verify:
 

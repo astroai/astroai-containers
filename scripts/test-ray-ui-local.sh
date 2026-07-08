@@ -65,12 +65,23 @@ check "gpus form field" grep -q 'name="gpus"' <<< "${HTML}"
 check "preflight action" grep -q 'action="/actions/preflight"' <<< "${HTML}"
 check "stop cluster action" grep -q 'action="/actions/stop-cluster"' <<< "${HTML}"
 check "clean orphans action" grep -q 'action="/actions/clean-orphans"' <<< "${HTML}"
+check "public_path prefixes session" docker run --rm --entrypoint python "${MGR}" -c "
+import os, sys
+sys.path.insert(0, '/opt/astroai/ray-manager')
+os.environ['skaha_sessionid'] = 'abc123'
+from ui import public_path
+assert public_path('/dashboard/') == '/session/contrib/abc123/dashboard/', public_path('/dashboard/')
+assert public_path('/') == '/session/contrib/abc123/'
+os.environ.pop('skaha_sessionid', None)
+assert public_path('/dashboard/') == '/dashboard/'
+print('ok')
+"
 check "auth status JSON" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
     -fsS "${BASE}/api/v1/auth/status" | grep -q '"authenticated"'
 check "status JSON" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
     -fsS "${BASE}/api/v1/status" | grep -q '"ray_address"'
 check "dashboard status JSON" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
-    -fsS "${BASE}/api/v1/dashboard/status" | grep -q '"path":"/dashboard/"'
+    -fsS "${BASE}/api/v1/dashboard/status" | grep -q '"path"'
 check "dashboard redirect" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
     -sS -o /dev/null -w '%{http_code} %{redirect_url}' "${BASE}/dashboard" \
     | grep -qE '307 .*/dashboard/'
