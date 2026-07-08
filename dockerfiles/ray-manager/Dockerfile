@@ -21,7 +21,7 @@ COPY ray/manager/ /opt/astroai/ray-manager/
 COPY scripts/startup-ray-manager.sh /skaha/startup.sh
 RUN uv pip install --python /opt/astroai/venv/ray \
         canfar \
-        fastapi uvicorn[standard] python-multipart \
+        fastapi uvicorn[standard] python-multipart httpx websockets \
     && chmod a+rx /skaha/startup.sh
 
 EXPOSE 5000

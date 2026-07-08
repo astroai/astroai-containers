@@ -22,16 +22,18 @@ from cluster import (
     stop_cluster,
     validate_cluster_create,
 )
+from dashboard_proxy import dashboard_ready, router as dashboard_router
 from preflight import run_preflight
 from ray_cluster import count_live_nodes, list_ray_nodes, ray_address, ray_running
 from reconcile import reconcile_cluster
 from settings import ManagerSettings, manager_pod_ip
 from state_store import StateStore
-from ui import PAGE_STYLE, flash_html, redirect_with_flash
+from ui import PAGE_STYLE, flash_html, phase_class, redirect_with_flash
 from workers import destroy_all_workers, destroy_worker, launch_worker
 from worker_logs import archive_session_logs, read_worker_logs
 
 app = FastAPI(title="CANFAR Ray Manager")
+app.include_router(dashboard_router)
 
 _ray_head_proc: subprocess.Popen[str] | None = None
 _settings = ManagerSettings.from_env()
@@ -389,6 +391,17 @@ def action_retry_worker(session_id: str) -> RedirectResponse:
     return RedirectResponse(redirect_with_flash("/", flash, msg), status_code=303)
 
 
+@app.get("/api/v1/dashboard/status")
+def api_dashboard_status() -> JSONResponse:
+    return JSONResponse(
+        {
+            "ready": dashboard_ready(),
+            "path": "/dashboard/",
+            "upstream": "127.0.0.1:8265",
+        }
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> str:
     _touch_heartbeat()
@@ -397,6 +410,10 @@ def index(request: Request) -> str:
     preflight = (state.preflight if state else None) or {}
     flash = request.query_params.get("flash")
     flash_msg = request.query_params.get("msg")
+    nodes = list_ray_nodes()
+    live_nodes = count_live_nodes(nodes=nodes)
+    dash_ok = dashboard_ready()
+    op = active_operation()
 
     workers_html = ""
     if state and state.workers:
@@ -407,18 +424,20 @@ def index(request: Request) -> str:
                 retry = (
                     f'<form class="inline" method="post" '
                     f'action="/actions/retry-worker/{w.session_id}">'
-                    f'<button type="submit">Retry</button></form>'
+                    f'<button class="btn btn-ghost" type="submit">Retry</button></form>'
                 )
             logs_link = ""
             if w.logs_path or _store.worker_log_file(w.session_id).is_file():
                 logs_link = (
                     f' <a href="/api/v1/workers/{w.session_id}/logs" target="_blank">logs</a>'
                 )
+            joined_label = "joined" if w.ray_joined else "pending"
             rows.append(
                 f"<tr><td>{w.name}</td><td><code>{w.session_id}</code></td>"
-                f"<td>{w.phase}</td><td>{w.canfar_status or '—'}</td>"
-                f"<td>{w.worker_ip or '—'}</td>"
-                f"<td>{'yes' if w.ray_joined else 'no'}</td>"
+                f'<td class="{phase_class(w.phase)}">{w.phase}</td>'
+                f"<td>{w.canfar_status or '—'}</td>"
+                f"<td class=\"mono\">{w.worker_ip or '—'}</td>"
+                f"<td>{joined_label}</td>"
                 f"<td>{w.last_error or ''}{logs_link} {retry}</td></tr>"
             )
         workers_html = (
@@ -429,63 +448,187 @@ def index(request: Request) -> str:
         )
 
     auth_line = (
-        f'<span class="status-ok">Authenticated ({auth.idp})</span>'
+        f'<span class="phase-ok">Authenticated ({auth.idp})</span>'
         if auth.authenticated
         else (
-            '<span class="status-bad">Not authenticated</span> — '
+            '<span class="phase-bad">Not authenticated</span> — '
             "run <code>canfar auth login</code> in an AstroAI <strong>webterm</strong> or "
             "<strong>vscode</strong> session first (credentials persist on <code>/arc/home</code>), "
             "then refresh this page."
         )
     )
     pf_line = (
-        f'<span class="status-ok">Passed</span> (probe worker {preflight.get("worker_ip", "?")})'
+        f'<span class="phase-ok">Passed</span> (probe {preflight.get("worker_ip", "?")})'
         if preflight.get("passed")
-        else '<span class="status-warn">Not run or failed</span> — run preflight before creating a cluster'
+        else '<span class="phase-warn">Not run or failed</span> — run preflight before creating a cluster'
     )
     cluster_phase = state.phase if state else "Idle"
     joined = len(_store.joined_workers(state)) if state else 0
     target = state.worker_count if state else 0
+    progress_pct = 0
+    if target > 0:
+        progress_pct = min(100, int(round(100.0 * joined / target)))
+    dash_cta = (
+        '<a class="btn btn-primary" href="/dashboard/" target="_blank" rel="noopener">'
+        "Open Ray Dashboard</a>"
+        if dash_ok
+        else '<a class="btn btn-primary" href="/dashboard/" title="Dashboard may still be starting">'
+        "Open Ray Dashboard</a>"
+    )
+    dash_status = (
+        '<span class="phase-ok">ready</span>'
+        if dash_ok
+        else '<span class="phase-busy">starting…</span>'
+    )
+    op_html = ""
+    if op and op.running:
+        op_html = (
+            f'<div class="op-banner active" id="op-banner">'
+            f"Background operation running: <strong>{op.kind}</strong> "
+            f"(started {op.started_at}). This page refreshes automatically."
+            f"</div>"
+        )
+    elif op and op.error:
+        op_html = (
+            f'<div class="op-banner active" id="op-banner">'
+            f'Last operation <strong>{op.kind}</strong> failed: {op.error}'
+            f"</div>"
+        )
 
     return f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>CANFAR Ray Manager</title>
-<style>{PAGE_STYLE}</style></head>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CANFAR Ray Manager</title>
+<style>{PAGE_STYLE}</style>
+</head>
 <body>
-  <h1>CANFAR Ray Manager</h1>
-  {flash_html(flash, flash_msg)}
-  <p>Ray: <code>{ray_address()}</code> · cluster <code>{_settings.cluster_id}</code></p>
-  <p>Cluster phase: <strong>{cluster_phase}</strong> · workers joined: {joined}/{target or '—'}</p>
-  <p>CANFAR auth: {auth_line}</p>
-  <p>Network preflight: {pf_line}</p>
-  <p>Live Ray nodes: {count_live_nodes(nodes=list_ray_nodes())}</p>
-  <h2>Create cluster</h2>
-  <form method="post" action="/actions/create-cluster">
-    <div class="grid">
-      <label>Workers <input name="worker_count" type="number" value="2" min="1" max="16"></label>
-      <label>CPUs/worker <input name="cores" type="number" value="1" min="1"></label>
-      <label>RAM GB/worker <input name="ram_gb" type="number" value="4" min="1"></label>
-      <label>GPUs/worker <input name="gpus" type="number" value="0" min="0" max="8"></label>
-      <label>Min joined <input name="min_joined" type="number" value="2" min="1"></label>
-      <label>Partial policy
-        <select name="partial_policy">
-          <option value="accept_partial">accept partial</option>
-          <option value="fail_and_cleanup">fail and cleanup</option>
-          <option value="continue_waiting">continue waiting</option>
-        </select>
-      </label>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">
+      <h1>CANFAR Ray Manager</h1>
+      <p>Launch and manage CANFAR worker sessions · monitor jobs in Ray Dashboard</p>
     </div>
-    <button type="submit">Create cluster</button>
-  </form>
-  <h2>Maintenance</h2>
-  <div class="actions">
-    <form method="post" action="/actions/preflight"><button type="submit">Run network preflight</button></form>
-    <form method="post" action="/actions/reconcile"><button type="submit">Reconcile state</button></form>
-    <form method="post" action="/actions/stop-cluster" onsubmit="return confirm('Are you sure you want to stop the cluster? This will terminate all workers.');"><button type="submit">Stop cluster</button></form>
-    <form method="post" action="/actions/clean-orphans" onsubmit="return confirm('Are you sure you want to clean orphaned workers?');"><button type="submit">Clean orphaned workers</button></form>
+    <div class="cta-row">
+      {dash_cta}
+      <a class="btn" href="/api/v1/status" target="_blank">JSON status</a>
+    </div>
   </div>
-  <h2>Workers</h2>
-  {workers_html or "<p>No workers recorded.</p>"}
-  <p><a href="/api/v1/status">JSON status</a> · <a href="/api/v1/auth/status">Auth status</a> · <a href="/healthz">healthz</a></p>
+  {flash_html(flash, flash_msg)}
+  {op_html}
+  <div class="cards">
+    <div class="card">
+      <div class="label">Cluster phase</div>
+      <div class="value {phase_class(cluster_phase)}" id="cluster-phase">{cluster_phase}</div>
+      <div class="sub">id {_settings.cluster_id}</div>
+    </div>
+    <div class="card">
+      <div class="label">Workers joined</div>
+      <div class="value" id="workers-joined">{joined}/{target or "—"}</div>
+      <div class="progress"><span id="join-bar" style="width:{progress_pct}%"></span></div>
+    </div>
+    <div class="card">
+      <div class="label">Ray nodes</div>
+      <div class="value" id="ray-nodes">{live_nodes}</div>
+      <div class="sub">{ray_address()}</div>
+    </div>
+    <div class="card">
+      <div class="label">Ray Dashboard</div>
+      <div class="value" id="dash-status">{dash_status}</div>
+      <div class="sub">proxied at /dashboard/</div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Status</h2>
+    <p>CANFAR auth: {auth_line}</p>
+    <p>Network preflight: {pf_line}</p>
+    <p class="muted">Use Ray Dashboard for jobs, actors, logs, and metrics. This page controls CANFAR worker sessions.</p>
+  </div>
+  <div class="panel">
+    <h2>Create cluster</h2>
+    <form method="post" action="/actions/create-cluster">
+      <div class="grid">
+        <label>Workers <input name="worker_count" type="number" value="2" min="1" max="16"></label>
+        <label>CPUs/worker <input name="cores" type="number" value="1" min="1"></label>
+        <label>RAM GB/worker <input name="ram_gb" type="number" value="4" min="1"></label>
+        <label>GPUs/worker <input name="gpus" type="number" value="0" min="0" max="8"></label>
+        <label>Min joined <input name="min_joined" type="number" value="2" min="1"></label>
+        <label>Partial policy
+          <select name="partial_policy">
+            <option value="accept_partial">accept partial</option>
+            <option value="fail_and_cleanup">fail and cleanup</option>
+            <option value="continue_waiting">continue waiting</option>
+          </select>
+        </label>
+      </div>
+      <button class="btn btn-primary" type="submit">Create cluster</button>
+    </form>
+  </div>
+  <div class="panel">
+    <h2>Maintenance</h2>
+    <div class="actions">
+      <form method="post" action="/actions/preflight"><button class="btn" type="submit">Run network preflight</button></form>
+      <form method="post" action="/actions/reconcile"><button class="btn" type="submit">Reconcile state</button></form>
+      <form method="post" action="/actions/stop-cluster" onsubmit="return confirm('Stop the cluster and terminate all workers?');"><button class="btn btn-danger" type="submit">Stop cluster</button></form>
+      <form method="post" action="/actions/clean-orphans" onsubmit="return confirm('Clean orphaned worker sessions?');"><button class="btn" type="submit">Clean orphaned workers</button></form>
+    </div>
+  </div>
+  <div class="panel">
+    <h2>Workers</h2>
+    {workers_html or '<p class="muted">No workers recorded.</p>'}
+  </div>
+  <p class="footer">
+    <a href="/dashboard/">Ray Dashboard</a> ·
+    <a href="/api/v1/auth/status">Auth status</a> ·
+    <a href="/healthz">healthz</a> ·
+    Ray {_settings.ray_version}
+  </p>
+</div>
+<script>
+(function () {{
+  const phaseEl = document.getElementById("cluster-phase");
+  const joinedEl = document.getElementById("workers-joined");
+  const nodesEl = document.getElementById("ray-nodes");
+  const dashEl = document.getElementById("dash-status");
+  const barEl = document.getElementById("join-bar");
+  const opEl = document.getElementById("op-banner");
+  async function refresh() {{
+    try {{
+      const [status, dash] = await Promise.all([
+        fetch("/api/v1/status").then(r => r.json()),
+        fetch("/api/v1/dashboard/status").then(r => r.json()),
+      ]);
+      const cluster = status.cluster || {{}};
+      const phase = cluster.phase || "Idle";
+      const joined = status.joined_workers || 0;
+      const target = cluster.worker_count || 0;
+      if (phaseEl) {{
+        phaseEl.textContent = phase;
+        phaseEl.className = "value";
+      }}
+      if (joinedEl) joinedEl.textContent = target ? (joined + "/" + target) : (joined + "/—");
+      if (nodesEl) nodesEl.textContent = status.ray_nodes_alive ?? "—";
+      if (barEl) barEl.style.width = (target ? Math.min(100, Math.round(100 * joined / target)) : 0) + "%";
+      if (dashEl) dashEl.innerHTML = dash.ready
+        ? '<span class="phase-ok">ready</span>'
+        : '<span class="phase-busy">starting…</span>';
+      if (opEl) {{
+        const op = status.operation;
+        if (op && op.running) {{
+          opEl.classList.add("active");
+          opEl.innerHTML = "Background operation running: <strong>" + op.kind +
+            "</strong> (started " + op.started_at + "). This page refreshes automatically.";
+        }} else if (op && op.error) {{
+          opEl.classList.add("active");
+          opEl.innerHTML = "Last operation <strong>" + op.kind + "</strong> failed: " + op.error;
+        }} else if (opEl.dataset.keep !== "1") {{
+          opEl.classList.remove("active");
+        }}
+      }}
+    }} catch (e) {{ /* ignore transient poll errors */ }}
+  }}
+  setInterval(refresh, 4000);
+}})();
+</script>
 </body></html>"""
 
 
@@ -500,6 +643,8 @@ def _cluster_payload(state: Any) -> dict[str, Any]:
         "heartbeat_path": str(_heartbeat_path()),
         "ray_running": ray_running(),
         "ray_nodes_alive": count_live_nodes(nodes=nodes),
+        "dashboard_ready": dashboard_ready(),
+        "dashboard_path": "/dashboard/",
         "worker_image": _settings.worker_image,
         "cluster": asdict(state) if state else None,
         "preflight": state.preflight if state else None,

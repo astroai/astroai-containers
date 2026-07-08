@@ -51,11 +51,21 @@ Maintainer tests can set `CANFAR_RAY_SKIP_PREFLIGHT=1` to exercise UI/auth witho
 
 ## Web UI
 
-Contributed **`ray-manager`** serves a browser UI on port **5000** (same as webterm/vscode). Forms POST to `/actions/*` and redirect back with flash messages; JSON automation uses `/api/v1/*`.
+Contributed **`ray-manager`** serves a browser UI on port **5000** (same as webterm/vscode).
+
+| Surface | Purpose |
+|---------|---------|
+| `/` | Thin CANFAR control panel — auth, preflight, create/stop cluster, worker table |
+| `/dashboard/` | Official **Ray Dashboard** (jobs, actors, nodes, metrics, logs), reverse-proxied from `127.0.0.1:8265` |
+| `/actions/*` | Form POSTs for cluster lifecycle (redirect + flash) |
+| `/api/v1/*` | JSON automation |
+
+The Ray head starts with `--include-dashboard=true` bound to **localhost only**. CANFAR ingress exposes only port 5000, so the manager strips `/dashboard` and proxies HTTP + WebSockets to the Dashboard. Always open `/dashboard/` with the trailing slash.
 
 After launch, open the session connect URL and verify:
 
 - CANFAR auth line shows **Authenticated**
+- **Open Ray Dashboard** works (jobs/nodes UI)
 - **Run network preflight** before first cluster create
 - Worker table shows session IDs, phases, and **Retry** for failed workers
 

@@ -38,7 +38,8 @@ echo "Starting Ray head on ${RAY_NODE_IP_ADDRESS}:${RAY_HEAD_PORT} (cluster ${cl
     --dashboard-port="${RAY_DASHBOARD_PORT}" \
     --min-worker-port="${RAY_MIN_WORKER_PORT}" \
     --max-worker-port="${RAY_MAX_WORKER_PORT}" \
-    --include-dashboard=false \
+    --include-dashboard=true \
     --disable-usage-stats
 
 echo "Ray head ready: ${RAY_NODE_IP_ADDRESS}:${RAY_HEAD_PORT}"
+echo "Ray Dashboard (local only): http://127.0.0.1:${RAY_DASHBOARD_PORT}/ — proxied at /dashboard/"

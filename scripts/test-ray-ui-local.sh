@@ -59,6 +59,7 @@ echo "Ray manager UI verification"
 echo "==========================="
 
 check "HTML title" grep -q "CANFAR Ray Manager" <<< "${HTML}"
+check "dashboard CTA" grep -q 'href="/dashboard/"' <<< "${HTML}"
 check "create cluster form" grep -q 'action="/actions/create-cluster"' <<< "${HTML}"
 check "gpus form field" grep -q 'name="gpus"' <<< "${HTML}"
 check "preflight action" grep -q 'action="/actions/preflight"' <<< "${HTML}"
@@ -68,6 +69,24 @@ check "auth status JSON" docker run --rm --network "${NETWORK}" curlimages/curl:
     -fsS "${BASE}/api/v1/auth/status" | grep -q '"authenticated"'
 check "status JSON" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
     -fsS "${BASE}/api/v1/status" | grep -q '"ray_address"'
+check "dashboard status JSON" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
+    -fsS "${BASE}/api/v1/dashboard/status" | grep -q '"path":"/dashboard/"'
+check "dashboard redirect" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
+    -sS -o /dev/null -w '%{http_code} %{redirect_url}' "${BASE}/dashboard" \
+    | grep -qE '307 .*/dashboard/'
+# Wait for Ray Dashboard process (enabled on head start, proxied under /dashboard/).
+dash_ok=0
+dash_deadline=$((SECONDS + 90))
+while (( SECONDS < dash_deadline )); do
+    code="$(docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
+        -sS -o /dev/null -w '%{http_code}' "${BASE}/dashboard/" || true)"
+    if [[ "${code}" == "200" ]]; then
+        dash_ok=1
+        break
+    fi
+    sleep 3
+done
+check "dashboard proxy 200" test "${dash_ok}" -eq 1
 check "preflight POST" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
     -fsS -o /dev/null -w '%{http_code}' -X POST "${BASE}/actions/preflight" | grep -qE '303|200'
 check "reconcile POST" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \

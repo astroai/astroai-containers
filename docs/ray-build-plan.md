@@ -485,7 +485,7 @@ If this preflight fails, the manager must not launch a full Ray cluster.
 - Use a fixed node IP.
 - Use bounded, explicit ports.
 - Store temporary state and spill data in `/scratch`.
-- Keep the dashboard bound locally unless it is proxied safely through the manager application.
+- Keep the dashboard bound locally (`127.0.0.1:8265`) and proxy it safely through the manager at `/dashboard/` on port 5000.
 - Do not expose unauthenticated Ray Client or dashboard ports publicly.
 
 ### 9.2 Workers
