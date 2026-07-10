@@ -65,9 +65,7 @@ def parse_worker_ip_from_logs(logs: str) -> str | None:
     return None
 
 
-def live_worker_node_ips(nodes: list[dict[str, Any]] | None = None) -> set[str]:
-    if nodes is None:
-        nodes = list_ray_nodes()
+def live_worker_node_ips(nodes: list[dict[str, Any]]) -> set[str]:
     ips: set[str] = set()
     for node in nodes:
         if not node.get("Alive"):
@@ -78,9 +76,7 @@ def live_worker_node_ips(nodes: list[dict[str, Any]] | None = None) -> set[str]:
     return ips
 
 
-def node_ip_to_id(nodes: list[dict[str, Any]] | None = None) -> dict[str, str]:
-    if nodes is None:
-        nodes = list_ray_nodes()
+def node_ip_to_id(nodes: list[dict[str, Any]]) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for node in nodes:
         if not node.get("Alive"):
@@ -92,9 +88,7 @@ def node_ip_to_id(nodes: list[dict[str, Any]] | None = None) -> dict[str, str]:
     return mapping
 
 
-def count_live_nodes(nodes: list[dict[str, Any]] | None = None) -> int:
-    if nodes is None:
-        nodes = list_ray_nodes()
+def count_live_nodes(nodes: list[dict[str, Any]]) -> int:
     return sum(1 for node in nodes if node.get("Alive"))
 
 
@@ -103,14 +97,16 @@ def wait_for_node_count(
     minimum: int,
     timeout_seconds: int,
     poll_seconds: int = 5,
-) -> int:
+) -> tuple[int, list[dict[str, Any]]]:
     import time
 
     deadline = time.monotonic() + timeout_seconds
-    count = count_live_nodes()
+    nodes = list_ray_nodes()
+    count = count_live_nodes(nodes)
     while time.monotonic() < deadline:
-        count = count_live_nodes()
         if count >= minimum:
-            return count
+            return count, nodes
         time.sleep(poll_seconds)
-    return count
+        nodes = list_ray_nodes()
+        count = count_live_nodes(nodes)
+    return count, nodes

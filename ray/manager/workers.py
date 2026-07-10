@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from canfar_ops import CanfarOps
-from ray_cluster import count_live_nodes, ray_address, wait_for_node_count
+from ray_cluster import count_live_nodes, list_ray_nodes, ray_address, wait_for_node_count
 from settings import ManagerSettings, manager_pod_ip
 from state_store import StateStore, WorkerRecord, ClusterState
 from worker_logs import archive_session_logs
@@ -67,7 +67,8 @@ def launch_worker(
         if not preflight.get("passed"):
             raise RuntimeError("Network preflight has not passed. Run preflight first.")
 
-    nodes_before = count_live_nodes()
+    nodes = list_ray_nodes()
+    nodes_before = count_live_nodes(nodes)
     tag_safe = time.strftime("%Y%m%d%H%M%S")
     worker_name = f"ray-w-{settings.cluster_id}-{tag_safe}"[:60]
 
@@ -133,7 +134,7 @@ def launch_worker(
     store.upsert_worker(state, worker)
 
     target_nodes = nodes_before + 1
-    final_count = wait_for_node_count(
+    final_count, _ = wait_for_node_count(
         minimum=target_nodes,
         timeout_seconds=min(300, settings.worker_launch_timeout_seconds),
     )

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from canfar_ops import CanfarOps
-from ray_cluster import count_live_nodes, ray_address, wait_for_node_count
+from ray_cluster import count_live_nodes, list_ray_nodes, ray_address, wait_for_node_count
 from reconcile import reconcile_cluster
 from settings import ManagerSettings, manager_pod_ip
 from state_store import (
@@ -105,7 +105,8 @@ def create_cluster(
         policy=req.partial_policy,
     )
 
-    nodes_before = count_live_nodes()
+    nodes = list_ray_nodes()
+    nodes_before = count_live_nodes(nodes)
     tag_safe = time.strftime("%Y%m%d%H%M%S")
     batch_name = f"ray-w-{settings.cluster_id}-{tag_safe}"[:50]
 
@@ -195,12 +196,12 @@ def create_cluster(
 
         time.sleep(poll)
 
-    final_nodes = wait_for_node_count(
+    final_count, final_nodes = wait_for_node_count(
         minimum=nodes_before + min_joined,
         timeout_seconds=30,
         poll_seconds=5,
     )
-    state = reconcile_cluster(canfar=canfar, store=store, state=state) or state
+    state = reconcile_cluster(canfar=canfar, store=store, state=state, nodes=final_nodes) or state
     joined = len(store.joined_workers(state))
 
     if joined >= req.worker_count:
@@ -295,7 +296,8 @@ def retry_worker(
     env["RAY_WORKER_CPUS"] = str(worker.cores or 1)
     env["RAY_WORKER_GPUS"] = str(worker.gpus or 0)
 
-    nodes_before = count_live_nodes()
+    nodes = list_ray_nodes()
+    nodes_before = count_live_nodes(nodes)
     launch = canfar.create_headless(
         name=name,
         image=settings.worker_image,
@@ -337,11 +339,11 @@ def retry_worker(
 
     replacement.phase = "Ray Joining"
     store.upsert_worker(state, replacement)
-    wait_for_node_count(
+    final_count, final_nodes = wait_for_node_count(
         minimum=nodes_before + 1,
         timeout_seconds=min(300, settings.worker_launch_timeout_seconds),
     )
-    state = reconcile_cluster(canfar=canfar, store=store, state=state) or state
+    state = reconcile_cluster(canfar=canfar, store=store, state=state, nodes=final_nodes) or state
     updated = next(w for w in state.workers if w.session_id == launch.session_id)
     store.log_event("worker_retry_done", session_id=launch.session_id, joined=updated.ray_joined)
     return updated
