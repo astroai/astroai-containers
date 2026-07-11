@@ -14,7 +14,9 @@ def ray_address() -> str:
     return f"{manager_pod_ip()}:{port}"
 
 
-def ray_running() -> bool:
+def ray_running(nodes: list[dict[str, Any]] | None = None) -> bool:
+    if nodes:
+        return True
     ray_bin = os.environ.get("RAY_BIN", "/opt/astroai/venv/ray/bin/ray")
     try:
         out = subprocess.run(

@@ -772,7 +772,7 @@ def _cluster_payload(state: Any, nodes: list[dict[str, Any]] | None = None) -> d
         "ray_version": _settings.ray_version,
         "cluster_id": _settings.cluster_id,
         "heartbeat_path": str(_heartbeat_path()),
-        "ray_running": ray_running(),
+        "ray_running": ray_running(nodes=nodes),
         "ray_nodes_alive": count_live_nodes(nodes=nodes),
         "dashboard_ready": dashboard_ready(),
         "dashboard_path": public_path("/dashboard/"),
