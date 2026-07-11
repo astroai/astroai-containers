@@ -456,6 +456,7 @@ def index(request: Request) -> str:
         ready=cluster_ready,
     )
     create_disabled = "" if cluster_ready else " disabled"
+    create_hint = "" if cluster_ready else ' title="Complete the checklist above before creating a cluster."'
     cluster_phase = state.phase if state else "Idle"
     joined = len(_store.joined_workers(state)) if state else 0
     target = state.worker_count if state else 0
@@ -556,7 +557,9 @@ def index(request: Request) -> str:
           </select>
         </label>
       </div>
-      <button class="btn btn-primary" type="submit" id="create-cluster-btn">Create cluster</button>
+      <span class="create-hint"{create_hint}>
+        <button class="btn btn-primary" type="submit" id="create-cluster-btn">Create cluster</button>
+      </span>
       </fieldset>
     </form>
   </div>
