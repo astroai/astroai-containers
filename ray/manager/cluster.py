@@ -195,12 +195,12 @@ def create_cluster(
 
         time.sleep(poll)
 
-    final_nodes = wait_for_node_count(
+    final_nodes_list = wait_for_node_count(
         minimum=nodes_before + min_joined,
         timeout_seconds=30,
         poll_seconds=5,
     )
-    state = reconcile_cluster(canfar=canfar, store=store, state=state) or state
+    state = reconcile_cluster(canfar=canfar, store=store, state=state, nodes=final_nodes_list) or state
     joined = len(store.joined_workers(state))
 
     if joined >= req.worker_count:
@@ -220,7 +220,8 @@ def create_cluster(
     else:
         state.phase = "Failed"
         success = False
-        message = f"Startup timeout: {joined}/{req.worker_count} joined, nodes={final_nodes}"
+        final_nodes_count = count_live_nodes(nodes=final_nodes_list)
+        message = f"Startup timeout: {joined}/{req.worker_count} joined, nodes={final_nodes_count}"
 
     store.save(state)
     store.log_event("cluster_create_done", phase=state.phase, joined=joined, success=success)
@@ -337,11 +338,11 @@ def retry_worker(
 
     replacement.phase = "Ray Joining"
     store.upsert_worker(state, replacement)
-    wait_for_node_count(
+    final_nodes_list = wait_for_node_count(
         minimum=nodes_before + 1,
         timeout_seconds=min(300, settings.worker_launch_timeout_seconds),
     )
-    state = reconcile_cluster(canfar=canfar, store=store, state=state) or state
+    state = reconcile_cluster(canfar=canfar, store=store, state=state, nodes=final_nodes_list) or state
     updated = next(w for w in state.workers if w.session_id == launch.session_id)
     store.log_event("worker_retry_done", session_id=launch.session_id, joined=updated.ray_joined)
     return updated

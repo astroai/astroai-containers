@@ -133,10 +133,11 @@ def launch_worker(
     store.upsert_worker(state, worker)
 
     target_nodes = nodes_before + 1
-    final_count = wait_for_node_count(
+    final_nodes_list = wait_for_node_count(
         minimum=target_nodes,
         timeout_seconds=min(300, settings.worker_launch_timeout_seconds),
     )
+    final_count = count_live_nodes(nodes=final_nodes_list)
     worker.ray_joined = final_count >= target_nodes
     worker.phase = "Ray Healthy" if worker.ray_joined else "Ray Unhealthy"
     if not worker.ray_joined:

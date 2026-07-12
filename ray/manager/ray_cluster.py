@@ -103,14 +103,16 @@ def wait_for_node_count(
     minimum: int,
     timeout_seconds: int,
     poll_seconds: int = 5,
-) -> int:
+) -> list[dict[str, Any]]:
     import time
 
     deadline = time.monotonic() + timeout_seconds
-    count = count_live_nodes()
+    nodes = list_ray_nodes()
+    if count_live_nodes(nodes=nodes) >= minimum:
+        return nodes
     while time.monotonic() < deadline:
-        count = count_live_nodes()
-        if count >= minimum:
-            return count
         time.sleep(poll_seconds)
-    return count
+        nodes = list_ray_nodes()
+        if count_live_nodes(nodes=nodes) >= minimum:
+            return nodes
+    return nodes
