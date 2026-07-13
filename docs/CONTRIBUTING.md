@@ -87,14 +87,14 @@ Rebuild the **parent** when you change shared layers — e.g. profile changes ne
 
 ## Refreshing the vendored `astroai-lab` wheel
 
-Session images install `astroai-lab` from the wheel in `vendor/`, not from PyPI. After pulling upstream [sfabbro/canfar-lab](https://github.com/sfabbro/canfar-lab) (package: `astroai-lab`):
+Session images install `astroai-lab` from the wheel in `vendor/`, not from PyPI. After pulling upstream [astroai/astroai-lab](https://github.com/astroai/astroai-lab) (package: `astroai-lab`):
 
 ```bash
 cd ../astroai-lab
 uv run pytest -q
 uv build
-cp dist/canfar_lab-0.1.0-py3-none-any.whl ../containers/vendor/
-cd ../containers
+cp dist/astroai_lab-0.1.0-py3-none-any.whl ../astroai-containers/vendor/
+cd ../astroai-containers
 make build-all BUILD_TAG=local
 make test-ray BUILD_TAG=local
 make test-local BUILD_TAG=local
@@ -125,7 +125,7 @@ make test-canfar-ray-gpu TAG=26.06     # production: 1 GPU worker cluster
 | `scripts/test-astroai-lab-loop.sh` | Cold start → `env save` → `env resume` inside `base` image |
 | `scripts/test-canfar-ray.sh` | Contributed manager on CANFAR: auth, preflight, cluster, UI |
 
-**astroai-lab** integration tests live in [sfabbro/canfar-lab](https://github.com/sfabbro/canfar-lab) (package: `astroai-lab`) (`tests/integration/test_cold_start_save_resume.py`).
+**astroai-lab** integration tests live in [astroai/astroai-lab](https://github.com/astroai/astroai-lab) (package: `astroai-lab`) (`tests/integration/test_cold_start_save_resume.py`).
 
 ## Pull request workflow
 

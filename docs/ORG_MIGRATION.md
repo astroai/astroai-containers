@@ -1,19 +1,21 @@
 # Org migration & CANFAR adoption notes
 
-See also `astroai-lab` [`docs/ORG_MIGRATION.md`](https://github.com/sfabbro/canfar-lab/blob/main/docs/ORG_MIGRATION.md)
+See also [`astroai/astroai-lab` docs/ORG_MIGRATION.md](https://github.com/astroai/astroai-lab/blob/main/docs/ORG_MIGRATION.md)
 (or the sibling checkout `../astroai-lab/docs/ORG_MIGRATION.md`).
 
 ## This repository
 
-- **Name:** `astroai-containers` (formerly `containers`).
+- **GitHub:** [`astroai/astroai-containers`](https://github.com/astroai/astroai-containers) (formerly `containers`).
 - **Harbor:** unchanged — `images.canfar.net/astroai/<image>:<tag>`.
-- **Session CLI:** `astroai-lab` (baked into `base`).
+- **Session CLI:** `astroai-lab` from [`astroai/astroai-lab`](https://github.com/astroai/astroai-lab) (baked into `base`).
 
-## Human transfer checklist
+## Sibling remotes
 
-1. Push/rename remote to `astroai/astroai-containers` when the org is ready.
-2. Keep Harbor project public for anonymous pulls.
-3. Re-register Science Portal image entries only if tags/URLs change (usually they do not).
+| Repo | URL |
+|------|-----|
+| Lab | https://github.com/astroai/astroai-lab |
+| Workload | https://github.com/astroai/astroai-workload |
+| Containers | https://github.com/astroai/astroai-containers |
 
 ## Adoption message for CANFAR ops (copy/paste)
 

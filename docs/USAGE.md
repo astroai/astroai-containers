@@ -14,7 +14,7 @@ Platform docs live at
 | Doc | Audience |
 |-----|----------|
 | **USAGE.md** (this file) | AstroAI session users — images, storage, GPU, CADC, workflows |
-| [astroai-lab docs](https://github.com/sfabbro/canfar-lab/blob/main/docs/USAGE.md) | **`astroai-lab` CLI** — commands, env, agents (also `astroai-lab guide`) |
+| [astroai-lab docs](https://github.com/astroai/astroai-lab/blob/main/docs/USAGE.md) | **`astroai-lab` CLI** — commands, env, agents (also `astroai-lab guide`) |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Developers changing this repo |
 | [OPERATORS.md](OPERATORS.md) | AstroAI maintainers — build, push, register images on CANFAR |
 | [README.md](../README.md) | Repo overview and build commands |
@@ -395,7 +395,7 @@ ends** (operators still ship fleet updates via new image tags).
 ```bash
 upgrade-cadc-tools.sh list
 upgrade-cadc-tools.sh --upgrade astroai-lab
-upgrade-cadc-tools.sh 'astroai-lab @ git+https://github.com/sfabbro/canfar-lab.git@main'
+upgrade-cadc-tools.sh 'astroai-lab @ git+https://github.com/astroai/astroai-lab.git@main'
 upgrade-cadc-tools.sh --upgrade canfar cadcdata cadctap vos
 astroai-lab --version
 ```
@@ -1058,7 +1058,7 @@ VOSpace vault), **`canfar ps`**, and top processes, use **`astroai-lab status`**
 
 **`astroai-lab status --json`** adds `arc_project`, `arc_projects` (with `access`,
 `acl_groups`, `gms_member`, nested `vault`), top-level `gms_groups`, and `vault`
-(vos API nodes + quotas). See [astroai-lab cli.md](https://github.com/sfabbro/canfar-lab/blob/main/docs/cli.md).
+(vos API nodes + quotas). See [astroai-lab cli.md](https://github.com/astroai/astroai-lab/blob/main/docs/cli.md).
 
 ---
 

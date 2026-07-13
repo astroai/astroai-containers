@@ -23,7 +23,7 @@ Licensed under [BSD-2-Clause](LICENSE).
 | Doc | Audience |
 |-----|----------|
 | [docs/USAGE.md](docs/USAGE.md) | **Session users** — AstroAI images, storage, GPU, CADC, workflows |
-| [astroai-lab USAGE](https://github.com/sfabbro/canfar-lab/blob/main/docs/USAGE.md) | **`astroai-lab` CLI** — commands, env, agents |
+| [astroai-lab USAGE](https://github.com/astroai/astroai-lab/blob/main/docs/USAGE.md) | **`astroai-lab` CLI** — commands, env, agents |
 | [docs/RAY.md](docs/RAY.md) | **Ray clusters** — manager + worker images (prototype) |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | **Developers** — clone, build, test, open PRs |
 | [docs/OPERATORS.md](docs/OPERATORS.md) | **AstroAI maintainers** — build, push, register images on CANFAR |
