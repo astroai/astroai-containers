@@ -91,8 +91,8 @@ ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     TERM=xterm-256color \
     SHELL=/bin/bash \
-    CANFAR_LAB_DEFAULT_SRC_DIR=/srcdir \
-    CANFAR_LAB_DEFAULT_SCRATCH_DIR=/scratch
+    ASTROAI_LAB_DEFAULT_SRC_DIR=/srcdir \
+    ASTROAI_LAB_DEFAULT_SCRATCH_DIR=/scratch
 
 RUN printf '%s\n' \
     '[ -f /etc/profile.d/astroai.sh ] && . /etc/profile.d/astroai.sh' \
@@ -101,25 +101,25 @@ RUN printf '%s\n' \
 COPY scripts/astroai-profile.sh /etc/profile.d/astroai.sh
 RUN chmod a+r /etc/profile.d/astroai.sh
 
-RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${CANFAR_LAB_DEFAULT_SRC_DIR}" \
+RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${ASTROAI_LAB_DEFAULT_SRC_DIR}" \
     && chmod -R a+rX /opt/astroai \
     && chmod -R a+rwx /opt/astroai/cache \
-    && chmod 1777 "${CANFAR_LAB_DEFAULT_SRC_DIR}"
+    && chmod 1777 "${ASTROAI_LAB_DEFAULT_SRC_DIR}"
 
 COPY config/cadc-tools.txt /opt/astroai/cadc-tools.txt
-COPY vendor/canfar_lab-0.1.0-py3-none-any.whl /tmp/canfar_lab-0.1.0-py3-none-any.whl
+COPY vendor/astroai_lab-0.1.0-py3-none-any.whl /tmp/astroai_lab-0.1.0-py3-none-any.whl
 COPY scripts/patch-clint-py313.sh /tmp/patch-clint-py313.sh
 RUN uv venv /opt/astroai/venv/cadc \
     && uv pip install --python /opt/astroai/venv/cadc -r /opt/astroai/cadc-tools.txt \
-    && uv pip install --python /opt/astroai/venv/cadc /tmp/canfar_lab-0.1.0-py3-none-any.whl \
+    && uv pip install --python /opt/astroai/venv/cadc /tmp/astroai_lab-0.1.0-py3-none-any.whl \
     && bash /tmp/patch-clint-py313.sh /opt/astroai/venv/cadc \
-    && rm /tmp/patch-clint-py313.sh /tmp/canfar_lab-0.1.0-py3-none-any.whl \
+    && rm /tmp/patch-clint-py313.sh /tmp/astroai_lab-0.1.0-py3-none-any.whl \
     && chmod -R a+rwX /opt/astroai/venv/cadc \
-    && /opt/astroai/venv/cadc/bin/canfar-lab env install-shell /etc/canfar-lab \
-    && test -f /etc/canfar-lab/profile.sh \
-    && test -f /etc/canfar-lab/hooks.sh \
-    && HOME=/tmp CANFAR_LAB_DEFAULT_SRC_DIR=/srcdir CANFAR_LAB_DEFAULT_SCRATCH_DIR=/scratch \
-       /opt/astroai/venv/cadc/bin/canfar-lab env export --no-ensure >/dev/null
+    && /opt/astroai/venv/cadc/bin/astroai-lab env install-shell /etc/astroai-lab \
+    && test -f /etc/astroai-lab/profile.sh \
+    && test -f /etc/astroai-lab/hooks.sh \
+    && HOME=/tmp ASTROAI_LAB_DEFAULT_SRC_DIR=/srcdir ASTROAI_LAB_DEFAULT_SCRATCH_DIR=/scratch \
+       /opt/astroai/venv/cadc/bin/astroai-lab env export --no-ensure >/dev/null
 
 COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh scripts/lib/astroai-load.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
 COPY scripts/canfar-verify.sh scripts/canfar-verify-agents.sh scripts/bootstrap-canfar-registry.sh scripts/upgrade-cadc-tools.sh scripts/peek /opt/astroai/bin/

@@ -44,17 +44,17 @@ check "login shell: cadcput" login_shell 'command -v cadcput >/dev/null'
 check "login shell: cadc-tap" login_shell 'command -v cadc-tap >/dev/null'
 check "login shell: vcp" login_shell 'command -v vcp >/dev/null'
 check "login shell: cadc-get-cert" login_shell 'command -v cadc-get-cert >/dev/null'
-check "login shell: canfar-lab" login_shell 'command -v canfar-lab >/dev/null'
-check "canfar-lab doctor" login_shell 'canfar-lab doctor >/dev/null 2>&1'
-check "canfar-lab paths" login_shell 'canfar-lab paths --json | grep -q work_dir'
-check "canfar-lab tools" login_shell 'canfar-lab tools --json | grep -q '"'"'"name": "git"'"'"''
-check "canfar-lab check" login_shell 'canfar-lab check --json | grep -q '"'"'"ok": true'"'"''
+check "login shell: astroai-lab" login_shell 'command -v astroai-lab >/dev/null'
+check "astroai-lab doctor" login_shell 'astroai-lab doctor >/dev/null 2>&1'
+check "astroai-lab paths" login_shell 'astroai-lab paths --json | grep -q work_dir'
+check "astroai-lab tools" login_shell 'astroai-lab tools --json | grep -q '"'"'"name": "git"'"'"''
+check "astroai-lab check" login_shell 'astroai-lab check --json | grep -q '"'"'"ok": true'"'"''
 check "CADC venv writable" test -w /opt/astroai/venv/cadc
 check "upgrade-cadc-tools helper" test -x /opt/astroai/bin/upgrade-cadc-tools.sh
 check "peek helper" test -x /opt/astroai/bin/peek
 check "peek on PATH" login_shell 'command -v peek >/dev/null'
-check "CANFAR_LAB_BIN_DIR set" login_shell '[[ -n "${CANFAR_LAB_BIN_DIR:-}" ]]'
-check "canfar-lab agent bundle" login_shell 'canfar-lab agent install --list >/dev/null'
+check "ASTROAI_LAB_BIN_DIR set" login_shell '[[ -n "${ASTROAI_LAB_BIN_DIR:-}" ]]'
+check "astroai-lab agent bundle" login_shell 'astroai-lab agent install --list >/dev/null'
 
 for tool in gh rg fd bat fzf hyperfine uv pixi micromamba mamba patch make file xxd hexdump lsof ss host ncdu shellcheck ctags \
     gcc g++ gfortran ld ar rustc cargo \
@@ -83,12 +83,12 @@ if [[ "${QUICK}" -eq 0 ]]; then
             check "${var} under session cache root" login_shell \
                 "u=\"\${USER:-\$(id -un)}\"; root=\"\${TMP_SCRATCH_DIR}/.cache-\${u}\"; [[ \"\${${var}}\" == \"\${root}\"/* ]]"
         done
-        check "CANFAR_LAB_BIN_DIR on scratch" login_shell '[[ "${CANFAR_LAB_BIN_DIR}" == "${TMP_SCRATCH_DIR}"/* ]]'
-        check "CANFAR_LAB_RUNTIME_ROOT on scratch" login_shell \
-            '[[ "${CANFAR_LAB_RUNTIME_ROOT}" == "${TMP_SCRATCH_DIR}"/* ]]'
+        check "ASTROAI_LAB_BIN_DIR on scratch" login_shell '[[ "${ASTROAI_LAB_BIN_DIR}" == "${TMP_SCRATCH_DIR}"/* ]]'
+        check "ASTROAI_LAB_RUNTIME_ROOT on scratch" login_shell \
+            '[[ "${ASTROAI_LAB_RUNTIME_ROOT}" == "${TMP_SCRATCH_DIR}"/* ]]'
         check "UV_PYTHON_INSTALL_DIR off home" login_shell '[[ "${UV_PYTHON_INSTALL_DIR}" != "${HOME}"/* ]]'
         check "PIXI_HOME off home when scratch mounted" login_shell '[[ "${PIXI_HOME}" != "${HOME}/.pixi" ]]'
-        check "canfar-lab env export" login_shell 'canfar-lab env export --no-ensure | grep -q CANFAR_LAB_BIN_DIR'
+        check "astroai-lab env export" login_shell 'astroai-lab env export --no-ensure | grep -q ASTROAI_LAB_BIN_DIR'
     elif login_shell '[[ -n "${TMP_SRC_DIR:-}" ]]'; then
         for var in UV_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR MAMBA_PKGS_DIRS CONDA_PKGS_DIRS; do
             check "${var} under TMP_SRC_DIR" login_shell "[[ \"\${${var}}\" == \"\${TMP_SRC_DIR}\"/* ]]"

@@ -77,7 +77,7 @@ if [[ "${VERIFY_ONLY}" -eq 1 ]]; then
             echo "No session init or astroai profile found." >&2
             exit 1
         fi
-        exec bash -lic "[[ -n \"\${CANFAR_LAB_BIN_DIR:-}\" && -n \"\${UV_CACHE_DIR:-}\" ]] && command -v canfar cadcget cadc-tap vcp canfar-lab >/dev/null"
+        exec bash -lic "[[ -n \"\${ASTROAI_LAB_BIN_DIR:-}\" && -n \"\${UV_CACHE_DIR:-}\" ]] && command -v canfar cadcget cadc-tap vcp astroai-lab >/dev/null"
     ' || FAILURES=$((FAILURES + 1))
 
     echo ""

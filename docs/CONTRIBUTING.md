@@ -22,14 +22,14 @@ From an AstroAI session or any machine with Git and [GitHub CLI](https://cli.git
 
 ```bash
 gh auth login
-gh repo clone astroai/containers
+gh repo clone astroai/astroai-containers
 cd containers
 ```
 
 Fork first if you don't have write access:
 
 ```bash
-gh repo fork astroai/containers --clone
+gh repo fork astroai/astroai-containers --clone
 cd containers
 git checkout -b my-change
 ```
@@ -55,7 +55,7 @@ git checkout -b my-change
 | Python / uv / pixi foundation | `dockerfiles/python/Dockerfile` | Yes — full stack |
 | Jupyter config | `config/jupyter_server_config.py` | Yes — `notebook` |
 | CADC client packages | `config/cadc-tools.txt` | Yes — `base` and downstream (unpinned) |
-| **`canfar-lab` CLI** | Vendored wheel in `vendor/canfar_lab-0.1.0-py3-none-any.whl` | Yes — `base` and downstream |
+| **`astroai-lab` CLI** | Vendored wheel in `vendor/canfar_lab-0.1.0-py3-none-any.whl` | Yes — `base` and downstream |
 | Ray deps / manager / worker | `config/ray-deps.txt`, `dockerfiles/ray-*`, `ray/`, `scripts/*ray*` | Yes — `make build-ray` |
 | VS Code UI defaults | `config/openvscode-settings.json` | Yes — `vscode` |
 | Bake graph, tags | `docker-bake.hcl`, `Makefile` | Depends on target |
@@ -79,18 +79,18 @@ After changing `base` or `scripts/astroai-profile.sh`, verify uv paths:
 ./scripts/test-local.sh webterm 5000
 # in the container:
 source /etc/profile.d/astroai.sh
-canfar-lab doctor                   # paths, caches, uv python dir under $HOME
+astroai-lab doctor                   # paths, caches, uv python dir under $HOME
 uv run python -c "print('ok')"
 ```
 
 Rebuild the **parent** when you change shared layers — e.g. profile changes need `make build/base` (or `build/webterm` which pulls parents).
 
-## Refreshing the vendored `canfar-lab` wheel
+## Refreshing the vendored `astroai-lab` wheel
 
-Session images install `canfar-lab` from the wheel in `vendor/`, not from PyPI. After pulling upstream [sfabbro/canfar-lab](https://github.com/sfabbro/canfar-lab):
+Session images install `astroai-lab` from the wheel in `vendor/`, not from PyPI. After pulling upstream [sfabbro/canfar-lab](https://github.com/sfabbro/canfar-lab) (package: `astroai-lab`):
 
 ```bash
-cd ../canfar-lab
+cd ../astroai-lab
 uv run pytest -q
 uv build
 cp dist/canfar_lab-0.1.0-py3-none-any.whl ../containers/vendor/
@@ -106,15 +106,15 @@ Commit the updated wheel with any doc changes in this repo.
 
 `/opt/astroai/venv/cadc` is `a+rwX` so session users can run
 `upgrade-cadc-tools.sh` or `uv pip install --python /opt/astroai/venv/cadc …`
-for `canfar-lab`, `canfar`, and CADC clients. Changes are session-local only.
+for `astroai-lab`, `canfar`, and CADC clients. Changes are session-local only.
 **uv/pixi/micromamba** under `/usr/local` are installed from upstream at image
 build time (unpinned). Project deps use pixi/uv under `TMP_SRC_DIR`; caches and
-agent CLIs use scratch via canfar-lab.
+agent CLIs use scratch via astroai-lab.
 
-## Ray and canfar-lab tests
+## Ray and astroai-lab tests
 
 ```bash
-make test-ray BUILD_TAG=local          # Ray images, local cluster, manager UI, canfar-lab loop
+make test-ray BUILD_TAG=local          # Ray images, local cluster, manager UI, astroai-lab loop
 make test-canfar-ray TAG=26.06         # after push: CANFAR manager UI + 2-worker cluster
 make test-canfar-ray-gpu TAG=26.06     # production: 1 GPU worker cluster
 ```
@@ -122,10 +122,10 @@ make test-canfar-ray-gpu TAG=26.06     # production: 1 GPU worker cluster
 | Script | What it checks |
 |--------|----------------|
 | `scripts/test-ray-ui-local.sh` | Manager HTML forms, JSON endpoints, action redirects |
-| `scripts/test-canfar-lab-loop.sh` | Cold start → `env save` → `env resume` inside `base` image |
+| `scripts/test-astroai-lab-loop.sh` | Cold start → `env save` → `env resume` inside `base` image |
 | `scripts/test-canfar-ray.sh` | Contributed manager on CANFAR: auth, preflight, cluster, UI |
 
-**canfar-lab** integration tests live in [sfabbro/canfar-lab](https://github.com/sfabbro/canfar-lab) (`tests/integration/test_cold_start_save_resume.py`).
+**astroai-lab** integration tests live in [sfabbro/canfar-lab](https://github.com/sfabbro/canfar-lab) (package: `astroai-lab`) (`tests/integration/test_cold_start_save_resume.py`).
 
 ## Pull request workflow
 
@@ -143,7 +143,7 @@ Keep PRs focused: one logical change (e.g. "fix uv paths" or "document Codex ins
 ## Review checklist (for authors)
 
 - [ ] `docs/USAGE.md` updated if user-visible behavior changed
-- [ ] canfar-lab CLI/docs updated if session commands or paths changed
+- [ ] astroai-lab CLI/docs updated if session commands or paths changed
 - [ ] `dockerfiles/base/Dockerfile` `COPY docs/USAGE.md` path matches renamed doc
 - [ ] Tested with `./scripts/test-local.sh` when scripts or Dockerfiles changed
 - [ ] No unnecessary expansion of the apt layer — prefer pixi/uv in USAGE.md
@@ -154,4 +154,4 @@ Image push and Science Portal registration are documented in [OPERATORS.md](OPER
 
 ## Questions
 
-Open a [GitHub issue](https://github.com/astroai/containers/issues) or discuss on an existing PR with `gh pr comment`.
+Open a [GitHub issue](https://github.com/astroai/astroai-containers/issues) or discuss on an existing PR with `gh pr comment`.

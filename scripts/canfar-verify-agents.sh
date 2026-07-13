@@ -62,8 +62,8 @@ install_path_candidates() {
     local tool="$1"
     local cmd path
     cmd="$(install_cmd_for "${tool}")"
-    if [[ -n "${CANFAR_LAB_BIN_DIR:-}" ]]; then
-        printf '%s\n' "${CANFAR_LAB_BIN_DIR}/${cmd}"
+    if [[ -n "${ASTROAI_LAB_BIN_DIR:-}" ]]; then
+        printf '%s\n' "${ASTROAI_LAB_BIN_DIR}/${cmd}"
     fi
     printf '%s\n' "${HOME}/.local/bin/${cmd}"
     case "${tool}" in
@@ -92,7 +92,7 @@ check_install() {
         return 0
     fi
 
-    if ! login_shell "canfar-lab --yes agent install ${tool}"; then
+    if ! login_shell "astroai-lab --yes agent install ${tool}"; then
         if [[ "${tool}" == "goose" || "${tool}" == "copilot" ]]; then
             skip "agent install ${tool}" "download failed (network)"
             return 0
@@ -112,22 +112,22 @@ check_install() {
 echo "Agent setup & install verification"
 echo "=================================="
 
-check "agent setup" login_shell 'canfar-lab --yes agent setup'
-check "agent verify" login_shell 'canfar-lab agent verify'
-check "agent setup stamp" login_shell 'test -f "${HOME}/.canfar/lab/agent-setup-stamp"'
+check "agent setup" login_shell 'astroai-lab --yes agent setup'
+check "agent verify" login_shell 'astroai-lab agent verify'
+check "agent setup stamp" login_shell 'test -f "${HOME}/.astroai/lab/agent-setup-stamp"'
 check "cursor MCP" login_shell 'python3 -c "import json, pathlib; d=json.loads(pathlib.Path(\"${HOME}/.cursor/mcp.json\").read_text()); assert d.get(\"mcpServers\")"'
-check "canfar-lab-workflow skill" login_shell 'test -f "${HOME}/.cursor/skills/canfar-lab-workflow/SKILL.md"'
+check "astroai-lab-workflow skill" login_shell 'test -f "${HOME}/.cursor/skills/astroai-lab-workflow/SKILL.md"'
 check "kilo starter config" login_shell 'test -f "${HOME}/.config/kilo/kilo.jsonc"'
 check "free-models guide" login_shell 'test -f "${HOME}/.config/canfar/lab/free-models-guide.txt"'
 check "agent-env hook" login_shell 'test -f "${HOME}/.config/canfar/lab/agent-env.sh"'
 
-check "agent models list" login_shell 'canfar-lab agent models list | grep -q coding'
-check "agent models free" login_shell 'canfar-lab --yes agent models free'
+check "agent models list" login_shell 'astroai-lab agent models list | grep -q coding'
+check "agent models free" login_shell 'astroai-lab --yes agent models free'
 check "goose openrouter config" login_shell 'grep -q GOOSE_PROVIDER "${HOME}/.config/goose/config.yaml"'
 check "opencode model config" login_shell 'python3 -c "import json, pathlib; d=json.loads(pathlib.Path(\"${HOME}/.config/opencode/opencode.json\").read_text()); assert d.get(\"model\", \"\").startswith(\"openrouter/\")"'
 check "openrouter.env.example" login_shell 'test -f "${HOME}/.config/canfar/lab/openrouter.env.example"'
 
-check "agent install --list" login_shell 'canfar-lab agent install --list | grep -q kilo'
+check "agent install --list" login_shell 'astroai-lab agent install --list | grep -q kilo'
 
 if [[ "${SETUP_ONLY}" -eq 1 ]]; then
     echo ""

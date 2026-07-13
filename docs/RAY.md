@@ -1,5 +1,18 @@
 # Distributed Ray on CANFAR
 
+## Product direction (slim)
+
+AstroAI does **not** maintain a custom Ray console as a product.
+
+| Prefer | Avoid |
+|--------|--------|
+| Stock **Ray Dashboard** (`/dashboard/`) | Growing the FastAPI control panel |
+| `scripts/ray-launch.sh` + `canfar` | New UI workflows in `ray/manager/ui.py` |
+| ``canfar create` + stock Dashboard` | Separate CUDA/ML Ray images |
+| Student notebook `/opt/astroai/notebooks/ray_train.ipynb` | Prefect / new orchestration UIs |
+
+The existing manager UI is **frozen** (`ray/manager/FROZEN.md`) so current E2E tests keep working while we steer users to Dashboard + scripts.
+
 User-owned Ray clusters: a **contributed `ray-manager` session** (port 5000) launches **headless `ray-worker` sessions** over pod networking. One worker image serves **CPU and GPU** nodes — request GPUs per worker in the UI or API (`gpus=N`); CANFAR schedules GPU nodes and the worker entrypoint verifies `nvidia-smi`. ML/CUDA stacks belong in user pixi/uv projects (same as other AstroAI images). Persistent state uses **`/arc/home/<user>/`** (or **`/arc/projects/<group>/`** for team workspaces) — never the `/arc` mount root. **`/scratch`** is required for spill/temp on all nodes.
 
 ## Images
@@ -28,8 +41,10 @@ Ray layers use the **same bake `TAG` as `base`** — no separate `BASE_TAG` pin.
 The manager launches workers with the **`canfar` Python client**. Run once from webterm/vscode:
 
 ```bash
-canfar auth login
+canfar login
 ```
+
+(`canfar auth login` is a deprecated alias — prefer `canfar login`.)
 
 Credentials persist on **`/arc/home/<you>/`** as `~/.canfar/config.yaml` (and optionally `~/.ssl/cadcproxy.pem`). Ray-manager sessions reuse the same home volume.
 
@@ -49,7 +64,7 @@ Preflight launches a **headless probe session** to verify pod-to-pod TCP on Ray 
 
 Maintainer tests can set `CANFAR_RAY_SKIP_PREFLIGHT=1` to exercise UI/auth without preflight when staging blocks cross-session TCP.
 
-## Web UI
+## Web UI (frozen control panel + stock Dashboard)
 
 Contributed **`ray-manager`** serves a browser UI on port **5000** (same as webterm/vscode).
 
@@ -65,6 +80,9 @@ The Ray head starts with `--include-dashboard=true` bound to **localhost only**.
 After launch, open the session connect URL and verify:
 
 - CANFAR auth line shows **Authenticated**
+- Programmatic Jobs clients on this pod use **`ASTROAI_RAY_JOBS_ADDRESS`**
+  (`http://127.0.0.1:8265`, set by `startup-ray-manager.sh`). Browsers use
+  `connectURL/dashboard/` — do not invent hostnames like `ray-manager:8265`.
 - **Open Ray Dashboard** works (jobs/nodes UI)
 - **Run network preflight** before first cluster create
 - Worker table shows session IDs, phases, and **Retry** for failed workers
@@ -86,7 +104,7 @@ Partial-start policies:
 | `fail_and_cleanup` | Destroy workers and fail if minimum not met |
 | `continue_waiting` | Poll until timeout |
 
-State persists at `~/.canfar-ray/clusters/<cluster-id>/state.json`. Headless worker stdout/stderr is archived under `workers/<session-id>.log` in the same directory (survives CANFAR session deletion). Fetch via `GET /api/v1/workers/{session_id}/logs` or the **logs** link in the UI. On manager restart, **Reconcile state** (or automatic startup reconcile) refreshes CANFAR + Ray membership.
+State persists at `~/.astroai/ray/clusters/<cluster-id>/state.json`. Headless worker stdout/stderr is archived under `workers/<session-id>.log` in the same directory (survives CANFAR session deletion). Fetch via `GET /api/v1/workers/{session_id}/logs` or the **logs** link in the UI. On manager restart, **Reconcile state** (or automatic startup reconcile) refreshes CANFAR + Ray membership.
 
 ## Manager API
 

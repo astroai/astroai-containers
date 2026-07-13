@@ -68,13 +68,13 @@ test-local: ## verify session images
 	./scripts/test-status-arc-project.sh
 
 test-ray: build-ray build/base ## Ray image checks + local cluster join + UI
-	chmod +x scripts/test-ray-*.sh scripts/test-canfar-lab-loop.sh scripts/ray-head-start.sh \
+	chmod +x scripts/test-ray-*.sh scripts/test-astroai-lab-loop.sh scripts/ray-head-start.sh \
 		scripts/startup-ray-manager.sh scripts/ray-network-probe.sh ray/worker/start-worker.sh
 	./scripts/test-ray-containers.sh
 	./scripts/test-ray-local.sh
 	./scripts/test-ray-cluster-local.sh
 	./scripts/test-ray-ui-local.sh
-	./scripts/test-canfar-lab-loop.sh
+	./scripts/test-astroai-lab-loop.sh
 
 test-canfar:
 	./scripts/test-canfar.sh $(or $(IMAGE),base) $(TAG)
@@ -101,3 +101,7 @@ clean:
 
 clean-all: clean
 	docker buildx prune -f
+
+.PHONY: ray-launch
+ray-launch:
+	./scripts/ray-launch.sh

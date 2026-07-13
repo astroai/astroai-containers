@@ -14,6 +14,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN uv pip install --system marimo
 
+COPY config/notebooks/starter.py /opt/astroai/notebooks/starter.py
 COPY scripts/common-init.sh scripts/startup-marimo.sh /cadc/
 COPY scripts/skaha-startup-marimo.sh /skaha/startup.sh
 RUN chmod a+rx /cadc/*.sh /skaha/startup.sh

@@ -372,7 +372,7 @@ Never identify worker ownership by session name alone. Use recorded session IDs 
 Persist state under:
 
 ```text
-/arc/home/<user>/.canfar-ray/clusters/<cluster-id>/
+/arc/home/<user>/.astroai/ray/clusters/<cluster-id>/
 ```
 
 Suggested files:

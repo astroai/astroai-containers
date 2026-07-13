@@ -1,4 +1,4 @@
-"""Persist cluster/worker state under ~/.canfar-ray/clusters/<id>/."""
+"""Persist cluster/worker state under ~/.astroai/ray/clusters/<id>/."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def _utc_now() -> str:
 def cluster_state_dir(cluster_id: str | None = None) -> Path:
     home = Path(os.environ.get("HOME", "/tmp"))
     cid = cluster_id or os.environ.get("RAY_CLUSTER_ID", "default")
-    return home / ".canfar-ray" / "clusters" / cid
+    return home / ".astroai/ray" / "clusters" / cid
 
 
 @dataclass

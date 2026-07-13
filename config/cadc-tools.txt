@@ -4,4 +4,4 @@ cadcdata
 cadctap
 vos
 canfar
-# canfar-lab installed from vendor wheel in Dockerfile (same venv).
+# astroai-lab installed from vendor wheel in Dockerfile (same venv).

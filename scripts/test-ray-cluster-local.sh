@@ -26,11 +26,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "${FAKE_ARC}/home/testuser/.canfar-ray/clusters/${CLUSTER_ID}" "${FAKE_SCRATCH}/ray/${CLUSTER_ID}"
+mkdir -p "${FAKE_ARC}/home/testuser/.astroai/ray/clusters/${CLUSTER_ID}" "${FAKE_SCRATCH}/ray/${CLUSTER_ID}"
 chmod -R a+rwX "${FAKE_ARC}" "${FAKE_SCRATCH}"
 HOME="/arc/home/testuser"
-HEARTBEAT="${HOME}/.canfar-ray/clusters/${CLUSTER_ID}/manager-heartbeat"
-STATE_FILE="${FAKE_ARC}/home/testuser/.canfar-ray/clusters/${CLUSTER_ID}/state.json"
+HEARTBEAT="${HOME}/.astroai/ray/clusters/${CLUSTER_ID}/manager-heartbeat"
+STATE_FILE="${FAKE_ARC}/home/testuser/.astroai/ray/clusters/${CLUSTER_ID}/state.json"
 
 docker network create "${NETWORK}" >/dev/null
 
@@ -53,8 +53,8 @@ while (( SECONDS < deadline )); do
 done
 
 HEAD_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "ray-mgr-${CLUSTER_ID}")"
-touch "${FAKE_ARC}/home/testuser/.canfar-ray/clusters/${CLUSTER_ID}/manager-heartbeat"
-(while true; do touch "${FAKE_ARC}/home/testuser/.canfar-ray/clusters/${CLUSTER_ID}/manager-heartbeat"; sleep 2; done) &
+touch "${FAKE_ARC}/home/testuser/.astroai/ray/clusters/${CLUSTER_ID}/manager-heartbeat"
+(while true; do touch "${FAKE_ARC}/home/testuser/.astroai/ray/clusters/${CLUSTER_ID}/manager-heartbeat"; sleep 2; done) &
 HEARTBEAT_PID=$!
 
 docker run -d --name "ray-wrk-${CLUSTER_ID}-1" \

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Ray common layer — extends astroai/base (shared CADC, canfar-lab, session profile).
+# Ray common layer — extends astroai/base (shared CADC, astroai-lab, session profile).
 
 ARG REGISTRY=images.canfar.net
 ARG OWNER=astroai

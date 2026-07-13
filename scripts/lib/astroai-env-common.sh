@@ -12,7 +12,7 @@ elif [[ -f "${BASH_SOURCE[0]%/*}/astroai-ui.sh" ]]; then
 fi
 
 astroai_save_root() {
-    echo "${CANFAR_LAB_SAVE_DIR:-${HOME}/.canfar/lab/saves}"
+    echo "${ASTROAI_LAB_SAVE_DIR:-${HOME}/.astroai/lab/saves}"
 }
 
 astroai_ensure_save_root() {
@@ -21,7 +21,7 @@ astroai_ensure_save_root() {
     mkdir -p "${root}"
 }
 
-# Resolve a canfar-lab save directory (--from overrides default save root).
+# Resolve a astroai-lab save directory (--from overrides default save root).
 astroai_env_save_resolve() {
     local name="$1"
     local from_override="${2:-}"
@@ -35,7 +35,7 @@ astroai_env_save_resolve() {
 
     if [[ ! -f "${dir}/manifest.json" ]]; then
         astroai_err "Save not found: ${dir}"
-        astroai_cmd "List saves: canfar-lab saves"
+        astroai_cmd "List saves: astroai-lab saves"
         exit 1
     fi
     echo "${dir}"
@@ -71,13 +71,13 @@ astroai_env_warm_cache() {
 }
 
 # Copy a saved lockfile into the current project when upstream omitted one.
-# Sets CANFAR_LAB_BOOTSTRAP_LOCK=1 when a lock was copied (caller may need fallback).
+# Sets ASTROAI_LAB_BOOTSTRAP_LOCK=1 when a lock was copied (caller may need fallback).
 astroai_env_bootstrap_lock() {
     local save_dir="$1"
     local project_kind="$2"
     local save_kind
 
-    CANFAR_LAB_BOOTSTRAP_LOCK=0
+    ASTROAI_LAB_BOOTSTRAP_LOCK=0
     save_kind="$(jq -r .kind "${save_dir}/manifest.json")"
 
     if [[ "${project_kind}" != "${save_kind}" ]]; then
@@ -91,7 +91,7 @@ astroai_env_bootstrap_lock() {
             [[ -f pixi.lock ]] && return 0
             [[ -f "${save_dir}/pixi.lock" ]] || return 0
             cp -a "${save_dir}/pixi.lock" ./pixi.lock
-            CANFAR_LAB_BOOTSTRAP_LOCK=1
+            ASTROAI_LAB_BOOTSTRAP_LOCK=1
             astroai_hint "Bootstrap: copied pixi.lock from saved env (session-local)."
             astroai_hint "Publish for OSS: pixi lock && git add pixi.lock && git commit"
             ;;
@@ -100,7 +100,7 @@ astroai_env_bootstrap_lock() {
             [[ -f uv.lock ]] && return 0
             [[ -f "${save_dir}/uv.lock" ]] || return 0
             cp -a "${save_dir}/uv.lock" ./uv.lock
-            CANFAR_LAB_BOOTSTRAP_LOCK=1
+            ASTROAI_LAB_BOOTSTRAP_LOCK=1
             astroai_hint "Bootstrap: copied uv.lock from saved env (session-local)."
             astroai_hint "Publish for OSS: uv lock && git add uv.lock && git commit"
             ;;
@@ -135,11 +135,11 @@ astroai_timestamp() {
 
 # Runtime paths — set TMP_SRC_DIR / TMP_SCRATCH_DIR to override; defaults from image ENV only.
 astroai_default_src_dir() {
-    echo "${CANFAR_LAB_DEFAULT_SRC_DIR:-/srcdir}"
+    echo "${ASTROAI_LAB_DEFAULT_SRC_DIR:-/srcdir}"
 }
 
 astroai_default_scratch_dir() {
-    echo "${CANFAR_LAB_DEFAULT_SCRATCH_DIR:-/scratch}"
+    echo "${ASTROAI_LAB_DEFAULT_SCRATCH_DIR:-/scratch}"
 }
 
 astroai_scratch_dir() {
@@ -171,7 +171,7 @@ astroai_src_dir() {
 
 # Fast SSD workspace snapshots for offline batch (never run software from /arc).
 astroai_workspace_root() {
-    echo "$(astroai_src_dir)/.canfar-lab/workspaces"
+    echo "$(astroai_src_dir)/.astroai-lab/workspaces"
 }
 
 astroai_scratch_cache_root() {
@@ -183,9 +183,9 @@ astroai_scratch_cache_root() {
     fi
 }
 
-# Heavy runtime installs — resolved by canfar-lab profile (CANFAR_LAB_RUNTIME_ROOT).
+# Heavy runtime installs — resolved by astroai-lab profile (ASTROAI_LAB_RUNTIME_ROOT).
 astroai_runtime_root() {
-    echo "${CANFAR_LAB_RUNTIME_ROOT:-$(astroai_src_dir)/.runtime-${USER:-$(id -un)}}"
+    echo "${ASTROAI_LAB_RUNTIME_ROOT:-$(astroai_src_dir)/.runtime-${USER:-$(id -un)}}"
 }
 
 # Team-shared persistent tooling under /arc/projects/<group>/.local (not user home).
@@ -196,18 +196,18 @@ astroai_team_local_root() {
     echo "${proj}/.local"
 }
 
-# User CLI binaries — resolved by canfar-lab profile (CANFAR_LAB_BIN_DIR).
+# User CLI binaries — resolved by astroai-lab profile (ASTROAI_LAB_BIN_DIR).
 astroai_user_bin() {
-    echo "${CANFAR_LAB_BIN_DIR:-${HOME}/.local/bin}"
+    echo "${ASTROAI_LAB_BIN_DIR:-${HOME}/.local/bin}"
 }
 
-# npm global prefix — resolved by canfar-lab profile (CANFAR_LAB_NPM_PREFIX).
+# npm global prefix — resolved by astroai-lab profile (ASTROAI_LAB_NPM_PREFIX).
 astroai_npm_prefix() {
     if [[ -n "${NPM_CONFIG_PREFIX:-}" ]]; then
         echo "${NPM_CONFIG_PREFIX}"
         return
     fi
-    echo "${CANFAR_LAB_NPM_PREFIX:-${HOME}/.local}"
+    echo "${ASTROAI_LAB_NPM_PREFIX:-${HOME}/.local}"
 }
 
 astroai_team_bin() {
@@ -264,10 +264,10 @@ astroai_check_quota() {
         astroai_warn "  ⚠  ${label}: ${used_pct}% used — CRITICAL (near quota limit)"
         return 2
     elif [[ "${used_pct}" -ge 90 ]]; then
-        astroai_warn "  ⚠  ${label}: ${used_pct}% used — prune soon (canfar-lab clean home --all-safe)"
+        astroai_warn "  ⚠  ${label}: ${used_pct}% used — prune soon (astroai-lab clean home --all-safe)"
         return 1
     elif [[ "${used_pct}" -ge 80 ]]; then
-        astroai_warn "  ⚠  ${label}: ${used_pct}% used — monitor (canfar-lab status)"
+        astroai_warn "  ⚠  ${label}: ${used_pct}% used — monitor (astroai-lab status)"
         return 1
     fi
     return 0

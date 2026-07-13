@@ -7,9 +7,9 @@ if [[ -f /etc/profile.d/astroai.sh ]]; then
 fi
 
 _cache_dirs=(
-    "${CANFAR_LAB_BIN_DIR:-${HOME}/.local/bin}"
-    "${CANFAR_LAB_SAVE_DIR:-${HOME}/.canfar/lab/saves}"
-    "${CANFAR_LAB_CONFIG_DIR:-${HOME}/.canfar/lab}"
+    "${ASTROAI_LAB_BIN_DIR:-${HOME}/.local/bin}"
+    "${ASTROAI_LAB_SAVE_DIR:-${HOME}/.astroai/lab/saves}"
+    "${ASTROAI_LAB_CONFIG_DIR:-${HOME}/.astroai/lab}"
     "${HOME}/.ssh"
     "${XDG_CONFIG_HOME:-${HOME}/.config}"
     "${XDG_CACHE_HOME:-${HOME}/.cache}"
@@ -50,8 +50,8 @@ git config --global --add safe.directory "${_src_root}" 2>/dev/null || true
 mkdir -p "${_src_root}"
 cd "${_src_root}"
 
-# Track session start time for canfar-lab status; reset per-session auto-archive markers
-_state="${CANFAR_LAB_CONFIG_DIR:-${HOME}/.canfar/lab}"
+# Track session start time for astroai-lab status; reset per-session auto-archive markers
+_state="${ASTROAI_LAB_CONFIG_DIR:-${HOME}/.astroai/lab}"
 mkdir -p "${_state}"
 date -u +%s > "${_state}/session-started"
 rm -f "${_state}/auto-archived" "${_state}"/auto-archived-*
@@ -66,34 +66,34 @@ if [[ ! -f "${_state}/welcomed" ]]; then
   ╚══════════════════════════════════════════════════════╝
 
   Quick start:
-    canfar-lab init myproject          create a new project
-    canfar-lab clone owner/repo        clone a GitHub project (--from-env for shared deps)
+    astroai-lab init myproject          create a new project
+    astroai-lab clone owner/repo        clone a GitHub project (--from-env for shared deps)
 
   Once you have code:
     pixi run python analysis.py        run your project
     git push                            back up to GitHub
-    canfar-lab push                     save everything before closing
+    astroai-lab push                     save everything before closing
 
   Storage:
-    TMP_SRC_DIR         code + env (see canfar-lab doctor)
+    TMP_SRC_DIR         code + env (see astroai-lab doctor)
     TMP_SCRATCH_DIR     datasets + caches when mounted
-    CANFAR_LAB_BIN_DIR  agent CLI installs (scratch when mounted)
-    /arc/home           persistent config in ~/.canfar/lab
+    ASTROAI_LAB_BIN_DIR  agent CLI installs (scratch when mounted)
+    /arc/home           persistent config in ~/.astroai/lab
 
   Getting help:
-    canfar-lab paths                    work/scratch/cache paths
-    canfar-lab tools                    tools on PATH (+ versions)
-    canfar-lab check                    quick health check
-    canfar-lab guide                    full command list
+    astroai-lab paths                    work/scratch/cache paths
+    astroai-lab tools                    tools on PATH (+ versions)
+    astroai-lab check                    quick health check
+    astroai-lab guide                    full command list
     less /opt/astroai/USAGE.md          detailed usage guide
 
   AI coding agents (once per user, persists on scratch or team project):
-    canfar-lab agent setup              MCP + skills — run this first
-    canfar-lab agent install agent      or claude, goose, opencode, codex
-    canfar-lab agent update             refresh skills/rules after image upgrade
+    astroai-lab agent setup              MCP + skills — run this first
+    astroai-lab agent install agent      or claude, goose, opencode, codex
+    astroai-lab agent update             refresh skills/rules after image upgrade
 
-  Platform CLIs (canfar, canfar-lab, cadcget — /opt/astroai/venv/cadc):
-    upgrade-cadc-tools.sh list          see versions; --upgrade canfar-lab to bump this session
+  Platform CLIs (canfar, astroai-lab, cadcget — /opt/astroai/venv/cadc):
+    upgrade-cadc-tools.sh list          see versions; --upgrade astroai-lab to bump this session
 WELCOME
         if [[ "${ASTROAI_SESSION_KIND:-}" == "webterm" ]]; then
             printf '\n\033[1;36m%s\033[0m\n' "  🚀 Welcome to AstroAI Interactive Web Terminal"
@@ -119,4 +119,13 @@ fi
 
 # Startup scripts exec(3) into ttyd/jupyter/etc. Drop the profile guard so login
 # children (bash -l in webterm tmux) re-source profile after /etc/profile.
-unset CANFAR_LAB_PROFILE_LOADED
+
+# Notebook-safe caches even when platform overrides Jupyter CMD.
+if command -v astroai-lab >/dev/null 2>&1; then
+  # Apply cache redirects for this process tree.
+  eval "$(astroai-lab env export 2>/dev/null)" || true
+  # Best-effort scratch-safe default kernel (no-op without jupyter/ipykernel).
+  astroai-lab kernel ensure --name astroai >/dev/null 2>&1 || true
+fi
+
+unset ASTROAI_LAB_PROFILE_LOADED

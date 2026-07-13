@@ -27,7 +27,7 @@ trap cleanup EXIT
 mkdir -p "${FAKE_ARC}/home/testuser" "${FAKE_SCRATCH}/ray/${CLUSTER_ID}"
 chmod -R a+rwX "${FAKE_ARC}" "${FAKE_SCRATCH}"
 HOME="/arc/home/testuser"
-HEARTBEAT="${HOME}/.canfar-ray/clusters/${CLUSTER_ID}/manager-heartbeat"
+HEARTBEAT="${HOME}/.astroai/ray/clusters/${CLUSTER_ID}/manager-heartbeat"
 
 docker network create "${NETWORK}" >/dev/null
 

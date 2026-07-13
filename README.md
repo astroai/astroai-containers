@@ -1,3 +1,5 @@
+> **Repository:** `astroai-containers` (formerly `containers`). Harbor images remain `images.canfar.net/astroai/*`. Session CLI is `astroai-lab`.
+
 # AstroAI Containers
 
 Lean CANFAR session images for astronomy and ML development. Published to `images.canfar.net/astroai/`.
@@ -21,12 +23,12 @@ Licensed under [BSD-2-Clause](LICENSE).
 | Doc | Audience |
 |-----|----------|
 | [docs/USAGE.md](docs/USAGE.md) | **Session users** — AstroAI images, storage, GPU, CADC, workflows |
-| [canfar-lab USAGE](https://github.com/sfabbro/canfar-lab/blob/main/docs/USAGE.md) | **`canfar-lab` CLI** — commands, env, agents |
+| [astroai-lab USAGE](https://github.com/sfabbro/canfar-lab/blob/main/docs/USAGE.md) | **`astroai-lab` CLI** — commands, env, agents |
 | [docs/RAY.md](docs/RAY.md) | **Ray clusters** — manager + worker images (prototype) |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | **Developers** — clone, build, test, open PRs |
 | [docs/OPERATORS.md](docs/OPERATORS.md) | **AstroAI maintainers** — build, push, register images on CANFAR |
 
-In-session: `canfar-lab guide` · `less /opt/astroai/USAGE.md`
+In-session: `astroai-lab guide` · `less /opt/astroai/USAGE.md`
 
 ## Build
 
@@ -64,7 +66,7 @@ make push/vscode TAG=26.06
 ```
 dockerfiles/
   python/       # 3.13-slim + uv + pixi
-  base/         # headless: git, monitoring, CLI, canfar-lab
+  base/         # headless: git, monitoring, CLI, astroai-lab
   webterm/      # contributed: ttyd + tmux
   vscode/       # contributed: OpenVSCode Server
   notebook/     # notebook: JupyterLab + ipykernel (port 8888)
@@ -89,7 +91,7 @@ docs/
 
 - **Same images for CPU and GPU** — pick the node in the portal; CUDA libs via pixi/uv in the project.
 - **Minimal bake stack** — `python` → `base` → four session images; Ray adds `ray-base` → `ray-manager` / `ray-worker` (same `TAG` as `base`); heavy software via pixi or [CVMFS on CANFAR nodes](https://opencadc.github.io/canfar/platform/cvmfs/) ([source](https://github.com/opencadc/canfar/blob/main/docs/platform/cvmfs.md)).
-- **Quick feedback loops** — **`TMP_SRC_DIR`** (`/srcdir`) for code, **`TMP_SCRATCH_DIR`** (`/scratch`) for data/caches, `canfar-lab init` / `canfar-lab resume`, ML caches on `/arc`.
+- **Quick feedback loops** — **`TMP_SRC_DIR`** (`/srcdir`) for code, **`TMP_SCRATCH_DIR`** (`/scratch`) for data and package caches, `astroai-lab init` / `astroai-lab resume`. Keep `/arc/home` tiny (auth, MCP, lockfile saves only).
 - **Skaha session types** — Contributed (5000) for webterm/vscode/marimo; Notebook (8888) for notebook.
 - **Authentication** — Jupyter, VS Code, Marimo, and ttyd run without built-in auth. CANFAR Skaha terminates TLS and enforces portal login. Do not expose these images on the public internet without an authenticating reverse proxy.
 
