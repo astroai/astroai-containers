@@ -91,5 +91,6 @@ Ray manager Jobs smoke needs **≥8 GiB** RAM (4 GiB OOMs the dashboard).
 
 ## Related docs
 
+- Tracking issue: https://github.com/opencadc/science-platform/issues/1124
 - [OPERATORS.md](OPERATORS.md) — publish / register / smoke
 - [RAY.md](RAY.md) — manager + headless workers
