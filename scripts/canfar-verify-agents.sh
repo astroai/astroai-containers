@@ -3,15 +3,18 @@ set -o pipefail
 # Agent setup + install smoke checks (run inside a CANFAR session).
 #
 # Usage:
-#   canfar-verify-agents.sh           full agent setup, models, and install loop
-#   canfar-verify-agents.sh --setup   setup + verify + models only (no installs)
+#   canfar-verify-agents.sh                 full agent setup, models, and install loop
+#   canfar-verify-agents.sh --setup         setup + verify + models only (no installs)
+#   canfar-verify-agents.sh --install-fast  install only goose/opencode/kilo (4 agents)
 
 SETUP_ONLY=0
+INSTALL_FAST=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --setup|--setup-only) SETUP_ONLY=1; shift ;;
+        --install-fast) INSTALL_FAST=1; shift ;;
         -h|--help)
-            sed -n '2,6p' "$0"
+            sed -n '2,7p' "$0"
             exit 0
             ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -144,24 +147,34 @@ echo "Agent tool installs"
 echo "-------------------"
 
 # node first — npm-based agents depend on it.
-AGENT_TOOLS=(
-    node
-    goose
-    opencode
-    swival
-    kilo
-    cline
-    freebuff
-    pi
-    codewhale
-    agent
-    claude
-    agy
-    copilot
-    codex
-    ast-grep
-    hyperfine
-)
+if [[ "${INSTALL_FAST}" -eq 1 ]]; then
+    echo "(fast mode — top agents only: goose, opencode, kilo, node)"
+    AGENT_TOOLS=(
+        node
+        goose
+        opencode
+        kilo
+    )
+else
+    AGENT_TOOLS=(
+        node
+        goose
+        opencode
+        swival
+        kilo
+        cline
+        freebuff
+        pi
+        codewhale
+        agent
+        claude
+        agy
+        copilot
+        codex
+        ast-grep
+        hyperfine
+    )
+fi
 
 for tool in "${AGENT_TOOLS[@]}"; do
     check_install "${tool}"

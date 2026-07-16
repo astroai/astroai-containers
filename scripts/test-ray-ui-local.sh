@@ -1,5 +1,9 @@
 #!/bin/bash -e
 # Verify Ray manager contributed UI and JSON endpoints locally.
+#
+# Usage:
+#   test-ray-ui-local.sh            full UI + dashboard proxy checks
+#   test-ray-ui-local.sh --smoke     fast smoke: HTML + API endpoints only
 
 set -o pipefail
 
@@ -10,6 +14,14 @@ NETWORK="ray-ui-test-$$"
 FAKE_ARC="$(mktemp -d)"
 FAKE_SCRATCH="$(mktemp -d)"
 FAILURES=0
+SMOKE=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --smoke) SMOKE=1; shift ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+done
 
 MGR="${REGISTRY}/${OWNER}/ray-manager:${TAG}"
 RAY_VERSION_EXPECTED="$(docker run --rm --entrypoint /opt/astroai/venv/ray/bin/python "${MGR}" \
@@ -34,7 +46,7 @@ docker run -d --name ray-ui-test \
     -v "${FAKE_ARC}:/arc" -v "${FAKE_SCRATCH}:/scratch" \
     "${MGR}" >/dev/null
 
-deadline=$((SECONDS + 120))
+deadline=$((SECONDS + ${SMOKE_READYZ_TIMEOUT:-120}))
 while (( SECONDS < deadline )); do
     docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
         -fsS "http://ray-ui-test:5000/readyz" >/dev/null 2>&1 && break
@@ -56,6 +68,7 @@ BASE="http://ray-ui-test:5000"
 HTML="$(docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 -fsS "${BASE}/")"
 
 echo "Ray manager UI verification"
+[[ "${SMOKE}" -eq 1 ]] && echo "(smoke mode — skipping dashboard proxy wait)"
 echo "==========================="
 
 check "HTML title" grep -q "CANFAR Ray Manager" <<< "${HTML}"
@@ -86,6 +99,8 @@ check "dashboard redirect" docker run --rm --network "${NETWORK}" curlimages/cur
     -sS -o /dev/null -w '%{http_code} %{redirect_url}' "${BASE}/dashboard" \
     | grep -qE '307 .*/dashboard/'
 # Wait for Ray Dashboard process (enabled on head start, proxied under /dashboard/).
+# Skipped in smoke mode — the dashboard takes ~30-90s to come up.
+if [[ "${SMOKE}" -eq 0 ]]; then
 dash_ok=0
 dash_deadline=$((SECONDS + 90))
 while (( SECONDS < dash_deadline )); do
@@ -98,6 +113,7 @@ while (( SECONDS < dash_deadline )); do
     sleep 3
 done
 check "dashboard proxy 200" test "${dash_ok}" -eq 1
+fi
 check "preflight POST" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
     -fsS -o /dev/null -w '%{http_code}' -X POST "${BASE}/actions/preflight" | grep -qE '303|200'
 check "reconcile POST" docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \

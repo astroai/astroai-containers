@@ -122,9 +122,7 @@ def _refresh_cluster_phase(state: ClusterState) -> None:
         state.phase = "Running"
     elif joined >= state.min_joined and joined > 0:
         state.phase = "Degraded"
-    elif active == 0 and state.phase == "Creating":
-        state.phase = "Failed"
-    elif state.phase == "Creating" and joined == 0 and all(
+    elif active == 0 and state.phase == "Creating" or state.phase == "Creating" and joined == 0 and all(
         w.phase in {"CANFAR Failed", "Stopped", "Orphaned"} for w in state.workers
     ):
         state.phase = "Failed"

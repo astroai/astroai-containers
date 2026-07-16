@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -478,9 +479,8 @@ def clean_orphaned_workers(
                 name = str(row.get("name") or "")
                 if prefix == "ray-preflight-" and not name.startswith(
                     f"ray-preflight-{settings.cluster_id}"
-                ):
-                    if active:
-                        continue
+                ) and active:
+                    continue
                 if active and sid in known:
                     continue
                 ok = canfar.destroy(sid)

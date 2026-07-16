@@ -23,6 +23,7 @@ help:
 	@echo "  make push-ray           push Ray images to Harbor"
 	@echo "  make test-local         verify session images locally"
 	@echo "  make test-ray           Ray container + local cluster + UI tests"
+	@echo "  make test-ray SMOKE=1   fast smoke: skip cluster formation"
 	@echo "  make test-canfar        post-push headless verify on CANFAR"
 	@echo "  make test-canfar-session post-push contributed/notebook HTTP smoke"
 	@echo "  make test-canfar-ray    CANFAR: manager UI + 2-worker cluster lifecycle"
@@ -62,20 +63,23 @@ push/%:
 	docker tag $(IMAGE_PREFIX)/$(notdir $@):$(BUILD_TAG) $(IMAGE_PREFIX)/$(notdir $@):latest
 	docker push $(IMAGE_PREFIX)/$(notdir $@):latest
 
-test-local: ## verify session images
-	@for img in webterm notebook vscode marimo base; do \
-		./scripts/test-local.sh "$$img" --verify-only || exit 1; \
-	done
+test-local: ## verify session images (parallel)
+	@fails=0; pids=(); \
+	for img in webterm notebook vscode marimo base; do \
+		./scripts/test-local.sh "$$img" --verify-only & pids+=($$!); \
+	done; \
+	for pid in "$${pids[@]}"; do wait "$$pid" || fails=$$((fails + 1)); done; \
+	if [[ "$$fails" -gt 0 ]]; then echo "$$fails image(s) failed." >&2; exit 1; fi
 	./scripts/test-status-arc-project.sh
 
 test-ray: build-ray build/base ## Ray image checks + local cluster join + UI
 	chmod +x scripts/test-ray-*.sh scripts/test-astroai-lab-loop.sh scripts/ray-head-start.sh \
 		scripts/startup-ray-manager.sh scripts/ray-network-probe.sh ray/worker/start-worker.sh
-	./scripts/test-ray-containers.sh
-	./scripts/test-ray-local.sh
-	./scripts/test-ray-cluster-local.sh
-	./scripts/test-ray-ui-local.sh
-	./scripts/test-astroai-lab-loop.sh
+	./scripts/test-ray-containers.sh $(if $(filter 1,$(SMOKE)),--smoke,)
+	./scripts/test-ray-local.sh $(if $(filter 1,$(SMOKE)),--smoke,)
+	./scripts/test-ray-cluster-local.sh $(if $(filter 1,$(SMOKE)),--smoke,)
+	./scripts/test-ray-ui-local.sh $(if $(filter 1,$(SMOKE)),--smoke,)
+	./scripts/test-astroai-lab-loop.sh $(if $(filter 1,$(SMOKE)),--smoke,)
 
 test-canfar:
 	./scripts/test-canfar.sh $(or $(IMAGE),base) $(TAG)

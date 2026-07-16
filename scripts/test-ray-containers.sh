@@ -1,5 +1,9 @@
 #!/bin/bash -e
 # Ray image layout checks.
+#
+# Usage:
+#   test-ray-containers.sh            full image checks
+#   test-ray-containers.sh --smoke     fast smoke (core checks only)
 
 set -o pipefail
 
@@ -7,6 +11,14 @@ REGISTRY="${REGISTRY:-images.canfar.net}"
 OWNER="${OWNER:-astroai}"
 TAG="${BUILD_TAG:-local}"
 FAILURES=0
+SMOKE=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --smoke) SMOKE=1; shift ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+done
 
 check() {
     local label="$1"
@@ -23,6 +35,7 @@ MGR="${REGISTRY}/${OWNER}/ray-manager:${TAG}"
 WRK="${REGISTRY}/${OWNER}/ray-worker:${TAG}"
 
 echo "Ray container verification"
+[[ "${SMOKE}" -eq 1 ]] && echo "(smoke mode — core checks only)"
 echo "=========================="
 
 check "ray-manager startup.sh" docker run --rm --entrypoint test "${MGR}" -x /skaha/startup.sh
@@ -34,6 +47,8 @@ check "ray version stamp" docker run --rm --entrypoint bash "${WRK}" -c \
 check "network probe script" docker run --rm --entrypoint test "${WRK}" -x /opt/astroai/bin/ray-network-probe.sh
 check "canfar in manager" docker run --rm --entrypoint python "${MGR}" -c "import canfar"
 check "manager app loads" docker run --rm --entrypoint python "${MGR}" -c "import sys; sys.path.insert(0,'/opt/astroai/ray-manager'); import app"
+
+if [[ "${SMOKE}" -eq 0 ]]; then
 check "preflight module" docker run --rm --entrypoint python "${MGR}" -c "
 import sys
 sys.path.insert(0,'/opt/astroai/ray-manager')
@@ -43,6 +58,7 @@ assert 'passed=probe_ok' in src, 'preflight must assign passed from probe_ok'
 "
 check "worker image tag env" bash -c "docker run --rm --entrypoint printenv \"${MGR}\" RAY_IMAGE_TAG | grep -qx \"${TAG}\""
 check "worker rejects missing env" bash -c "! docker run --rm \"${WRK}\" 2>/dev/null"
+fi
 
 echo ""
 if [[ "${FAILURES}" -eq 0 ]]; then

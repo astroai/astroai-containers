@@ -1,5 +1,9 @@
 #!/bin/bash -e
 # Local Ray cluster: manager + worker join + smoke task.
+#
+# Usage:
+#   test-ray-local.sh            full cluster formation + distributed smoke
+#   test-ray-local.sh --smoke     fast smoke: manager startup + /readyz only
 
 set -o pipefail
 
@@ -11,6 +15,14 @@ FAKE_ARC="$(mktemp -d)"
 FAKE_SCRATCH="$(mktemp -d)"
 CLUSTER_ID="local-test"
 FAILURES=0
+SMOKE=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --smoke) SMOKE=1; shift ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+done
 
 MGR="${REGISTRY}/${OWNER}/ray-manager:${TAG}"
 WRK="${REGISTRY}/${OWNER}/ray-worker:${TAG}"
@@ -32,6 +44,7 @@ HEARTBEAT="${HOME}/.astroai/ray/clusters/${CLUSTER_ID}/manager-heartbeat"
 docker network create "${NETWORK}" >/dev/null
 
 echo "Starting Ray manager..."
+[[ "${SMOKE}" -eq 1 ]] && echo "(smoke mode — manager startup only, no cluster formation)"
 docker run -d --name "ray-mgr-${CLUSTER_ID}" \
     --network "${NETWORK}" --shm-size=1g \
     -u "$(id -u):$(id -g)" \
@@ -44,7 +57,7 @@ docker run -d --name "ray-mgr-${CLUSTER_ID}" \
     "${MGR}" >/dev/null
 
 echo "Waiting for manager /readyz..."
-deadline=$((SECONDS + 120))
+deadline=$((SECONDS + ${SMOKE_READYZ_TIMEOUT:-120}))
 ready=0
 while (( SECONDS < deadline )); do
     if docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
@@ -59,9 +72,13 @@ if [[ "${ready}" -ne 1 ]]; then
     docker logs "ray-mgr-${CLUSTER_ID}" 2>&1 | tail -40 >&2
     exit 1
 fi
-
 HEAD_IP="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "ray-mgr-${CLUSTER_ID}")"
 echo "Manager pod IP: ${HEAD_IP}"
+
+if [[ "${SMOKE}" -eq 1 ]]; then
+    echo "Smoke passed — manager /readyz OK and reachable."
+    exit 0
+fi
 
 echo "Starting Ray worker (background)..."
 docker run -d --name "ray-wrk-${CLUSTER_ID}" \

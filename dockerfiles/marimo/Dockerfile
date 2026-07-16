@@ -21,6 +21,7 @@ COPY scripts/common-init.sh scripts/startup-marimo.sh /cadc/
 COPY scripts/skaha-startup-marimo.sh /skaha/startup.sh
 RUN chmod a+rx /cadc/*.sh /skaha/startup.sh
 
+ARG PYTHONPATH=
 ENV PYTHONPATH="/opt/astroai/lib${PYTHONPATH:+:${PYTHONPATH}}"
 
 EXPOSE 5000

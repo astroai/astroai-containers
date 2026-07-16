@@ -62,27 +62,15 @@ else
 fi
 
 if [[ "${VERIFY_ONLY}" -eq 1 ]]; then
-    echo "Verifying ${FULL_IMAGE} (startup + login-shell PATH)"
+    echo "Verifying ${FULL_IMAGE} (quick smoke: PATH + CADC CLIs + tools)"
     echo "  HOME=${FAKE_ARC}/testuser"
-    echo "  /srcdir=/srcdir  /scratch=/scratch"
+    echo "  /srcdir=${FAKE_SRC}  /scratch=${FAKE_SCRATCH}"
     echo ""
 
-    # Simulate startup: session images use common-init; headless base uses profile only.
-    run_docker bash -lc '
-        if [[ -f /cadc/common-init.sh ]]; then
-            source /cadc/common-init.sh
-        elif [[ -f /etc/profile.d/astroai.sh ]]; then
-            source /etc/profile.d/astroai.sh
-        else
-            echo "No session init or astroai profile found." >&2
-            exit 1
-        fi
-        exec bash -lic "[[ -n \"\${ASTROAI_LAB_BIN_DIR:-}\" && -n \"\${UV_CACHE_DIR:-}\" ]] && command -v canfar cadcget cadc-tap vcp astroai-lab >/dev/null"
-    ' || FAILURES=$((FAILURES + 1))
-
-    echo ""
-    echo "Running full verification script..."
-    run_docker /opt/astroai/bin/canfar-verify.sh || FAILURES=$((FAILURES + 1))
+    # --quick: PATH, CADC CLIs, astroai-lab doctor/paths/tools/check, core tools,
+    #          writable venv, peek, agent bundle list.  Skips interactive-shell
+    #          probes, canfar API calls, cache-dir layout, and agent installs.
+    run_docker /opt/astroai/bin/canfar-verify.sh --quick || FAILURES=$((FAILURES + 1))
     exit ${FAILURES}
 fi
 

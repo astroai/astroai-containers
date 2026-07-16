@@ -1,5 +1,9 @@
 #!/bin/bash -e
 # astroai-lab cold-start → save → resume loop inside astroai/base image.
+#
+# Usage:
+#   test-astroai-lab-loop.sh            full save/resume cycle
+#   test-astroai-lab-loop.sh --smoke     fast smoke: doctor only (no pixi init)
 
 set -o pipefail
 
@@ -10,6 +14,14 @@ IMAGE="${REGISTRY}/${OWNER}/base:${TAG}"
 FAKE_ARC="$(mktemp -d)"
 FAKE_SRC="$(mktemp -d)"
 FAKE_SCRATCH="$(mktemp -d)"
+SMOKE=0
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --smoke) SMOKE=1; shift ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
+    esac
+done
 
 cleanup() {
     rm -rf "${FAKE_ARC}" "${FAKE_SRC}" "${FAKE_SCRATCH}"
@@ -17,6 +29,7 @@ cleanup() {
 trap cleanup EXIT
 
 echo "astroai-lab save/resume loop (in ${IMAGE})"
+[[ "${SMOKE}" -eq 1 ]] && echo "(smoke mode — doctor only, no pixi init)"
 echo "========================================"
 
 if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
@@ -40,22 +53,36 @@ OUT="$(docker run --rm \
     bash -lc '
 set -e
 source /etc/profile.d/astroai.sh
-cd /srcdir
 
-pixi init loopdemo --no-progress
-cd loopdemo
-astroai-lab env save loopdemo
+if [[ "'"${SMOKE}"'" -eq 1 ]]; then
+    astroai-lab doctor --json | head -1
+    echo SMOKE_OK
+else
+    cd /srcdir
+    pixi init loopdemo --no-progress
+    cd loopdemo
+    astroai-lab env save loopdemo
 
-# Fresh work tree (same HOME — simulates new session, same /arc/home)
-rm -rf /srcdir/loopdemo
-cd /srcdir
-astroai-lab env resume loopdemo
-test -f loopdemo/pixi.toml
-astroai-lab doctor --json | head -1
-echo LOOP_OK
+    # Fresh work tree (same HOME — simulates new session, same /arc/home)
+    rm -rf /srcdir/loopdemo
+    cd /srcdir
+    astroai-lab env resume loopdemo
+    test -f loopdemo/pixi.toml
+    astroai-lab doctor --json | head -1
+    echo LOOP_OK
+fi
 ' 2>&1)"
 
 echo "${OUT}"
+
+if [[ "${SMOKE}" -eq 1 ]]; then
+    if printf '%s\n' "${OUT}" | grep -q SMOKE_OK; then
+        echo "astroai-lab smoke test passed."
+        exit 0
+    fi
+    echo "astroai-lab smoke test failed." >&2
+    exit 1
+fi
 
 if printf '%s\n' "${OUT}" | grep -q LOOP_OK; then
     echo "astroai-lab loop test passed."

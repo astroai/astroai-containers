@@ -10,6 +10,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import contextlib
 
 PARTIAL_POLICIES = frozenset({"fail_and_cleanup", "accept_partial", "continue_waiting"})
 
@@ -70,10 +71,8 @@ class StateStore:
 
     def ensure_dir(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(self.dir, 0o700)
-        except OSError:
-            pass
 
     def worker_logs_dir(self) -> Path:
         return self.dir / "workers"
@@ -94,10 +93,8 @@ class StateStore:
                 if not text.endswith("\n"):
                     fh.write("\n")
             os.replace(tmp, path)
-            try:
+            with contextlib.suppress(OSError):
                 os.chmod(path, 0o600)
-            except OSError:
-                pass
         finally:
             if os.path.exists(tmp):
                 os.unlink(tmp)
@@ -138,10 +135,8 @@ class StateStore:
                 json.dump(payload, fh, indent=2, sort_keys=True)
                 fh.write("\n")
             os.replace(tmp, self.state_path)
-            try:
+            with contextlib.suppress(OSError):
                 os.chmod(self.state_path, 0o600)
-            except OSError:
-                pass
         finally:
             if os.path.exists(tmp):
                 os.unlink(tmp)

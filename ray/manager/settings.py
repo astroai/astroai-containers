@@ -19,7 +19,7 @@ def _default_ray_version() -> str:
         import ray
 
         return ray.__version__
-    except Exception:
+    except Exception:  # noqa: BLE001 — import ray may fail in any number of ways; fall back to "unknown"
         return "unknown"
 
 
