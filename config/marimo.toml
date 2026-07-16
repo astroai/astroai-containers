@@ -5,9 +5,9 @@
 #
 # Customize models via the AI settings panel (⚙️ in the chat sidebar) or edit this file.
 #
-# TODO(marimo-ai): Delete this file once astroai-lab agent setup natively writes
-# ~/.marimo.toml with OpenRouter config + API key.
-# See docs/CONTRIBUTING.md § "Marimo AI ↔ astroai-lab upstream integration".
+# astroai-lab agent setup marimo now handles seeding + API key injection.
+# This file is a build-time default template; runtime seeding is done by the
+# startup script via `astroai-lab agent setup marimo`.
 
 [ai.models]
 chat_model = "openrouter/google/gemini-2.5-flash"

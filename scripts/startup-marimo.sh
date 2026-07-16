@@ -23,28 +23,11 @@ ln -sfn /arc "${NOTEBOOKS_DIR}/📁_arc" 2>/dev/null || true
 
 cd "${NOTEBOOKS_DIR}"
 
-# Bridge astroai-lab agent OpenRouter config to marimo's AI assistant.
-# astroai-lab agent setup stores the API key at ~/.config/canfar/lab/agent-env.sh.
-#
-# TODO(marimo-ai): Remove this block + the marimo.toml seed below once
-# astroai-lab agent setup natively writes ~/.marimo.toml with the API key.
-# See docs/CONTRIBUTING.md § "Marimo AI ↔ astroai-lab upstream integration".
-_AGENT_ENV="${HOME}/.config/canfar/lab/agent-env.sh"
-if [[ -f "${_AGENT_ENV}" ]]; then
-    # shellcheck disable=SC1090
-    source "${_AGENT_ENV}"
+# Ensure marimo AI config exists with OpenRouter API key (astroai-lab agent setup marimo).
+# Non-destructive: only creates/seeds ~/.marimo.toml on first launch; never overwrites.
+if command -v astroai-lab >/dev/null 2>&1; then
+    astroai-lab --yes agent setup marimo 2>/dev/null || true
 fi
-unset _AGENT_ENV
-
-# Seed default marimo.toml on first launch (persistent on /arc/home).
-# User customizations are never overwritten.
-# TODO(marimo-ai): Remove once astroai-lab agent setup owns this.
-# See docs/CONTRIBUTING.md § "Marimo AI ↔ astroai-lab upstream integration".
-_MARIMO_TOML="${HOME}/.marimo.toml"
-if [[ ! -f "${_MARIMO_TOML}" ]]; then
-    cp /opt/astroai/config/marimo.toml "${_MARIMO_TOML}"
-fi
-unset _MARIMO_TOML
 
 # CANFAR contributed ingress strips /session/contrib/<id> before forwarding
 # (same as webterm). Do not pass --base-url here — marimo would only serve under

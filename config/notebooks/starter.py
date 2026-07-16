@@ -154,7 +154,7 @@ def _():
     except Exception as exc:  # noqa: BLE001 — show in notebook, don't crash
         print("env export skipped:", exc)
 
-    scratch = pathlib.Path(os.environ.get("TMP_SCRATCH_DIR", "/scratch"))
+    scratch = pathlib.Path(os.environ.get("TMP_SCRATCH_DIR", "").strip() or "/scratch")
     print("scratch writable:", scratch.is_dir() and os.access(scratch, os.W_OK), scratch)
     print("home should stay tiny:", pathlib.Path.home())
     print("xdg_cache:", os.environ.get("XDG_CACHE_HOME"))
