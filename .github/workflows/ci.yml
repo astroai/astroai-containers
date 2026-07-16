@@ -36,6 +36,10 @@ jobs:
           cd ray/manager
           uv run pytest tests/ -q
 
+      # Hard-fail on lockfile drift: this is the safety net for the maintainer's
+      # lower-bound-only source constraints (no `==` / `<=` pins anywhere). Do
+      # not add `continue-on-error: true` or `|| true` here — that would
+      # silently re-allow resolver drift past CI and break reproducibility.
       - name: Lockfile integrity
         working-directory: astroai-containers
         run: make -s lock-check
