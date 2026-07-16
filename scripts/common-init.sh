@@ -87,8 +87,7 @@ if [[ ! -f "${_state}/welcomed" ]]; then
     astroai-lab guide                    full command list
     less /opt/astroai/USAGE.md          detailed usage guide
 
-  AI coding agents (once per user, persists on scratch or team project):
-    astroai-lab agent setup              MCP + skills — run this first
+  AI coding agents (auto-configured — MCP/skills persist on /arc/home):
     astroai-lab agent install agent      or claude, goose, opencode, codex
     astroai-lab agent update             refresh skills/rules after image upgrade
 
@@ -126,6 +125,11 @@ if command -v astroai-lab >/dev/null 2>&1; then
   eval "$(astroai-lab env export 2>/dev/null)" || true
   # Best-effort scratch-safe default kernel (no-op without jupyter/ipykernel).
   astroai-lab kernel ensure --name astroai >/dev/null 2>&1 || true
+  # Agent configs (MCP, rules, skills, model presets) — idempotent;
+  # persists on /arc/home. First run clones upstream skills (~30s);
+  # subsequent sessions are instant. Agent binaries installed on-demand
+  # via `astroai-lab agent install <tool>` (lightweight, no image bloat).
+  astroai-lab --yes agent setup >/dev/null 2>&1 || true
 fi
 
 unset ASTROAI_LAB_PROFILE_LOADED
