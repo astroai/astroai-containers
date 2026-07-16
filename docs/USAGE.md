@@ -163,6 +163,116 @@ Agents and MCP config persist on `/arc` home. Refresh after image upgrades with
 
 ---
 
+## Marimo notebook sessions
+
+The **marimo** image (`images.canfar.net/astroai/marimo`) provides a reactive
+notebook editor on port 5000. Marimo notebooks are plain `.py` files — easy to
+git and review.
+
+### Jupyter → Marimo quick guide
+
+| Jupyter habit | Marimo equivalent |
+|--------------|-------------------|
+| **Run cell** (Ctrl+Enter) | Nothing — marimo is always running |
+| **Run All** | Already done — every cell is always up-to-date |
+| **File browser sidebar** | `File > Open` (Cmd/Ctrl+O), or use the **Session Files** widget in the starter notebook |
+| **Terminal** | Open a **webterm** session in another tab |
+| **Extensions / plugins** | Marimo has no plugin system — use `astroai-lab` from a webterm for project management, agents, and data workflows |
+| **`.ipynb` files** | Marimo uses `.py` files; convert with `marimo convert notebook.ipynb` |
+
+### Session file browser
+
+The starter notebook includes a **Session Files** widget pre-configured to
+browse `/scratch`, `/srcdir`, and `/arc`. For quick access from `File > Open`,
+the notebooks directory contains symlinks (`📁_scratch`, `📁_srcdir`, `📁_arc`).
+
+### VOSpace connector
+
+The **CANFAR Vault** widget in the starter notebook lets you browse and
+download files from VOSpace. The `vos` Python module is pre-installed — just
+authenticate first: `canfar login` in a webterm session.
+
+### astroai-lab in marimo
+
+Marimo has no plugin system — instead, use **astroai-lab** from a webterm tab
+running alongside your notebook. All project management, AI agents, and data
+workflows go through the CLI.
+
+**Project workflow:**
+
+```bash
+astroai-lab init mylab              # pixi project (recommended)
+astroai-lab init mylab --uv         # or uv-based
+astroai-lab clone owner/repo        # clone a GitHub project
+astroai-lab clone owner/repo --from-env  # clone + restore saved deps
+```
+
+**Save & persist before the session ends:**
+
+```bash
+astroai-lab save                    # snapshot env
+astroai-lab data sync /scratch/out /arc/projects/mygroup/out
+astroai-lab push --yes              # git push + data sync
+```
+
+**AI coding agents** (MCP + skills persist on `/arc/home`):
+
+```bash
+astroai-lab agent setup             # run once per user
+astroai-lab agent install kilo       # or goose, claude, opencode, codex
+astroai-lab agent update             # refresh after image upgrades
+```
+
+Full reference: `astroai-lab guide` · [astroai-lab docs](https://github.com/astroai/astroai-lab)
+
+### Reusable widgets
+
+New notebooks can import CANFAR widgets without copy-pasting:
+
+```python
+from canfar_marimo import file_browser, VOSpaceUI
+
+fb = file_browser()
+vs = VOSpaceUI()
+vs.render()
+```
+
+### Marimo AI Assistant
+
+Marimo includes a built-in AI sidebar for chat, code generation, and cell
+refactoring. It's pre-configured to use **OpenRouter** — the same provider
+your `astroai-lab` agents use.
+
+**Setup (one-time):**
+
+```bash
+# In a webterm tab:
+astroai-lab agent setup
+```
+
+This stores your OpenRouter API key on `/arc/home`. Marimo picks it up
+automatically on subsequent sessions. The default `~/.marimo.toml` is seeded
+on first launch with OpenRouter pre-configured.
+
+**Using the AI:**
+
+- **AI sidebar**: Click the ✨ button in the toolbar, or press
+  **Cmd/Ctrl+Shift+E** to refactor the current cell.
+- **Chat / Agent modes**: Ask questions, let the AI edit cells, or generate
+  new cells from prompts.
+- **Data-aware prompts**: Type `@variable_name` to pass in-memory DataFrames
+  and variables directly to the AI.
+
+**Customize models** via `~/.marimo.toml` or the settings panel (⚙️ in the
+chat sidebar). The default config uses:
+- Chat: `google/gemini-2.5-flash`
+- Edit: `anthropic/claude-3.7-sonnet`
+
+If the AI sidebar shows "No API key configured," run `astroai-lab agent setup`
+in a webterm and restart your marimo session.
+
+---
+
 ## Session notes
 
 | Image | Port / path notes |

@@ -1,0 +1,17 @@
+# Marimo AI assistant — pre-configured for OpenRouter (same provider as astroai-lab agents).
+#
+# Set your API key once with:  astroai-lab agent setup
+# The key persists on /arc/home and marimo picks it up automatically.
+#
+# Customize models via the AI settings panel (⚙️ in the chat sidebar) or edit this file.
+#
+# TODO(marimo-ai): Delete this file once astroai-lab agent setup natively writes
+# ~/.marimo.toml with OpenRouter config + API key.
+# See docs/CONTRIBUTING.md § "Marimo AI ↔ astroai-lab upstream integration".
+
+[ai.models]
+chat_model = "openrouter/google/gemini-2.5-flash"
+edit_model = "openrouter/anthropic/claude-3.7-sonnet"
+
+[ai.openrouter]
+base_url = "https://openrouter.ai/api/v1"

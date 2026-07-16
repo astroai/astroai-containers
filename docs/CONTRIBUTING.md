@@ -118,6 +118,36 @@ Integration tests for the CLI live in
 [astroai/astroai-lab](https://github.com/astroai/astroai-lab)
 (`tests/integration/test_cold_start_save_resume.py`).
 
+## Marimo AI ↔ astroai-lab upstream integration
+
+When `astroai-lab agent setup` learns to natively write `~/.marimo.toml`
+(OpenRouter config + API key), the following can be removed from this repo:
+
+| Remove | File | Why |
+|--------|------|-----|
+| `agent-env.sh` sourcing block | `scripts/startup-marimo.sh` | astroai-lab writes config directly into `~/.marimo.toml` |
+| Default marimo.toml seeding | `scripts/startup-marimo.sh` | no longer needed |
+| Entire file | `config/marimo.toml` | astroai-lab owns the config now |
+| `COPY config/marimo.toml` line | `dockerfiles/marimo/Dockerfile` | file deleted |
+
+**What astroai-lab agent setup should do:**
+
+1. Detect or create `~/.marimo.toml`
+2. Merge (not overwrite) `[ai.models]` and `[ai.openrouter]` sections,
+   including the API key under `[ai.openrouter] api_key = "..."`
+3. Add a verification check in `canfar-verify-agents.sh`:
+   `grep -q openrouter "${HOME}/.marimo.toml"`
+
+**Why merge instead of overwrite:** users may have custom marimo settings
+(UI, hotkeys, formatting) in their `~/.marimo.toml`. Only the AI sections
+should be touched.
+
+**Why put the API key in the TOML:** marimo reads `api_key` from its own
+config natively. No env-var bridge needed — the container startup becomes a
+simple `exec marimo edit ...` with no agent setup awareness.
+
+---
+
 ## Pull requests
 
 ```bash
