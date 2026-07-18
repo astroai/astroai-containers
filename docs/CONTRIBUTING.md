@@ -51,6 +51,7 @@ git checkout -b my-change
 | System packages | `dockerfiles/base/Dockerfile` | Yes — `base`+ |
 | Python / uv / pixi foundation | `dockerfiles/python/Dockerfile` | Full stack |
 | Jupyter config | `config/jupyter_server_config.py` | `notebook` |
+| Marimo starter notebook | **Edit in** [astroai-lab](https://github.com/astroai/astroai-lab) `data/notebooks/starter.py`, then `make sync-marimo-starter` | `marimo` |
 | CADC client list | `config/cadc-tools.txt` | `base`+ |
 | **`astroai-lab` CLI** | `vendor/astroai_lab-*.whl` | `base`+ |
 | Ray | `config/ray-deps.txt`, `dockerfiles/ray-*`, `ray/`, `scripts/*ray*` | `make build-ray` |
@@ -118,6 +119,21 @@ Integration tests for the CLI live in
 [astroai/astroai-lab](https://github.com/astroai/astroai-lab)
 (`tests/integration/test_cold_start_save_resume.py`).
 
+## Marimo starter sync
+
+Canonical `starter.py` lives in **astroai-lab**
+(`src/astroai_lab/data/notebooks/starter.py`). The copy under
+`config/notebooks/starter.py` is what the marimo image installs — keep them
+identical:
+
+```bash
+# from astroai-containers (sibling checkout of astroai-lab)
+make sync-marimo-starter
+```
+
+Startup (`scripts/startup-marimo.sh`) seeds that file once into
+`TMP_SRC_DIR/notebooks` and runs `marimo edit starter.py`.
+
 ## Marimo AI ↔ astroai-lab upstream integration (done)
 
 `astroai-lab agent setup` now includes a **`marimo`** bundle that writes
@@ -128,11 +144,15 @@ at session start (non-destructive; never overwrites user settings).
 **What changed:**
 
 - `scripts/startup-marimo.sh`: replaced `agent-env.sh` bridging and manual TOML
-  seeding with a single `astroai-lab agent setup marimo` call.
+  seeding with a single `astroai-lab agent setup marimo` call; opens `starter.py`
+  by default.
 - `config/marimo.toml`: kept as build-time default template (bundled for reference).
 
 **Verification:** `canfar-verify-agents.sh` checks that `~/.marimo.toml`
 contains an OpenRouter section after agent setup.
+
+**Vault / Remote Storage:** keep `canfar_marimo.VOSpaceUI` until upstream `vos`
+fsspec lands; then expose a notebook FS variable for marimo Remote Storage.
 
 ---
 

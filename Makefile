@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-check lint lint-doc-quota
+.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-check lint lint-doc-quota sync-marimo-starter
 
 SHELL := bash
 OWNER ?= astroai
@@ -35,8 +35,17 @@ help:
 	@echo "  make lock-check         fail if a lockfile drifts from its source"
 	@echo "  make lint-doc-quota     forbid false 'headless consumes quota' advice in test-canfar.sh"
 	@echo "  make lint               run lock-check + lint-doc-quota"
+	@echo "  make sync-marimo-starter copy marimo starter.py from ../astroai-lab"
 	@echo ""
 	@echo "  OWNER=$(OWNER)  REGISTRY=$(REGISTRY)  BUILD_TAG=$(BUILD_TAG)  TAG=$(TAG)"
+
+# Canonical starter lives in astroai-lab; containers copy is a build artifact.
+ASTROAI_LAB_STARTER ?= ../astroai-lab/src/astroai_lab/data/notebooks/starter.py
+
+sync-marimo-starter: ## copy marimo starter.py from sibling astroai-lab checkout
+	@test -f "$(ASTROAI_LAB_STARTER)" || { echo "missing $(ASTROAI_LAB_STARTER)"; exit 1; }
+	cp "$(ASTROAI_LAB_STARTER)" config/notebooks/starter.py
+	@echo "updated config/notebooks/starter.py from $(ASTROAI_LAB_STARTER)"
 
 build-all: ## build session images
 	TAG=$(BUILD_TAG) docker buildx bake

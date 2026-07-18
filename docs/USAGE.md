@@ -37,7 +37,7 @@ flowchart LR
 2. Launch **notebook** (JupyterLab) or **marimo**.
 3. Open starter content:
    - Notebook: `/opt/astroai/notebooks/starter.ipynb` or `astroai-lab notebook starter`
-   - Marimo: `TMP_SRC_DIR/notebooks/starter.py` (seeded once)
+   - Marimo: session opens `TMP_SRC_DIR/notebooks/starter.py` (seeded once)
 4. Run `astroai-lab kernel ensure` if the kernel is missing (notebook).
 5. Run `astroai-lab doctor` — caches should sit under `/scratch`.
 6. Persist results to `/arc/projects/…` with `astroai-lab data sync` or `vcp`.
@@ -169,73 +169,98 @@ The **marimo** image (`images.canfar.net/astroai/marimo`) provides a reactive
 notebook editor on port 5000. Marimo notebooks are plain `.py` files — easy to
 git and review.
 
+### First open
+
+On launch, the session opens **`starter.py`** when it is the only notebook under
+`TMP_SRC_DIR/notebooks` (seeded once from the image; your edits are never
+overwritten). If you already have other `.py` notebooks there, marimo opens the
+folder home so you can pick a file. The starter shows session status, file
+browsing, Vault access, and short `astroai-lab` command snippets.
+
+**Existing project:**
+
+1. In a **webterm**: `astroai-lab init mylab` or `astroai-lab clone owner/repo`
+   (projects land under `TMP_SRC_DIR`).
+2. In marimo: **File → Open** and browse into that folder. Symlinks
+   `📁_scratch`, `📁_srcdir`, `📁_arc` sit next to `starter.py`. The starter’s
+   **Session status** cell also lists detected projects under work.
+
+Re-seed the template anytime: `astroai-lab notebook starter marimo`.
+
 ### Jupyter → Marimo quick guide
 
 | Jupyter habit | Marimo equivalent |
 |--------------|-------------------|
 | **Run cell** (Ctrl+Enter) | Nothing — marimo is always running |
 | **Run All** | Already done — every cell is always up-to-date |
-| **File browser sidebar** | `File > Open` (Cmd/Ctrl+O), or use the **Session Files** widget in the starter notebook |
+| **File browser sidebar** | `File > Open` (Cmd/Ctrl+O), or the **Session Files** widget in the starter |
 | **Terminal** | Open a **webterm** session in another tab |
-| **Extensions / plugins** | Marimo has no plugin system — use `astroai-lab` from a webterm for project management, agents, and data workflows |
+| **Extensions / plugins** | No plugin system — starter runs read-only `astroai-lab` checks; mutating commands stay in webterm |
 | **`.ipynb` files** | Marimo uses `.py` files; convert with `marimo convert notebook.ipynb` |
 
 ### Session file browser
 
-The starter notebook includes a **Session Files** widget pre-configured to
-browse `/scratch`, `/srcdir`, and `/arc`. For quick access from `File > Open`,
-the notebooks directory contains symlinks (`📁_scratch`, `📁_srcdir`, `📁_arc`).
+The starter includes a **Session Files** widget for `/scratch`, `/srcdir`, and
+`/arc`. For quick access from `File > Open`, use the `📁_*` symlinks in the
+notebooks directory.
 
-### VOSpace connector
+### VOSpace / Vault
 
-The **CANFAR Vault** widget in the starter notebook lets you browse and
-download files from VOSpace. The `vos` Python module is pre-installed — just
-authenticate first: `canfar login` in a webterm session.
+**Today (interim):** the starter’s **CANFAR Vault** widget lists and downloads
+`vos:` paths. The `vos` module is pre-installed — authenticate with
+`canfar login` in a webterm first. CLI: `vls` / `vcp`.
 
+**Next:** when the `vos` client ships **fsspec** support, expose a notebook
+filesystem variable so marimo’s built-in **Remote Storage** panel discovers
+Vault (same pattern as S3/GCS). Until then, do not expect Vault under
+**Add remote storage**.
+
+Reusable widgets:
+
+```python
+from canfar_marimo import file_browser, vospace_controls
+
+fb = file_browser()
+fb  # last expression so it renders
+
+vc = vospace_controls()
+vc.panel  # inputs + buttons
+
+# dependent cell — references vos_* globals or vc.result_md()
+vc.result_md()
+```
 ### astroai-lab in marimo
 
-Marimo has no plugin system — instead, use **astroai-lab** from a webterm tab
-running alongside your notebook. All project management, AI agents, and data
-workflows go through the CLI.
+The starter’s **Session status** cell runs read-only checks (`env export`,
+`doctor --json`) and lists projects. For **init / clone / save / push / agent
+install**, use a **webterm** tab:
 
-**Project workflow:**
+**First session / new project**
 
 ```bash
-astroai-lab init mylab              # pixi project (recommended)
-astroai-lab init mylab --uv         # or uv-based
-astroai-lab clone owner/repo        # clone a GitHub project
-astroai-lab clone owner/repo --from-env  # clone + restore saved deps
+astroai-lab init mylab              # pixi (recommended)
+astroai-lab init mylab --uv
+astroai-lab clone owner/repo
+astroai-lab clone owner/repo --from-env
 ```
 
-**Save & persist before the session ends:**
+**Persist before logout**
 
 ```bash
-astroai-lab save                    # snapshot env
+astroai-lab save
 astroai-lab data sync /scratch/out /arc/projects/mygroup/out
-astroai-lab push --yes              # git push + data sync
+astroai-lab push --yes
 ```
 
-**AI coding agents** (MCP + skills persist on `/arc/home`):
+**AI agents** (config on `/arc/home`)
 
 ```bash
-astroai-lab agent setup             # run once per user
-astroai-lab agent install kilo       # or goose, claude, opencode, codex
-astroai-lab agent update             # refresh after image upgrades
+astroai-lab agent setup             # once per user (also seeds marimo AI)
+astroai-lab agent install kilo      # or goose, claude, opencode, codex
+astroai-lab agent update
 ```
 
 Full reference: `astroai-lab guide` · [astroai-lab docs](https://github.com/astroai/astroai-lab)
-
-### Reusable widgets
-
-New notebooks can import CANFAR widgets without copy-pasting:
-
-```python
-from canfar_marimo import file_browser, VOSpaceUI
-
-fb = file_browser()
-vs = VOSpaceUI()
-vs.render()
-```
 
 ### Marimo AI Assistant
 
@@ -256,15 +281,15 @@ on first launch with OpenRouter pre-configured.
 
 **Using the AI:**
 
-- **AI sidebar**: Click the ✨ button in the toolbar, or press
+- **AI sidebar**: Click the AI button in the toolbar, or press
   **Cmd/Ctrl+Shift+E** to refactor the current cell.
 - **Chat / Agent modes**: Ask questions, let the AI edit cells, or generate
   new cells from prompts.
 - **Data-aware prompts**: Type `@variable_name` to pass in-memory DataFrames
   and variables directly to the AI.
 
-**Customize models** via `~/.marimo.toml` or the settings panel (⚙️ in the
-chat sidebar). The default config uses:
+**Customize models** via `~/.marimo.toml` or the settings panel in the
+chat sidebar. The default config uses:
 - Chat: `google/gemini-2.5-flash`
 - Edit: `anthropic/claude-3.7-sonnet`
 
