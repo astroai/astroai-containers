@@ -69,7 +69,7 @@ docker run -d --name "ray-mgr-${CLUSTER_ID}" \
 
 deadline=$((SECONDS + 120))
 while (( SECONDS < deadline )); do
-    docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
+    docker run --rm --network "${NETWORK}" --entrypoint curl "${MGR}" \
         -fsS "http://ray-mgr-${CLUSTER_ID}:5000/readyz" >/dev/null 2>&1 && break
     sleep 2
 done
@@ -99,7 +99,7 @@ echo "Manager ${HEAD_IP} · worker ${WRK_IP}"
 echo "Waiting for worker to join Ray..."
 deadline=$((SECONDS + 90))
 while (( SECONDS < deadline )); do
-    NODES="$(docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
+    NODES="$(docker run --rm --network "${NETWORK}" --entrypoint curl "${MGR}" \
         -fsS "http://ray-mgr-${CLUSTER_ID}:5000/api/v1/status" 2>/dev/null \
         | python3 -c "import json,sys; print(json.load(sys.stdin).get('ray_nodes_alive',0))" 2>/dev/null || echo 0)"
     if [[ "${NODES}" -ge 2 ]]; then
@@ -146,13 +146,13 @@ with open(path, "w", encoding="utf-8") as fh:
     fh.write("\n")
 PY
 
-REC_JSON="$(docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
+REC_JSON="$(docker run --rm --network "${NETWORK}" --entrypoint curl "${MGR}" \
     -fsS --max-time 60 -X POST "http://ray-mgr-${CLUSTER_ID}:5000/api/v1/cluster/reconcile")"
 JOINED="$(printf '%s' "${REC_JSON}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('joined_workers',0))")"
 echo "Joined workers: ${JOINED}"
 [[ "${JOINED}" -ge 1 ]] || FAILURES=$((FAILURES + 1))
 
-STOP_JSON="$(docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
+STOP_JSON="$(docker run --rm --network "${NETWORK}" --entrypoint curl "${MGR}" \
     -fsS --max-time 60 -X POST "http://ray-mgr-${CLUSTER_ID}:5000/api/v1/cluster/stop")"
 STOP_PHASE="$(printf '%s' "${STOP_JSON}" | python3 -c "import json,sys; print((json.load(sys.stdin).get('cluster') or {}).get('phase',''))")"
 echo "Phase after stop: ${STOP_PHASE}"

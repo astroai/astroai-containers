@@ -30,6 +30,14 @@ case "${IMAGE}" in
     *)        KIND=contributed ;;
 esac
 
+# Ray manager runs Ray head + Dashboard — needs ≥8 GiB (see RAY.md / OPERATORS).
+CPU="${CANFAR_TEST_CPU:-1}"
+MEMORY="${CANFAR_TEST_MEMORY:-2}"
+if [[ "${IMAGE}" == "ray-manager" ]]; then
+    CPU="${CANFAR_TEST_CPU:-2}"
+    MEMORY="${CANFAR_TEST_MEMORY:-8}"
+fi
+
 cleanup() {
     if [[ -n "${SESSION_ID:-}" ]]; then
         echo ""
@@ -88,8 +96,8 @@ if ! canfar auth show >/dev/null 2>&1; then
     exit 1
 fi
 
-CREATE_OUT="$(canfar create --name "${SESSION_NAME}" --cpu "${CANFAR_TEST_CPU:-1}" \
-    --memory "${CANFAR_TEST_MEMORY:-2}" "${KIND}" "${FULL_IMAGE}" 2>&1)" || \
+CREATE_OUT="$(canfar create --name "${SESSION_NAME}" --cpu "${CPU}" \
+    --memory "${MEMORY}" "${KIND}" "${FULL_IMAGE}" 2>&1)" || \
     echo "Warning: canfar create exited non-zero — will probe by name." >&2
 echo "${CREATE_OUT}"
 
@@ -184,9 +192,16 @@ if [[ -z "${URL}" ]]; then
 fi
 echo "Connect URL: ${URL}"
 
-# Give the app a few seconds after Running for health.
-sleep 15
-HTTP_CODE="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 30 "${URL}" || echo 000)"
+# Give the app time after Running for health (Ray manager starts Ray head first).
+_http_deadline=$((SECONDS + ${SMOKE_HTTP_WAIT:-120}))
+HTTP_CODE="000"
+while (( SECONDS < _http_deadline )); do
+    HTTP_CODE="$(curl -sk -o /dev/null -w '%{http_code}' --max-time 30 "${URL}" || true)"
+    case "${HTTP_CODE}" in
+        200|301|302|303|307|308) break ;;
+    esac
+    sleep 5
+done
 echo "HTTP ${HTTP_CODE} from connect URL"
 
 case "${HTTP_CODE}" in

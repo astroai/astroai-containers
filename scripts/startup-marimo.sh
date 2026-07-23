@@ -3,6 +3,7 @@
 # Seed starter.py once, then open it so new users land in the guide notebook
 # (cwd remains TMP_SRC_DIR/notebooks for File > Open / symlinks).
 
+export ASTROAI_SESSION_KIND="${ASTROAI_SESSION_KIND:-marimo}"
 source /cadc/common-init.sh
 
 # common-init cds to the session work root (TMP_SRC_DIR).

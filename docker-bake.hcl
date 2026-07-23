@@ -91,26 +91,31 @@ target "openresearch" {
   }
 }
 
-# Ray cluster images (extend base in same bake — shared TAG/deps)
+# Ray cluster images
+# - ray-base: slim (from python) → ray-worker
+# - ray-manager: fat (from base) + Ray runtime
 target "ray-base" {
   context    = "."
   dockerfile = "dockerfiles/ray-base/Dockerfile"
   contexts = {
-    "${REGISTRY}/${OWNER}/base:${TAG}" = "target:base"
+    "${REGISTRY}/${OWNER}/python:${PYTHON_VERSION}" = "target:python"
   }
   tags = ["${REGISTRY}/${OWNER}/ray-base:${TAG}"]
   args = {
-    REGISTRY = "${REGISTRY}"
-    OWNER    = "${OWNER}"
-    TAG      = "${TAG}"
+    REGISTRY       = "${REGISTRY}"
+    OWNER          = "${OWNER}"
+    PYTHON_VERSION = "${PYTHON_VERSION}"
+    TAG            = "${TAG}"
   }
 }
 
-target "_ray" {
-  context = "."
+target "ray-worker" {
+  context    = "."
+  dockerfile = "dockerfiles/ray-worker/Dockerfile"
   contexts = {
     "${REGISTRY}/${OWNER}/ray-base:${TAG}" = "target:ray-base"
   }
+  tags = ["${REGISTRY}/${OWNER}/ray-worker:${TAG}"]
   args = {
     REGISTRY = "${REGISTRY}"
     OWNER    = "${OWNER}"
@@ -119,13 +124,15 @@ target "_ray" {
 }
 
 target "ray-manager" {
-  inherits   = ["_ray"]
+  context    = "."
   dockerfile = "dockerfiles/ray-manager/Dockerfile"
-  tags       = ["${REGISTRY}/${OWNER}/ray-manager:${TAG}"]
-}
-
-target "ray-worker" {
-  inherits   = ["_ray"]
-  dockerfile = "dockerfiles/ray-worker/Dockerfile"
-  tags       = ["${REGISTRY}/${OWNER}/ray-worker:${TAG}"]
+  contexts = {
+    "${REGISTRY}/${OWNER}/base:${TAG}" = "target:base"
+  }
+  tags = ["${REGISTRY}/${OWNER}/ray-manager:${TAG}"]
+  args = {
+    REGISTRY = "${REGISTRY}"
+    OWNER    = "${OWNER}"
+    TAG      = "${TAG}"
+  }
 }

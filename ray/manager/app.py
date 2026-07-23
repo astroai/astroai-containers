@@ -55,12 +55,6 @@ def _heartbeat_path() -> Path:
     return _store.dir / "manager-heartbeat"
 
 
-def _touch_heartbeat() -> None:
-    path = _heartbeat_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.touch()
-
-
 class WorkerLaunchRequest(BaseModel):
     cores: int = Field(default=1, ge=1, le=32)
     ram_gb: int = Field(default=4, ge=1, le=128)
@@ -120,7 +114,6 @@ def api_auth_status() -> JSONResponse:
 
 @app.get("/api/v1/status")
 def api_status() -> JSONResponse:
-    _touch_heartbeat()
     nodes = list_ray_nodes()
     state = reconcile_cluster(canfar=_canfar, store=_store, nodes=nodes)
     return JSONResponse(_cluster_payload(state, nodes=nodes))
@@ -158,7 +151,6 @@ def _start_cluster_create(req: ClusterCreateRequest) -> None:
 
 @app.post("/api/v1/preflight/run")
 def api_preflight_run(async_mode: bool = Query(default=False, alias="async")) -> JSONResponse:
-    _touch_heartbeat()
     if async_mode:
         op = active_operation()
         if op and op.running:
@@ -179,7 +171,6 @@ def api_cluster_create(
     body: ClusterCreateBody,
     async_mode: bool = Query(default=False, alias="async"),
 ) -> JSONResponse:
-    _touch_heartbeat()
     req = _cluster_create_request(body)
     try:
         validate_cluster_create(canfar=_canfar, store=_store, req=req)
@@ -228,7 +219,6 @@ def api_cluster_clean_orphans() -> JSONResponse:
 
 @app.post("/api/v1/workers/launch")
 def api_workers_launch(body: WorkerLaunchRequest) -> JSONResponse:
-    _touch_heartbeat()
     try:
         result = launch_worker(
             settings=_settings,
@@ -420,7 +410,6 @@ def api_dashboard_status() -> JSONResponse:
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> str:
-    _touch_heartbeat()
     auth = _canfar.auth_status()
     nodes = list_ray_nodes()
     state = reconcile_cluster(canfar=_canfar, store=_store, nodes=nodes)

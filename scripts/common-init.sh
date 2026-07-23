@@ -66,7 +66,7 @@ if [[ ! -f "${_state}/welcomed" ]]; then
   astroai-lab init <name>     New project       astroai-lab guide    Full command list
   astroai-lab clone <repo>    Clone from GitHub  less /opt/astroai/USAGE.md  Full docs
 
-  Storage: TMP_SRC_DIR (code)  /scratch (data)  /arc/home (persistent)
+  Storage: /srcdir (code)  /scratch (session-private data)  /arc (shared across sessions)
   Backup:  hourly → ~/.astroai/lab/backups/<session>  (astroai-lab backup status)
   Agents:  astroai-lab agent install claude|goose|opencode|codex
 WELCOME
@@ -87,11 +87,17 @@ if command -v astroai-lab >/dev/null 2>&1; then
   if [[ "${ASTROAI_SESSION_KIND:-}" == "notebook" || "${ASTROAI_LAB_ENSURE_KERNEL:-}" == "1" ]]; then
     astroai-lab kernel ensure --name astroai >/dev/null 2>&1 || true
   fi
-  # Agent configs (MCP, rules, skills, model presets) — idempotent;
-  # persists on /arc/home. First run clones upstream skills (~30s);
-  # subsequent sessions are instant. Agent binaries installed on-demand
-  # via `astroai-lab agent install <tool>` (lightweight, no image bloat).
-  astroai-lab --yes agent setup >/dev/null 2>&1 || true
+  # Agent configs (MCP, rules, skills) — opt-in. First run can take ~30s.
+  #   ASTROAI_LAB_AGENT_SETUP=1     run in foreground before UI
+  #   ASTROAI_LAB_AGENT_SETUP=bg    run in background (default off)
+  case "${ASTROAI_LAB_AGENT_SETUP:-0}" in
+    1|true|yes)
+      astroai-lab --yes agent setup >/dev/null 2>&1 || true
+      ;;
+    bg|background)
+      (astroai-lab --yes agent setup >/dev/null 2>&1 || true) &
+      ;;
+  esac
   # Hourly /srcdir → /arc/home backup (opt-out: ASTROAI_LAB_BACKUP_ENABLED=false).
   astroai-lab backup start >/dev/null 2>&1 || true
 fi

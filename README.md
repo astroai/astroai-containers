@@ -32,7 +32,7 @@ flowchart TB
 | **AstroAI** | This product: GitHub [`astroai`](https://github.com/astroai), Harbor project `astroai`, images and tools |
 | **CANFAR** | Hosting platform: portal, Skaha, auth, `/arc`, scheduling |
 | **`canfar`** | Platform CLI — login, create/list/delete sessions |
-| **`astroai-lab`** | In-session workbench (vendored into these images) |
+| **`astroai-lab`** | In-session workbench (installed into these images via lockfile) |
 | **`images.canfar.net/astroai/*`** | AstroAI images on CANFAR Harbor (host ≠ product name) |
 
 ## Sessions
@@ -88,10 +88,10 @@ Default `TAG` is current UTC `YY.MM` (for example `26.07`).
 ## Layout
 
 ```
-dockerfiles/   python → base → session images; ray-base → manager/worker
+dockerfiles/   python → base → sessions; python → ray-base → worker; base → ray-manager
 ray/           manager FastAPI app + worker helpers
 scripts/       startup-*.sh, test-*.sh, profile
-vendor/        astroai-lab wheel baked into base
+config/        astroai-lab.lock, ray-deps.lock, notebooks (synced from lab)
 docs/          USAGE, RAY, OPERATORS, CONTRIBUTING
 examples/ray/  container-local Ray smokes
 ```
@@ -99,8 +99,8 @@ examples/ray/  container-local Ray smokes
 ## Design
 
 - **Same images for CPU and GPU** — choose the node in the portal; CUDA/ML stacks via pixi/uv in the project.
-- **Bake graph:** `python` → `base` → `webterm` / `vscode` / `notebook` / `marimo` / `openresearch`; Ray adds `ray-base` → `ray-manager` / `ray-worker` (same `TAG` as `base`).
-- **Fast session disks:** `TMP_SRC_DIR` (`/srcdir`) for code, `TMP_SCRATCH_DIR` (`/scratch`) for data and caches; hourly backup + `astroai-lab` persist to `/arc`.
+- **Bake graph:** `python` → fat `base` (compilers + session tools) → interactive sessions; slim `ray-base` (from `python`) → `ray-worker`; fat `base` → `ray-manager` (scientists use its shell/UI).
+- **Fast session disks:** `TMP_SRC_DIR` (`/srcdir`) for code, `TMP_SCRATCH_DIR` (`/scratch`) for data and caches (session-private); `/arc/home` and `/arc/projects` are shared across sessions. Hourly `/srcdir` backup + `astroai-lab` persist to `/arc`.
 - **Skaha types:** Contributed listen on **5000**; Notebook on **8888**.
 - **Auth at the edge:** Session UIs trust CANFAR TLS + portal login. Use these images only behind an authenticating reverse proxy.
 

@@ -60,7 +60,7 @@ echo "Waiting for manager /readyz..."
 deadline=$((SECONDS + ${SMOKE_READYZ_TIMEOUT:-120}))
 ready=0
 while (( SECONDS < deadline )); do
-    if docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
+    if docker run --rm --network "${NETWORK}" --entrypoint curl "${MGR}" \
         -fsS "http://ray-mgr-${CLUSTER_ID}:5000/readyz" >/dev/null 2>&1; then
         ready=1
         break
@@ -103,7 +103,7 @@ echo "Waiting for worker to join Ray..."
 deadline=$((SECONDS + 90))
 NODES=0
 while (( SECONDS < deadline )); do
-    NODES="$(docker run --rm --network "${NETWORK}" curlimages/curl:8.5.0 \
+    NODES="$(docker run --rm --network "${NETWORK}" --entrypoint curl "${MGR}" \
         -fsS "http://ray-mgr-${CLUSTER_ID}:5000/api/v1/status" 2>/dev/null \
         | python3 -c "import json,sys; print(json.load(sys.stdin).get('ray_nodes_alive',0))" 2>/dev/null || echo 0)"
     if [[ "${NODES}" -ge 2 ]]; then

@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-check lint lint-doc-quota sync-marimo-starter
+.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
 
 SHELL := bash
 OWNER ?= astroai
@@ -17,7 +17,7 @@ help:
 	@echo "AstroAI session images (CANFAR Harbor: images.canfar.net/astroai)"
 	@echo "========================="
 	@echo "  make build-all          build session images (python → base → sessions)"
-	@echo "  make build-ray          build ray-manager + ray-worker (+ base chain)"
+	@echo "  make build-ray          build ray-manager + ray-worker (+ base/slim chain)"
 	@echo "  make build/vscode       build one image (+ parents)"
 	@echo "  make push-all           push session images to Harbor"
 	@echo "  make push-ray           push Ray images to Harbor"
@@ -36,16 +36,26 @@ help:
 	@echo "  make lint-doc-quota     forbid false 'headless consumes quota' advice in test-canfar.sh"
 	@echo "  make lint               run lock-check + lint-doc-quota"
 	@echo "  make sync-marimo-starter copy marimo starter.py from ../astroai-lab"
+	@echo "  make sync-notebook-starters copy starter.ipynb + ray_train.ipynb from lab"
 	@echo ""
 	@echo "  OWNER=$(OWNER)  REGISTRY=$(REGISTRY)  BUILD_TAG=$(BUILD_TAG)  TAG=$(TAG)"
 
-# Canonical starter lives in astroai-lab; containers copy is a build artifact.
+# Canonical starters live in astroai-lab; containers copies are build artifacts.
 ASTROAI_LAB_STARTER ?= ../astroai-lab/src/astroai_lab/data/notebooks/starter.py
+ASTROAI_LAB_IPYNB ?= ../astroai-lab/src/astroai_lab/data/notebooks/starter.ipynb
+ASTROAI_LAB_RAY_NB ?= ../astroai-lab/src/astroai_lab/data/notebooks/ray_train.ipynb
 
 sync-marimo-starter: ## copy marimo starter.py from sibling astroai-lab checkout
 	@test -f "$(ASTROAI_LAB_STARTER)" || { echo "missing $(ASTROAI_LAB_STARTER)"; exit 1; }
 	cp "$(ASTROAI_LAB_STARTER)" config/notebooks/starter.py
 	@echo "updated config/notebooks/starter.py from $(ASTROAI_LAB_STARTER)"
+
+sync-notebook-starters: sync-marimo-starter ## copy all lab notebooks into config/notebooks
+	@test -f "$(ASTROAI_LAB_IPYNB)" || { echo "missing $(ASTROAI_LAB_IPYNB)"; exit 1; }
+	@test -f "$(ASTROAI_LAB_RAY_NB)" || { echo "missing $(ASTROAI_LAB_RAY_NB)"; exit 1; }
+	cp "$(ASTROAI_LAB_IPYNB)" config/notebooks/starter.ipynb
+	cp "$(ASTROAI_LAB_RAY_NB)" config/notebooks/ray_train.ipynb
+	@echo "updated config/notebooks/{starter.ipynb,ray_train.ipynb}"
 
 build-all: ## build session images
 	TAG=$(BUILD_TAG) docker buildx bake

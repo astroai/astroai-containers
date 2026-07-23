@@ -52,13 +52,15 @@ git checkout -b my-change
 | Python / uv / pixi foundation | `dockerfiles/python/Dockerfile` | Full stack |
 | Jupyter config | `config/jupyter_server_config.py` | `notebook` |
 | Marimo starter notebook | **Edit in** [astroai-lab](https://github.com/astroai/astroai-lab) `data/notebooks/starter.py`, then `make sync-marimo-starter` | `marimo` |
+| Jupyter / Ray starters | **Edit in** lab `data/notebooks/`, then `make sync-notebook-starters` | `notebook` |
 | CADC client list | `config/cadc-tools.txt` | `base`+ |
 | **`astroai-lab` CLI** | `config/astroai-lab.in` + `config/astroai-lab.lock` | `base`+ |
 | Ray | `config/ray-deps.txt`, `dockerfiles/ray-*`, `ray/`, `scripts/*ray*` | `make build-ray` |
 | Bake graph, tags | `docker-bake.hcl`, `Makefile` | Depends |
 
-Keep Dockerfiles lean — compilers, CUDA, and science stacks belong in user
-pixi/uv projects (document in USAGE.md).
+Interactive `base` keeps compilers and session tools (scientists compile in
+webterm/vscode). CUDA and heavy science stacks still belong in user pixi/uv
+projects. Slim `ray-base` (workers only) stays minimal — see [RAY.md](RAY.md).
 
 ## Local build and test
 
@@ -79,9 +81,9 @@ astroai-lab doctor
 uv run python -c "print('ok')"
 ```
 
-## Refresh the vendored `astroai-lab` lock
+## Refresh the `astroai-lab` lock
 
-Images install astroai-lab from a pip lockfile, not PyPI:
+Images install astroai-lab from a pip lockfile (git SHA pin), not a local vendor tree:
 
 ```bash
 cd ../astroai-lab
@@ -166,7 +168,7 @@ gh pr create --fill
 ```
 
 Keep PRs focused. Do not commit Harbor credentials, `.env` secrets, personal API
-keys, or large binary artifacts unrelated to the vendored wheel.
+keys, or large binary artifacts unrelated to image build context.
 
 ### Checklist
 

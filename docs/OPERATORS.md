@@ -92,11 +92,12 @@ entrypoint, ask the science-platform team for a per-image override that sets
 
 ## Science Portal checklist
 
-1. Push `images.canfar.net/astroai/*:<tag>`.
-2. Register Contributed: `webterm`, `vscode`, `marimo`, `ray-manager` → port **5000**.
+1. Push `images.canfar.net/astroai/*:<tag>` (sessions + Ray).
+2. Register Contributed: `webterm`, `vscode`, `marimo`, `openresearch`, `ray-manager` → port **5000**.
 3. Register Notebook: `notebook` → port **8888**.
-4. Leave `base` and `ray-worker` off the interactive catalog.
+4. Leave `base`, `ray-base`, and `ray-worker` off the interactive catalog.
 5. Document the published tag for users (`YY.MM`).
+6. Smoke: `make test-canfar-session IMAGE=webterm TAG=…`, `IMAGE=openresearch`, and `make test-canfar-ray TAG=…`.
 
 ## Local smoke
 

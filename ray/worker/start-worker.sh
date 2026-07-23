@@ -60,6 +60,18 @@ fi
 
 mkdir -p "${RAY_SPILL_DIR}"
 
+# Optional: restore a saved env from /arc before joining (project code on workers).
+# Set ASTROAI_LAB_RESUME=<save-name> and optionally ASTROAI_LAB_RESUME_FROM=<dir>.
+if [[ -n "${ASTROAI_LAB_RESUME:-}" ]] && command -v astroai-lab >/dev/null 2>&1; then
+    _resume_args=(resume "${ASTROAI_LAB_RESUME}" --yes)
+    if [[ -n "${ASTROAI_LAB_RESUME_FROM:-}" ]]; then
+        _resume_args+=(--from "${ASTROAI_LAB_RESUME_FROM}")
+    fi
+    echo "Resuming env ${ASTROAI_LAB_RESUME} before Ray join..."
+    (cd "$(astroai_src_dir 2>/dev/null || echo /srcdir)" && astroai-lab "${_resume_args[@]}") \
+        || echo "WARN: astroai-lab resume failed — continuing with image Ray venv" >&2
+fi
+
 worker_ip="$(hostname -i | awk '{print $1}')"
 echo "Worker ${worker_ip} joining ${RAY_HEAD_IP}:${RAY_HEAD_PORT} (cluster ${RAY_CLUSTER_ID})"
 

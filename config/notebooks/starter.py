@@ -41,7 +41,8 @@ Welcome. Marimo notebooks are plain **`.py` files** — easy to git and review.
 
 1. Keep notebooks under `TMP_SRC_DIR/notebooks` (this directory).
 2. Put big files on `/scratch` or `/arc/projects` — never fill `/arc/home` with caches.
-3. Before the session ends, push code and copy results to `/arc/projects` or `vos:`.
+3. `/scratch` is **session-private** — other sessions cannot see it; share via `/arc/projects` or home.
+4. Before the session ends, push code and copy results to `/arc/projects` or `vos:`.
 
 ### Open an existing project
 

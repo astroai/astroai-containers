@@ -121,7 +121,7 @@ RUN uv venv /opt/astroai/venv/cadc \
     && HOME=/tmp ASTROAI_LAB_DEFAULT_SRC_DIR=/srcdir ASTROAI_LAB_DEFAULT_SCRATCH_DIR=/scratch \
        /opt/astroai/venv/cadc/bin/astroai-lab env export --no-ensure >/dev/null
 
-COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh scripts/lib/astroai-load.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
+COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
 COPY scripts/canfar-verify.sh scripts/canfar-verify-agents.sh scripts/bootstrap-canfar-registry.sh scripts/upgrade-cadc-tools.sh scripts/peek /opt/astroai/bin/
 RUN chmod a+rx /opt/astroai/bin/* /opt/astroai/lib/* \
     && ln -sf /opt/astroai/bin/peek /usr/local/bin/peek

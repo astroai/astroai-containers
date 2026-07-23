@@ -23,6 +23,7 @@ flowchart TB
 |------|-----|
 | Stock **Ray Dashboard** at `connectURL/dashboard/` | Jobs, actors, nodes, logs |
 | Manager control panel at `/` | Auth, preflight, create/stop cluster |
+| `astroai-lab ray guide` / `ray status` | Launch cheat sheet + local cluster state |
 | [`astroai-workload`](https://github.com/astroai/astroai-workload) or Dashboard Jobs | Submit training entrypoints |
 | One `ray-worker` image | Request `gpus=N` per worker; CPU and GPU share the image |
 
@@ -33,11 +34,21 @@ every node. Persist cluster state under `/arc/home/<user>/` or
 
 ## Images
 
-| Image | Skaha type | Portal |
-|-------|------------|--------|
-| `ray-manager` | Contributed | Register — users launch this |
-| `ray-worker` | Headless | Manager launches workers |
-| `ray-base` | Build-only | Parent with Python 3.12 Ray venv |
+| Image | Skaha type | Portal | Parent |
+|-------|------------|--------|--------|
+| `ray-manager` | Contributed | Register — users launch this | Fat `base` (compilers + shell tools) |
+| `ray-worker` | Headless | Manager launches workers | Slim `ray-base` (from `python`) |
+| `ray-base` | Build-only | — | Minimal apt + `astroai-lab` + Ray |
+
+Workers can optionally restore an env save from `/arc` before joining:
+
+```bash
+# set by manager env or headless create --env
+ASTROAI_LAB_RESUME=mylab
+ASTROAI_LAB_RESUME_FROM=/arc/projects/mygroup/env-saves   # optional
+```
+
+Default saves: `~/.astroai/lab/saves/`. `/scratch` is **per-pod** — not shared with the manager or other sessions; put shared data on `/arc`.
 
 ## Build and test
 
@@ -63,6 +74,7 @@ From any AstroAI session (webterm/vscode):
 
 ```bash
 canfar login
+canfar create --name raymgr contributed images.canfar.net/astroai/ray-manager:26.07
 ```
 
 Credentials persist as `~/.canfar/config.yaml` (and optionally
