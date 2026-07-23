@@ -23,18 +23,16 @@ jobs:
           python-version: "3.12"
 
       - name: Sync manager project (runtime + dev deps)
-        working-directory: astroai-containers/ray/manager
+        working-directory: ray/manager
         run: uv sync --group dev --quiet
 
       - name: Ruff
-        working-directory: astroai-containers/ray/manager
+        working-directory: ray/manager
         run: uv run ruff check .
 
       - name: Pytest (ray-manager unit tests)
-        working-directory: astroai-containers
-        run: |
-          cd ray/manager
-          uv run pytest tests/ -q
+        working-directory: ray/manager
+        run: uv run pytest tests/ -q
 
       # Hard-fail on lockfile drift: this is the safety net for the maintainer's
       # lower-bound-only source constraints (no `==` / `<=` pins anywhere). Do
@@ -47,9 +45,7 @@ jobs:
         # up clean even if the runner is killed mid-script. If this step ever
         # passes-with-drift, the gate below has been weakened and MUST be
         # re-hardened.
-        working-directory: astroai-containers
         run: ./scripts/test-lockfile-drift.sh
 
       - name: Lockfile integrity — DO NOT add continue-on-error — make -s lock-check
-        working-directory: astroai-containers
         run: make -s lock-check
