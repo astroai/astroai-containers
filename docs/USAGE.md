@@ -20,6 +20,15 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
 4. Persist to `/arc/home` or `/arc/projects` before the session ends (`save` / `data sync` / `push`).
 5. Hourly backup: `/srcdir` → `~/.astroai/lab/backups/<session>/` (`astroai-lab backup status`).
 
+### Agents wizard (openresearch / openworker only)
+
+1. Launch **`openresearch`** or **`openworker`** (not webterm/vscode/notebook).
+2. Open the session connect URL, then either:
+   - click the blue **AstroAI Agents** button (top-right), or
+   - append `/astroai-agents/` to the connect URL  
+     (e.g. `…/session/contrib/<id>/astroai-agents/`).
+3. On other images use the CLI instead: `astroai-lab agent setup` / `agent status`.
+
 ```bash
 canfar login
 canfar create --name myterm contributed images.canfar.net/astroai/webterm:26.07

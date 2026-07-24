@@ -50,11 +50,11 @@ ABS_PREFIXES = ("/api/", "/assets/", "/favicon", "/astroai-agents")
 # Agents + session resources (RAM/CPU/GPU/scratch/home)
 AGENTS_CHIP = (
     '<a id="astroai-agents-chip" href="{href}" '
-    'style="position:fixed;right:12px;bottom:12px;z-index:2147483646;'
-    "padding:8px 12px;border-radius:8px;background:#1a2332;color:#e7ecf3;"
-    "font:600 13px/1.2 system-ui,sans-serif;text-decoration:none;"
-    'border:1px solid #2a3548;box-shadow:0 4px 16px rgba(0,0,0,.35)">'
-    "Agents / Resources</a>"
+    'style="position:fixed;right:16px;top:16px;z-index:2147483646;'
+    "padding:10px 14px;border-radius:8px;background:#3d8bfd;color:#fff;"
+    "font:600 14px/1.2 system-ui,sans-serif;text-decoration:none;"
+    'border:1px solid #5aa0ff;box-shadow:0 4px 16px rgba(0,0,0,.4)">'
+    "AstroAI Agents</a>"
 )
 
 

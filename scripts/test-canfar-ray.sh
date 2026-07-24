@@ -154,7 +154,8 @@ elif [[ -n "${CANFAR_TOKEN:-}" ]]; then
 fi
 
 api_curl() {
-    curl -fsS "${curl_auth[@]}" "$@"
+    # Bound hung ingress proxies so smoke tests cannot stall forever on HTML/API.
+    curl -fsS --max-time "${CANFAR_CURL_MAX_TIME:-120}" "${curl_auth[@]}" "$@"
 }
 
 dump_persisted_worker_logs() {
