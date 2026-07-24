@@ -14,25 +14,30 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
 
 ## Scientist card
 
-1. Portal → launch **webterm**, **vscode**, **notebook**, **marimo**, **openresearch**, **openworker**, or **ray-manager**.
+1. Portal → launch **openresearch** or **openworker** as your day-to-day home base (or webterm/vscode/notebook/marimo/ray-manager as needed).
 2. Inside: `astroai-lab` · `astroai-lab guide` · `less /opt/astroai/USAGE.md`
 3. Work under `/srcdir` (code) and `/scratch` (data/caches).
 4. Persist to `/arc/home` or `/arc/projects` before the session ends (`save` / `data sync` / `push`).
 5. Hourly backup: `/srcdir` → `~/.astroai/lab/backups/<session>/` (`astroai-lab backup status`).
 
-### Agents wizard (openresearch / openworker only)
+### Home base: Agents · CANFAR · Ray (openresearch / openworker)
 
-1. Launch **`openresearch`** or **`openworker`** (not webterm/vscode/notebook).
-2. Open the session connect URL, then either:
-   - click the blue **AstroAI Agents** button (top-right), or
-   - append `/astroai-agents/` to the connect URL  
-     (e.g. `…/session/contrib/<id>/astroai-agents/`).
-3. On other images use the CLI instead: `astroai-lab agent setup` / `agent status`.
+1. Launch **`openresearch`** or **`openworker`** with tag `26.07` / `latest`.
+2. Open the connect URL, then either:
+   - click the blue **AstroAI** button (top-right), or
+   - append `/astroai-agents/` (e.g. `…/session/contrib/<id>/astroai-agents/`).
+3. In the hub:
+   - **Agents** — setup / verify / update coding CLIs on shared home
+   - **CANFAR** — auth + `canfar ps` (run `canfar login` once in **webterm** if needed)
+   - **Ray** — see manager heartbeats; copy the `canfar create …/ray-manager` command for large Jobs
+4. Ray control panel + Jobs live in the **ray-manager** session (separate Connect URL). Put shared batch I/O on `/arc` — `/scratch` is per-pod only.
+5. On other images use the CLI: `astroai-lab agent setup` · `astroai-lab ray guide` · `canfar ps`.
 
 ```bash
-canfar login
-canfar create --name myterm contributed images.canfar.net/astroai/webterm:26.07
+canfar login   # once, from webterm — persists under /arc/home
+canfar create --name orx contributed images.canfar.net/astroai/openresearch:26.07
 canfar open <session-id>
+# Hub: …/astroai-agents/
 ```
 
 ---
@@ -99,8 +104,8 @@ Compilers and editors are in interactive images; put CUDA/ML stacks in your pixi
 | `vscode` | OpenVSCode on `:5000` |
 | `marimo` | Reactive `.py` notebooks; starter seeded once under `/srcdir/notebooks` |
 | `notebook` | JupyterLab `:8888`. Stock Skaha may run platform Jupyter CMD — AstroAI `startup-notebook.sh` only with a platform override ([OPERATORS.md](OPERATORS.md)) |
-| `openresearch` | Autoresearch UI (`orx`) on `:5000`; Agents wizard at `/astroai-agents/` |
-| `openworker` | OpenWorker browser UI + local agent server on `:5000` (no Tauri); Agents wizard at `/astroai-agents/` |
+| `openresearch` | Autoresearch UI (`orx`) on `:5000`; AstroAI hub at `/astroai-agents/` (Agents · CANFAR · Ray) |
+| `openworker` | OpenWorker browser UI + local agent server on `:5000` (no Tauri); AstroAI hub at `/astroai-agents/` |
 | `ray-manager` | Cluster UI + Ray head; see Ray section |
 
 CADC clients (`cadcget`, `vls`, …) are on PATH from `/opt/astroai/venv/cadc`.

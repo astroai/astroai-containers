@@ -51,7 +51,7 @@ AGENTS_CHIP = (
     "padding:10px 14px;border-radius:8px;background:#3d8bfd;color:#fff;"
     "font:600 14px/1.2 system-ui,sans-serif;text-decoration:none;"
     'border:1px solid #5aa0ff;box-shadow:0 4px 16px rgba(0,0,0,.4)">'
-    "AstroAI Agents</a>"
+    "AstroAI</a>"
 )
 
 
