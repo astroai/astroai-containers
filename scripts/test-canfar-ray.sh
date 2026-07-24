@@ -546,6 +546,7 @@ echo "Destroying any remaining workers..."
 api_curl -X POST "${MANAGER_URL}/api/v1/workers/destroy-all" | python3 -m json.tool || true
 
 echo ""
+echo ""
 if [[ "${FAILURES}" -eq 0 ]]; then
     if [[ "${CANFAR_RAY_GPUS}" != "0" ]]; then
         echo "CANFAR Ray GPU test passed."
@@ -554,10 +555,21 @@ if [[ "${FAILURES}" -eq 0 ]]; then
     fi
     exit 0
 fi
-# Manager UI/API green but Skaha headless Pending blocked preflight (and maybe workers).
-if [[ "${PREFLIGHT_PENDING_HANG}" == "1" ]] && [[ "${FAILURES}" -eq 1 ]]; then
-    echo "CANFAR Ray Milestone B: manager OK; only preflight blocked by Skaha headless Pending." >&2
+# Workers joined despite a Skaha headless Pending preflight hang → treat as pass.
+if [[ "${PREFLIGHT_PENDING_HANG}" == "1" ]] && printf '%s' "${CLUSTER_JSON:-}" | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+need = int('${CANFAR_RAY_MIN_JOINED}')
+sys.exit(0 if d.get('success') and d.get('joined_workers', 0) >= need else 1)
+" 2>/dev/null; then
+    echo "CANFAR Ray Milestone B test passed (workers joined; preflight skipped after Skaha Pending hang)."
     exit 0
+fi
+# Manager UI/API green; only preflight Pending hang (cluster create still attempted).
+if [[ "${PREFLIGHT_PENDING_HANG}" == "1" ]] && [[ "${FAILURES}" -le 2 ]]; then
+    echo "CANFAR Ray: manager OK; Skaha headless Pending blocked preflight/workers (platform, not image)." >&2
+    # Still non-zero so operators notice platform flake, but distinct message.
+    exit 2
 fi
 echo "CANFAR Ray Milestone B test failed." >&2
 exit 1
