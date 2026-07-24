@@ -128,10 +128,11 @@ class CanfarOps:
 
     def _resolve_ids_by_name(self, *, name: str, replicas: int) -> list[str]:
         """Probe the session catalog when create returns no IDs."""
-        if replicas == 1:
-            expected = [name]
-        else:
-            expected = [f"{name}-{i}" for i in range(1, replicas + 1)]
+        expected = (
+            [name]
+            if replicas == 1
+            else [f"{name}-{i}" for i in range(1, replicas + 1)]
+        )
         found: dict[str, str] = {}
         for attempt in range(1, 7):
             try:
