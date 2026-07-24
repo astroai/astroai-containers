@@ -86,28 +86,67 @@ class CanfarOps:
         merged_env = dict(registry_env)
         if env:
             merged_env.update(env)
+        create_error: Exception | None = None
+        ids: list[str] = []
         try:
-            ids = session.create(
-                name=name,
-                image=image,
-                cores=cores,
-                ram=ram,
-                gpu=gpu,
-                kind="headless",
-                cmd=cmd,
-                args=args,
-                env=merged_env or None,
-                replicas=replicas,
+            ids = list(
+                session.create(
+                    name=name,
+                    image=image,
+                    cores=cores,
+                    ram=ram,
+                    gpu=gpu,
+                    kind="headless",
+                    cmd=cmd,
+                    args=args,
+                    env=merged_env or None,
+                    replicas=replicas,
+                )
+                or []
             )
-        except Exception as exc:  # noqa: BLE001 — surface CANFAR API errors
-            raise RuntimeError(str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001 — Skaha may still accept the session
+            create_error = exc
+            ids = []
+
         if not ids:
-            raise RuntimeError("CANFAR session create returned no session ID")
+            # Client timeout / empty ID list is common on slow pulls; Skaha often
+            # still accepted the create. Resolve by exact name (and replica suffixes).
+            ids = self._resolve_ids_by_name(name=name, replicas=replicas)
+        if not ids:
+            detail = f" ({create_error})" if create_error else ""
+            raise RuntimeError(
+                f"CANFAR session create returned no session ID{detail}"
+            ) from create_error
+
         launches: list[SessionLaunch] = []
         for idx, session_id in enumerate(ids):
             worker_name = name if replicas == 1 else f"{name}-{idx + 1}"
-            launches.append(SessionLaunch(session_id=session_id.strip(), name=worker_name))
+            launches.append(
+                SessionLaunch(session_id=str(session_id).strip(), name=worker_name)
+            )
         return launches
+
+    def _resolve_ids_by_name(self, *, name: str, replicas: int) -> list[str]:
+        """Probe the session catalog when create returns no IDs."""
+        if replicas == 1:
+            expected = [name]
+        else:
+            expected = [f"{name}-{i}" for i in range(1, replicas + 1)]
+        found: dict[str, str] = {}
+        for attempt in range(1, 7):
+            try:
+                rows = self._session.fetch(view="all")
+            except Exception:  # noqa: BLE001 — catalog race; retry
+                rows = []
+            for row in rows or []:
+                row_name = str(row.get("name") or "")
+                row_id = str(row.get("id") or "").strip()
+                if row_name in expected and row_id:
+                    found[row_name] = row_id
+            if len(found) >= replicas:
+                break
+            time.sleep(attempt * 2)
+        return [found[n] for n in expected if n in found]
 
     def list_headless_sessions(self, *, name_prefix: str) -> list[dict[str, Any]]:
         rows = self._session.fetch(kind="headless", view="all")

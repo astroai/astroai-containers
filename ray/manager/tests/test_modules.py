@@ -300,10 +300,27 @@ class TestCanfarOpsCreateHeadless:
                     mock_sess = MagicMock()
                     mock_sess.create.return_value = []
                     mock_new.return_value = mock_sess
+                    with patch.object(ops, "_resolve_ids_by_name", return_value=[]):
+                        with pytest.raises(RuntimeError, match="no session ID"):
+                            ops.create_headless(name="x", image="img")
 
-                    with pytest.raises(RuntimeError, match="no session ID"):
-                        ops.create_headless(name="x", image="img")
-
+    def test_create_empty_recovers_via_name_probe(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ops = CanfarOps()
+        with patch("canfar_ops._registry_configured", return_value=True):
+            with patch("canfar_ops._registry_env", return_value={}):
+                with patch.object(ops, "_fresh_session") as mock_new:
+                    mock_sess = MagicMock()
+                    mock_sess.create.return_value = []
+                    mock_new.return_value = mock_sess
+                    with patch.object(
+                        ops, "_resolve_ids_by_name", return_value=["recovered-sid"]
+                    ) as probe:
+                        results = ops.create_headless(name="ray-w-test", image="img")
+                    assert len(results) == 1
+                    assert results[0].session_id == "recovered-sid"
+                    probe.assert_called_once_with(name="ray-w-test", replicas=1)
 
 class TestCanfarOpsWaitForStatus:
     def test_reaches_target(self, monkeypatch: pytest.MonkeyPatch) -> None:
