@@ -237,7 +237,7 @@ echo "HTTP ${HTTP_CODE} from connect URL"
 
 case "${HTTP_CODE}" in
     200|301|302|303|307|308)
-        echo "CANFAR ${KIND} session smoke passed for ${FULL_IMAGE}."
+        echo "Root connect URL healthy (${HTTP_CODE})."
         ;;
     *)
         echo "HTTP check failed (${HTTP_CODE})." >&2
@@ -245,5 +245,39 @@ case "${HTTP_CODE}" in
         FAILURES=$((FAILURES + 1))
         ;;
 esac
+
+# openresearch / openworker: AstroAI hub at /astroai-agents/
+if [[ "${FAILURES}" -eq 0 && ( "${IMAGE}" == "openresearch" || "${IMAGE}" == "openworker" ) ]]; then
+    BASE="${URL%/}"
+    HUB_HTML="$(mktemp)"
+    HUB_JSON="$(mktemp)"
+    hub_code="$(curl -sk -o "${HUB_HTML}" -w '%{http_code}' --max-time 30 "${BASE}/astroai-agents/" || true)"
+    echo "Hub HTML HTTP ${hub_code}"
+    if [[ "${hub_code}" != "200" ]] || ! grep -qi 'AstroAI' "${HUB_HTML}"; then
+        echo "AstroAI hub page check failed." >&2
+        FAILURES=$((FAILURES + 1))
+    fi
+    if ! curl -sk --max-time 20 "${URL}" | grep -q 'astroai-agents-chip'; then
+        echo "AstroAI chip missing from root HTML." >&2
+        FAILURES=$((FAILURES + 1))
+    fi
+    report_code="$(curl -sk -o "${HUB_JSON}" -w '%{http_code}' --max-time 90 "${BASE}/astroai-agents/api/report" || true)"
+    echo "Hub /api/report HTTP ${report_code}"
+    if [[ "${report_code}" != "200" ]] || ! python3 -c "import json; json.load(open('${HUB_JSON}'))" 2>/dev/null; then
+        echo "Hub /api/report check failed." >&2
+        FAILURES=$((FAILURES + 1))
+    fi
+    platform_code="$(curl -sk -o "${HUB_JSON}" -w '%{http_code}' --max-time 60 "${BASE}/astroai-agents/api/platform" || true)"
+    echo "Hub /api/platform HTTP ${platform_code}"
+    if [[ "${platform_code}" != "200" ]] || ! python3 -c "import json; d=json.load(open('${HUB_JSON}')); assert 'ray' in d and 'canfar' in d" 2>/dev/null; then
+        echo "Hub /api/platform check failed." >&2
+        FAILURES=$((FAILURES + 1))
+    fi
+    rm -f "${HUB_HTML}" "${HUB_JSON}"
+fi
+
+if [[ "${FAILURES}" -eq 0 ]]; then
+    echo "CANFAR ${KIND} session smoke passed for ${FULL_IMAGE}."
+fi
 
 exit ${FAILURES}

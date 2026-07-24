@@ -10,35 +10,44 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import traceback
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 PORT = int(os.environ.get("ASTROAI_AGENT_WIZARD_PORT", "4792"))
 CLI_TIMEOUT = int(os.environ.get("ASTROAI_AGENT_WIZARD_CLI_TIMEOUT", "600"))
+# Hub platform probes must stay snappy — full `astroai-lab status` can hang on
+# VOSpace/GMS; prefer short canfar + ray probes in parallel instead.
+PLATFORM_CANFAR_TIMEOUT = int(os.environ.get("ASTROAI_HUB_CANFAR_TIMEOUT", "12"))
+PLATFORM_RAY_TIMEOUT = int(os.environ.get("ASTROAI_HUB_RAY_TIMEOUT", "30"))
 HOME = Path.home()
 
 
-def _run_lab(args: list[str], *, timeout: int | None = None) -> tuple[int, str, str]:
-    cmd = ["astroai-lab", *args]
+def _run_cmd(cmd: list[str], *, timeout: int) -> tuple[int, str, str]:
     try:
         proc = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=timeout or CLI_TIMEOUT,
+            timeout=timeout,
             env=os.environ.copy(),
         )
         return proc.returncode, proc.stdout or "", proc.stderr or ""
     except FileNotFoundError:
-        return 127, "", "astroai-lab not found on PATH"
+        return 127, "", f"{cmd[0]} not found on PATH"
     except subprocess.TimeoutExpired:
-        return 124, "", f"timed out after {timeout or CLI_TIMEOUT}s"
+        return 124, "", f"timed out after {timeout}s"
     except OSError as exc:
         return 1, "", str(exc)
+
+
+def _run_lab(args: list[str], *, timeout: int | None = None) -> tuple[int, str, str]:
+    return _run_cmd(["astroai-lab", *args], timeout=timeout or CLI_TIMEOUT)
 
 
 def _parse_json_stdout(stdout: str) -> object | None:
@@ -70,7 +79,7 @@ def _log_tail(n: int = 40) -> str:
 
 
 def _platform_payload() -> dict:
-    """Merge status + ray status for the hub CANFAR / Ray panels."""
+    """CANFAR + Ray panels via short parallel probes (not full lab status)."""
     tag = os.environ.get("RAY_IMAGE_TAG") or os.environ.get("BUILD_TAG") or "26.07"
     out: dict = {
         "ok": True,
@@ -79,23 +88,53 @@ def _platform_payload() -> dict:
         "canfar": {"auth": None, "sessions": [], "available": False},
         "ray": {},
     }
-    rc, stdout, err = _run_lab(["--json", "status"], timeout=90)
-    status = _parse_json_stdout(stdout)
-    if isinstance(status, dict):
-        out["canfar"] = {
-            "available": True,
-            "auth": status.get("canfar_auth"),
-            "sessions": status.get("canfar_sessions") or [],
-            "resources": status.get("resources"),
-        }
-        out["status_cli_exit"] = rc
-    else:
-        out["canfar"]["error"] = err or stdout or "status failed"
-        out["ok"] = False
 
-    rc2, stdout2, err2 = _run_lab(["--json", "ray", "status"], timeout=60)
-    ray = _parse_json_stdout(stdout2)
-    if isinstance(ray, dict):
+    def _canfar() -> dict:
+        if shutil.which("canfar") is None:
+            return {
+                "available": False,
+                "auth": None,
+                "sessions": [],
+                "error": "canfar CLI not on PATH",
+            }
+        rc_a, out_a, err_a = _run_cmd(
+            ["canfar", "auth", "show"], timeout=PLATFORM_CANFAR_TIMEOUT
+        )
+        auth = (out_a or err_a or "").strip() or None
+        if rc_a == 124:
+            auth = f"canfar auth show timed out after {PLATFORM_CANFAR_TIMEOUT}s"
+        elif rc_a != 0 and not auth:
+            auth = "Not authenticated"
+        rc_p, out_p, err_p = _run_cmd(["canfar", "ps"], timeout=PLATFORM_CANFAR_TIMEOUT)
+        sessions: list[str] = []
+        ps_err = None
+        if rc_p == 0:
+            sessions = [ln for ln in (out_p or "").splitlines() if ln.strip()]
+        elif rc_p == 124:
+            ps_err = f"canfar ps timed out after {PLATFORM_CANFAR_TIMEOUT}s"
+        else:
+            ps_err = (err_p or out_p or "canfar ps failed")[:300]
+        payload: dict = {"available": True, "auth": auth, "sessions": sessions}
+        if ps_err:
+            payload["error"] = ps_err
+        return payload
+
+    def _ray() -> tuple[int, dict | None, str]:
+        rc2, stdout2, err2 = _run_lab(
+            ["--json", "ray", "status"], timeout=PLATFORM_RAY_TIMEOUT
+        )
+        ray = _parse_json_stdout(stdout2)
+        if isinstance(ray, dict):
+            return rc2, ray, ""
+        return rc2, None, err2 or stdout2 or "ray status failed"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut_c = pool.submit(_canfar)
+        fut_r = pool.submit(_ray)
+        out["canfar"] = fut_c.result()
+        rc2, ray, ray_err = fut_r.result()
+
+    if ray is not None:
         out["ray"] = ray
         out["ray_cli_exit"] = rc2
     else:
@@ -105,9 +144,11 @@ def _platform_payload() -> dict:
                 "canfar create --name raymgr --cpu 2 --memory 8 contributed "
                 f"images.canfar.net/astroai/ray-manager:{tag}"
             ),
-            "error": err2 or stdout2 or "ray status failed",
+            "error": ray_err,
         }
         out["ok"] = False
+    if out["canfar"].get("error") and not out["canfar"].get("sessions"):
+        out["canfar_soft_fail"] = True
     return out
 
 
@@ -301,10 +342,13 @@ function renderRay(r) {
 }
 async function refresh() {
   setMsg('Loading…');
-  const [rep, plat] = await Promise.all([api('api/report'), api('api/platform')]);
+  document.getElementById('canfar').innerHTML = '<span class="sub">Loading CANFAR…</span>';
+  document.getElementById('ray').innerHTML = '<span class="sub">Loading Ray…</span>';
+  // Agents report first so the hub is usable while platform probes finish.
+  const rep = await api('api/report');
   const data = rep.data || {};
   const setup = (data.setup || {});
-  document.getElementById('resources').innerHTML = renderResources(data.resources || (plat.data.canfar||{}).resources);
+  document.getElementById('resources').innerHTML = renderResources(data.resources || {});
   document.getElementById('setup-state').innerHTML =
     `<p>OK: ${yn(!!data.ok)} · needs retry: ${yn(!!setup.needs_retry)}</p>` +
     `<p>Stamp: <code class="inline">${esc(setup.stamp || '(never)')}</code></p>` +
@@ -318,6 +362,8 @@ async function refresh() {
     ? `<ul>${issues.map(i => `<li class="warn">${esc(i)}</li>`).join('')}</ul>`
     : '<span class="ok">No verify issues</span>';
   document.getElementById('log').textContent = data.log_tail || '(empty)';
+  setMsg('Refreshing CANFAR / Ray…');
+  const plat = await api('api/platform');
   document.getElementById('canfar').innerHTML = renderCanfar((plat.data||{}).canfar);
   document.getElementById('ray').innerHTML = renderRay((plat.data||{}).ray);
   const copyBtn = document.getElementById('btn-copy-ray');
