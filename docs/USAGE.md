@@ -27,9 +27,11 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
    - click the blue **AstroAI** button (top-right), or
    - append `/astroai-agents/` (e.g. `…/session/contrib/<id>/astroai-agents/`).
 3. In the hub:
+   - **← Back to OpenResearch / OpenWorker** returns to the main UI (or strip `/astroai-agents/` from the URL)
    - **Agents** — setup / verify / update coding CLIs on shared home
-   - **CANFAR** — auth + `canfar ps` (run `canfar login` once in **webterm** if needed)
-   - **Ray** — see manager heartbeats; copy the `canfar create …/ray-manager` command for large Jobs
+   - **Lean addons / Free models** — lists what will be installed, then Apply shows results
+   - **CANFAR sessions** — auth + `canfar ps` (your sessions, not Ray Jobs; `canfar login` once in **webterm** if needed)
+   - **Ray** — manager heartbeats; copy the `canfar create …/ray-manager` command for large Jobs
 4. Ray control panel + Jobs live in the **ray-manager** session (separate Connect URL). Put shared batch I/O on `/arc` — `/scratch` is per-pod only.
 5. On other images use the CLI: `astroai-lab agent setup` · `astroai-lab ray guide` · `canfar ps`.
 

@@ -158,6 +158,8 @@ astroai-lab agent status
 astroai-lab agent verify
 astroai-lab --yes agent setup
 astroai-lab agent install kilo
+astroai-lab agent addons --tag lean
+astroai-lab agent models free
 
 # CANFAR (interactive login needs webterm)
 canfar auth show
@@ -170,105 +172,255 @@ astroai-lab ray status
 # Put shared batch I/O on /arc — /scratch is per-pod only
 """
 
+SESSION_KIND = (os.environ.get("ASTROAI_SESSION_KIND") or "").strip().lower()
+BACK_UI_LABEL = {
+    "openresearch": "OpenResearch",
+    "openworker": "OpenWorker",
+}.get(SESSION_KIND, "main UI")
+
 INDEX_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>AstroAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&family=Sora:wght@500;600;700&display=swap" rel="stylesheet"/>
 <style>
   :root {
-    --bg: #0f1419;
-    --panel: #1a2332;
-    --text: #e7ecf3;
-    --muted: #8b9bb4;
-    --accent: #3d8bfd;
-    --ok: #3dd68c;
-    --warn: #f5a524;
-    --err: #f31260;
-    --border: #2a3548;
+    --bg: #0a1014;
+    --bg2: #122018;
+    --ink: #e8f0ea;
+    --muted: #8aa094;
+    --line: #24332a;
+    --teal: #2ec4b6;
+    --teal-dim: #1a8f84;
+    --sky: #9ec9ff;
+    --ok: #5dde9a;
+    --warn: #e6b84d;
+    --err: #ff6b7a;
+    --panel: rgba(16, 28, 22, 0.72);
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-    background: radial-gradient(1200px 600px at 10% -10%, #1b2a44, var(--bg));
-    color: var(--text); min-height: 100vh; padding: 1.5rem;
+    margin: 0;
+    min-height: 100vh;
+    color: var(--ink);
+    font-family: "Source Sans 3", "Segoe UI", sans-serif;
+    background:
+      radial-gradient(900px 480px at 8% -8%, rgba(46,196,182,.18), transparent 55%),
+      radial-gradient(700px 420px at 92% 0%, rgba(158,201,255,.10), transparent 50%),
+      linear-gradient(165deg, var(--bg2), var(--bg) 42%, #070c0f);
+    padding: clamp(1rem, 3vw, 2.25rem);
   }
-  h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 .25rem; letter-spacing: -.02em; }
-  .sub { color: var(--muted); margin-bottom: 1.25rem; max-width: 48rem; }
-  .row { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: 1rem; }
-  button {
-    background: var(--accent); color: #fff; border: 0; border-radius: 6px;
-    padding: .55rem .9rem; font: inherit; cursor: pointer;
+  .wrap { max-width: 72rem; margin: 0 auto; }
+  .top {
+    display: flex; flex-wrap: wrap; align-items: flex-start;
+    justify-content: space-between; gap: 1rem 1.5rem;
+    margin-bottom: 1.25rem;
+    animation: rise .45s ease both;
   }
-  button.secondary { background: var(--panel); border: 1px solid var(--border); }
-  button:disabled { opacity: .5; cursor: wait; }
-  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-  section {
-    background: color-mix(in srgb, var(--panel) 88%, transparent);
-    border: 1px solid var(--border); border-radius: 10px; padding: 1rem;
+  .back {
+    display: inline-flex; align-items: center; gap: .4rem;
+    color: var(--sky); text-decoration: none; font-weight: 600;
+    font-size: .95rem; border-bottom: 1px solid transparent;
+    transition: border-color .2s ease, color .2s ease;
   }
-  h2 { font-size: .95rem; margin: 0 0 .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-  td, th { text-align: left; padding: .35rem .25rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .back:hover { border-color: var(--sky); color: #cfe4ff; }
+  .brand h1 {
+    font-family: Sora, "Source Sans 3", sans-serif;
+    font-size: clamp(2rem, 4.5vw, 2.75rem);
+    font-weight: 700; letter-spacing: -.03em;
+    margin: .15rem 0 .35rem; line-height: 1.05;
+  }
+  .brand .tag {
+    display: inline-block; color: var(--teal);
+    font-family: Sora, sans-serif; font-weight: 600;
+    font-size: .78rem; letter-spacing: .12em; text-transform: uppercase;
+  }
+  .lede {
+    color: var(--muted); max-width: 36rem; margin: 0;
+    font-size: 1.05rem; line-height: 1.45;
+  }
+  .actions {
+    display: flex; flex-wrap: wrap; gap: .55rem;
+    margin: 0 0 1rem; animation: rise .5s .05s ease both;
+  }
+  button, .btn {
+    font: 600 .92rem/1 Sora, "Source Sans 3", sans-serif;
+    border: 0; border-radius: 8px; padding: .65rem 1rem;
+    cursor: pointer; color: #04221f; background: var(--teal);
+    transition: transform .15s ease, filter .15s ease, background .15s ease;
+  }
+  button:hover, .btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  button.secondary, .btn.secondary {
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--line);
+  }
+  button:disabled { opacity: .5; cursor: wait; transform: none; filter: none; }
+  #msg {
+    min-height: 1.25rem; margin: 0 0 1rem; color: var(--muted);
+    font-size: .95rem; animation: rise .5s .08s ease both;
+  }
+  #msg.ok { color: var(--ok); } #msg.warn { color: var(--warn); } #msg.bad { color: var(--err); }
+  .grid {
+    display: grid; gap: 1.25rem;
+    grid-template-columns: repeat(12, 1fr);
+    animation: rise .55s .1s ease both;
+  }
+  section.panel {
+    grid-column: span 6;
+    padding: 1.1rem 1.15rem 1.2rem;
+    border-top: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(255,255,255,.02), transparent 40%);
+  }
+  section.panel.wide { grid-column: span 12; }
+  @media (max-width: 860px) {
+    section.panel, section.panel.wide { grid-column: span 12; }
+  }
+  h2 {
+    font-family: Sora, sans-serif;
+    font-size: .72rem; font-weight: 600; margin: 0 0 .85rem;
+    color: var(--muted); letter-spacing: .14em; text-transform: uppercase;
+  }
+  h2 .hint {
+    display: block; margin-top: .35rem; letter-spacing: 0; text-transform: none;
+    font-family: "Source Sans 3", sans-serif; font-weight: 400; font-size: .88rem;
+    color: var(--muted); line-height: 1.35; max-width: 40rem;
+  }
+  p { margin: .35rem 0; }
+  .sub { color: var(--muted); font-size: .9rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  th, td { text-align: left; padding: .4rem .2rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .8rem; }
   .ok { color: var(--ok); } .bad { color: var(--err); } .warn { color: var(--warn); }
-  pre, code {
-    background: #0b1018; border: 1px solid var(--border); border-radius: 8px;
-    padding: .75rem; overflow: auto; max-height: 220px; font-size: .78rem;
-    color: #c5d0e0; white-space: pre-wrap;
+  pre, code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
   }
-  code.inline { padding: .15rem .35rem; max-height: none; }
-  #msg { min-height: 1.2rem; margin-bottom: .75rem; color: var(--muted); }
-  a { color: var(--accent); }
-  .copy { margin-top: .5rem; }
+  pre {
+    background: rgba(0,0,0,.28); border: 1px solid var(--line); border-radius: 8px;
+    padding: .75rem; overflow: auto; max-height: 220px; font-size: .76rem;
+    color: #c8d8cc; white-space: pre-wrap; margin: .5rem 0;
+  }
+  code.inline {
+    background: rgba(0,0,0,.28); border: 1px solid var(--line);
+    border-radius: 5px; padding: .12rem .35rem; font-size: .82rem;
+  }
+  ul.clean { margin: .4rem 0; padding-left: 1.1rem; }
+  ul.clean li { margin: .25rem 0; }
+  .result {
+    margin-top: .75rem; padding: .65rem .75rem; border-radius: 8px;
+    border: 1px dashed var(--line); color: var(--muted); font-size: .9rem;
+    white-space: pre-wrap;
+  }
+  .result.has { color: var(--ink); border-style: solid; border-color: rgba(46,196,182,.35); }
+  details.more {
+    margin-top: 1.25rem; border-top: 1px solid var(--line); padding-top: 1rem;
+    animation: rise .6s .12s ease both;
+  }
+  details.more summary {
+    cursor: pointer; font-family: Sora, sans-serif; font-weight: 600;
+    color: var(--muted); letter-spacing: .04em;
+  }
+  a { color: var(--sky); }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
 </style>
 </head>
 <body>
-  <h1>AstroAI</h1>
-  <p class="sub">Home base for agents, CANFAR sessions, and Ray batch work.
-  Shared state lives on <code class="inline">/arc/home</code>. The main UI keeps running if this hub fails.</p>
-  <div id="msg"></div>
-  <div class="row">
-    <button id="btn-refresh" class="secondary">Refresh</button>
-    <button id="btn-setup">Core setup</button>
-    <button id="btn-verify" class="secondary">Verify</button>
-    <button id="btn-update" class="secondary">Update</button>
-    <button id="btn-kilo" class="secondary">Install kilo</button>
-    <button id="btn-lean" class="secondary">Lean addons</button>
-    <button id="btn-models" class="secondary">Free models</button>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand">
+        <a class="back" id="back-link" href="../">← Back to __BACK_LABEL__</a>
+        <div class="tag">Agents · CANFAR · Ray</div>
+        <h1>AstroAI</h1>
+        <p class="lede">Status and setup for coding agents on shared <code class="inline">/arc/home</code> — not a chat UI. Your __BACK_LABEL__ session keeps running.</p>
+      </div>
+    </header>
+
+    <div class="actions">
+      <button id="btn-setup">Core setup</button>
+      <button id="btn-verify" class="secondary">Verify</button>
+      <button id="btn-update" class="secondary">Update</button>
+      <button id="btn-refresh" class="secondary">Refresh</button>
+    </div>
+    <div id="msg"></div>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Agents<span class="hint">CLI install status on this home — binary on PATH and config present.</span></h2>
+        <div id="setup-state">Loading…</div>
+        <div id="agents" style="margin-top:.75rem">Loading…</div>
+        <div id="issues" style="margin-top:.75rem"></div>
+        <div class="actions" style="margin-top:.9rem;margin-bottom:0">
+          <button id="btn-kilo" class="secondary">Install Kilo CLI</button>
+        </div>
+        <p class="sub">Kilo is an optional coding agent (<code class="inline">kilo auth</code> after install). Use agents from webterm / the main UI — this page only installs and verifies.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Session resources<span class="hint">This pod only — home quota is shared across sessions.</span></h2>
+        <div id="resources">Loading…</div>
+      </section>
+
+      <section class="panel">
+        <h2>Lean addons<span class="hint">Curated skills/rules (not agents). List loads below; Install applies the lean tag.</span></h2>
+        <div id="addons">Loading…</div>
+        <div class="actions" style="margin-top:.75rem;margin-bottom:0">
+          <button id="btn-lean" class="secondary">Install lean addons</button>
+        </div>
+        <div id="addons-result" class="result">No install run yet.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Free models<span class="hint">Writes free-tier presets into agent configs (Kilo / OpenRouter). Needs keys for some agents.</span></h2>
+        <div id="models">Loading…</div>
+        <div class="actions" style="margin-top:.75rem;margin-bottom:0">
+          <button id="btn-models" class="secondary">Apply free models</button>
+        </div>
+        <div id="models-result" class="result">No apply run yet.</div>
+      </section>
+
+      <section class="panel">
+        <h2>CANFAR sessions<span class="hint">Your interactive/headless sessions from <code class="inline">canfar ps</code> — not Ray Jobs or a full portal.</span></h2>
+        <div id="canfar">Loading…</div>
+      </section>
+
+      <section class="panel">
+        <h2>Ray<span class="hint">Large batch Jobs need a separate ray-manager session. Heartbeats live on shared home.</span></h2>
+        <div id="ray">Loading…</div>
+      </section>
+    </div>
+
+    <details class="more">
+      <summary>Shell cheat sheet &amp; setup log</summary>
+      <pre id="cheat">__CHEATSHEET__</pre>
+      <p class="sub"><code class="inline">canfar login</code> is interactive — run it once in webterm (same home).</p>
+      <h2 style="margin-top:1rem">Agent setup log</h2>
+      <pre id="log"></pre>
+    </details>
   </div>
-  <div class="grid">
-    <section>
-      <h2>Session resources</h2>
-      <div id="resources">Loading…</div>
-    </section>
-    <section>
-      <h2>Agents</h2>
-      <div id="setup-state">Loading…</div>
-      <div id="agents" style="margin-top:.75rem">Loading…</div>
-      <div id="issues" style="margin-top:.75rem"></div>
-    </section>
-    <section>
-      <h2>CANFAR</h2>
-      <div id="canfar">Loading…</div>
-    </section>
-    <section>
-      <h2>Ray (large Jobs)</h2>
-      <div id="ray">Loading…</div>
-    </section>
-    <section>
-      <h2>Shell cheat sheet</h2>
-      <pre id="cheat">""" + CHEATSHEET.replace("<", "&lt;") + """</pre>
-      <p class="sub" style="margin:0">Interactive <code class="inline">canfar login</code> needs webterm (same home).</p>
-    </section>
-  </div>
-  <section style="margin-top:1rem">
-    <h2>Agent setup log</h2>
-    <pre id="log"></pre>
-  </section>
 <script>
+const BACK_LABEL = __BACK_LABEL_JSON__;
 const base = (document.querySelector('base') && document.querySelector('base').href) ||
   (location.pathname.replace(/\\/?$/, '/') );
+function mainUiHref() {
+  const p = location.pathname;
+  const i = p.indexOf('/astroai-agents');
+  if (i >= 0) {
+    const root = p.slice(0, i);
+    return (root || '') + '/';
+  }
+  return '../';
+}
+(function initBack() {
+  const a = document.getElementById('back-link');
+  a.href = mainUiHref();
+  a.textContent = '← Back to ' + BACK_LABEL;
+})();
 async function api(path, opts) {
   const r = await fetch(base.replace(/\\/?$/, '/') + path.replace(/^\\//,''), opts);
   const text = await r.text();
@@ -281,13 +433,21 @@ function setMsg(t, cls) {
   el.textContent = t || '';
   el.className = cls || '';
 }
+function setResult(id, text, ok) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'result' + (text ? ' has' : '');
+  if (ok === true) el.classList.add('ok');
+  if (ok === false) el.classList.add('warn');
+}
 function yn(v) { return v ? '<span class="ok">yes</span>' : '<span class="bad">no</span>'; }
 function fmtPct(v) { return (v===null||v===undefined) ? '—' : (Math.round(v*10)/10) + '%'; }
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function renderResources(r) {
-  if (!r) return '<span class="warn">unavailable</span>';
+  if (!r || !Object.keys(r).length) return '<p class="sub">No resource snapshot yet — try Refresh after setup.</p>';
   const home = r.home || {};
   const scratch = r.scratch || {};
   const gpus = r.gpu || [];
@@ -302,16 +462,19 @@ function renderResources(r) {
   return html;
 }
 function renderCanfar(c) {
-  if (!c) return '<span class="warn">unavailable</span>';
-  if (c.error) return `<p class="warn">${esc(c.error)}</p>`;
-  let html = `<p>Auth: <code class="inline">${esc((c.auth||'').split('\\n')[0] || '(unknown)')}</code></p>`;
+  if (!c) return '<p class="warn">CANFAR probe unavailable.</p>';
+  let html = '<p class="sub">Useful to check auth and which sessions you already have open (quota). Ray Jobs and worker pods are managed in ray-manager, not here.</p>';
+  if (c.error && !(c.sessions||[]).length) {
+    html += `<p class="warn">${esc(c.error)}</p>`;
+  }
+  const authLine = ((c.auth||'').split('\\n')[0] || '').trim();
+  html += `<p>Auth: <code class="inline">${esc(authLine || '(unknown)')}</code></p>`;
   const sessions = c.sessions || [];
   if (!sessions.length) {
-    html += '<p class="sub">No sessions from <code class="inline">canfar ps</code> (or CLI missing).</p>';
+    html += '<p class="sub">No session list yet. If auth looks empty, open <strong>webterm</strong> (same home) and run <code class="inline">canfar login</code> once, then Refresh.</p>';
   } else {
     html += '<pre>' + esc(sessions.slice(0, 40).join('\\n')) + '</pre>';
   }
-  html += '<p class="sub">Login once in webterm: <code class="inline">canfar login</code> — credentials persist on /arc/home.</p>';
   return html;
 }
 function renderRay(r) {
@@ -329,22 +492,60 @@ function renderRay(r) {
   const launch = r.launch_command ||
     `canfar create --name raymgr --cpu 2 --memory 8 contributed images.canfar.net/astroai/ray-manager:${tag}`;
   html += `<p>Launch manager (Portal or CLI):</p><pre id="ray-launch">${esc(launch)}</pre>`;
-  html += '<button class="secondary copy" id="btn-copy-ray">Copy launch command</button>';
+  html += '<button class="secondary" id="btn-copy-ray">Copy launch command</button>';
   html += `<p class="sub">${esc(r.scratch_note || '/scratch is per-pod — share Jobs data on /arc.')}</p>`;
   html += '<p class="sub">Open the manager Connect URL for the control panel and Jobs dashboard.</p>';
   const clusters = (r.clusters || []).filter(c => c.heartbeat_present);
   if (clusters.length > 1) {
-    html += '<p>Heartbeats:</p><ul>' + clusters.map(c =>
+    html += '<p>Heartbeats:</p><ul class="clean">' + clusters.map(c =>
       `<li><code class="inline">${esc(c.cluster_id)}</code> age ${c.heartbeat_age_seconds??'—'}s` +
       (c.phase ? ` · ${esc(c.phase)}` : '') + '</li>').join('') + '</ul>';
   }
   return html;
 }
+function renderAddons(d) {
+  const rows = (d && d.addons) || [];
+  if (!rows.length) {
+    return '<p class="sub">No lean addons listed (bundle missing or CLI error).'
+      + (d && d.error ? ' ' + esc(d.error) : '') + '</p>';
+  }
+  return '<table><tr><th>Addon</th><th>In</th><th>Summary</th></tr>' +
+    rows.map(a => `<tr><td><code class="inline">${esc(a.id)}</code></td>` +
+      `<td>${a.installed ? '<span class="ok">yes</span>' : '<span class="bad">no</span>'}</td>` +
+      `<td class="sub">${esc(a.summary||'')}</td></tr>`).join('') + '</table>';
+}
+function renderModels(d) {
+  const presets = (d && d.presets) || {};
+  const names = Object.keys(presets);
+  if (!names.length) {
+    return '<p class="sub">No presets listed.'
+      + (d && d.error ? ' ' + esc(d.error) : '') + '</p>';
+  }
+  let html = '<table><tr><th>Preset</th><th>What it sets</th></tr>';
+  for (const name of names) {
+    const m = presets[name] || {};
+    html += `<tr><td><code class="inline">${esc(name)}</code></td>` +
+      `<td><strong>${esc(m.label||'')}</strong><br/><span class="sub">${esc(m.description||'')}</span>` +
+      (m.openrouter ? `<br/><span class="sub">OpenRouter: ${esc(m.openrouter)}</span>` : '') +
+      (m.kilo ? `<br/><span class="sub">Kilo: ${esc(m.kilo)}</span>` : '') +
+      `</td></tr>`;
+  }
+  html += '</table>';
+  html += '<p class="sub">Default apply uses preset <code class="inline">coding</code>. Set <code class="inline">OPENROUTER_API_KEY</code> for Goose/OpenCode/Codex free tiers; Kilo can sign in at kilo.ai.</p>';
+  return html;
+}
+async function refreshLists() {
+  const [add, mod] = await Promise.all([
+    api('api/addons?tag=lean'),
+    api('api/models'),
+  ]);
+  document.getElementById('addons').innerHTML = renderAddons(add.data || {});
+  document.getElementById('models').innerHTML = renderModels(mod.data || {});
+}
 async function refresh() {
   setMsg('Loading…');
   document.getElementById('canfar').innerHTML = '<span class="sub">Loading CANFAR…</span>';
   document.getElementById('ray').innerHTML = '<span class="sub">Loading Ray…</span>';
-  // Agents report first so the hub is usable while platform probes finish.
   const rep = await api('api/report');
   const data = rep.data || {};
   const setup = (data.setup || {});
@@ -355,13 +556,15 @@ async function refresh() {
     (setup.failed ? `<p class="warn">Failed: ${esc(setup.failed)}</p>` : '');
   const rows = (data.agents || []).map(a =>
     `<tr><td>${esc(a.agent)}</td><td>${yn(a.binary)}</td><td>${yn(a.config)}</td></tr>`).join('');
-  document.getElementById('agents').innerHTML =
-    `<table><tr><th>Agent</th><th>Binary</th><th>Config</th></tr>${rows}</table>`;
+  document.getElementById('agents').innerHTML = rows
+    ? `<table><tr><th>Agent</th><th>Binary</th><th>Config</th></tr>${rows}</table>`
+    : '<p class="sub">No agent report yet — run Core setup.</p>';
   const issues = data.issues || [];
   document.getElementById('issues').innerHTML = issues.length
-    ? `<ul>${issues.map(i => `<li class="warn">${esc(i)}</li>`).join('')}</ul>`
+    ? `<ul class="clean">${issues.map(i => `<li class="warn">${esc(i)}</li>`).join('')}</ul>`
     : '<span class="ok">No verify issues</span>';
   document.getElementById('log').textContent = data.log_tail || '(empty)';
+  await refreshLists();
   setMsg('Refreshing CANFAR / Ray…');
   const plat = await api('api/platform');
   document.getElementById('canfar').innerHTML = renderCanfar((plat.data||{}).canfar);
@@ -376,14 +579,23 @@ async function refresh() {
   }
   setMsg('');
 }
-async function action(path, label) {
+async function action(path, label, resultId) {
   document.querySelectorAll('button').forEach(b => b.disabled = true);
   setMsg(label + '…');
   try {
     const { data } = await api(path, { method: 'POST' });
-    setMsg((data.ok ? 'OK: ' : 'Done with issues: ') + (data.summary || data.error || ''), data.ok ? 'ok' : 'warn');
+    const summary = data.summary || data.error || '';
+    setMsg((data.ok ? 'OK: ' : 'Done with issues: ') + summary, data.ok ? 'ok' : 'warn');
+    if (resultId) {
+      const detail = Array.isArray(data.actions)
+        ? data.actions.map(a => typeof a === 'string' ? a :
+            `${a.id||''}: ${a.status||''}${a.detail ? ' — '+a.detail : ''}`).join('\\n')
+        : summary;
+      setResult(resultId, detail || summary || '(no detail)', !!data.ok);
+    }
   } catch (e) {
     setMsg(String(e), 'bad');
+    if (resultId) setResult(resultId, String(e), false);
   }
   document.querySelectorAll('button').forEach(b => b.disabled = false);
   await refresh();
@@ -392,15 +604,17 @@ document.getElementById('btn-refresh').onclick = () => refresh();
 document.getElementById('btn-setup').onclick = () => action('api/setup', 'Core setup');
 document.getElementById('btn-verify').onclick = () => action('api/verify', 'Verify');
 document.getElementById('btn-update').onclick = () => action('api/update', 'Update');
-document.getElementById('btn-kilo').onclick = () => action('api/install?tool=kilo', 'Install kilo');
-document.getElementById('btn-lean').onclick = () => action('api/add?tag=lean', 'Lean addons');
-document.getElementById('btn-models').onclick = () => action('api/models-free', 'Free models');
+document.getElementById('btn-kilo').onclick = () => action('api/install?tool=kilo', 'Install Kilo');
+document.getElementById('btn-lean').onclick = () => action('api/add?tag=lean', 'Install lean addons', 'addons-result');
+document.getElementById('btn-models').onclick = () => action('api/models-free', 'Apply free models', 'models-result');
 refresh();
-setInterval(refresh, 30000);
+setInterval(refresh, 45000);
 </script>
 </body>
 </html>
-"""
+""".replace("__BACK_LABEL__", BACK_UI_LABEL).replace(
+    "__BACK_LABEL_JSON__", json.dumps(BACK_UI_LABEL)
+).replace("__CHEATSHEET__", CHEATSHEET.replace("<", "&lt;"))
 
 
 FALLBACK_HTML = """<!DOCTYPE html>
@@ -472,6 +686,52 @@ class WizardHandler(BaseHTTPRequestHandler):
                 self._json(200, _platform_payload())
             except Exception as exc:  # noqa: BLE001
                 self._json(500, {"ok": False, "error": str(exc)})
+            return
+        if path == "/api/addons":
+            tag = (_qs.get("tag") or ["lean"])[0]
+            args = ["--json", "agent", "addons"]
+            if tag:
+                args.extend(["--tag", tag])
+            rc, out, err = _run_lab(args, timeout=60)
+            data = _parse_json_stdout(out)
+            if isinstance(data, list):
+                self._json(200, {"ok": rc == 0, "addons": data, "tag": tag, "cli_exit": rc})
+                return
+            if isinstance(data, dict) and "addons" in data:
+                data.setdefault("ok", rc == 0)
+                data.setdefault("tag", tag)
+                data["cli_exit"] = rc
+                self._json(200, data)
+                return
+            self._json(
+                200 if rc == 0 else 500,
+                {
+                    "ok": False,
+                    "addons": [],
+                    "tag": tag,
+                    "error": err or out or "addons list failed",
+                    "cli_exit": rc,
+                },
+            )
+            return
+        if path == "/api/models":
+            rc, out, err = _run_lab(["--json", "agent", "models", "list"], timeout=30)
+            data = _parse_json_stdout(out)
+            if isinstance(data, dict):
+                self._json(
+                    200,
+                    {"ok": rc == 0, "presets": data, "cli_exit": rc, "error": err or None},
+                )
+                return
+            self._json(
+                200 if rc == 0 else 500,
+                {
+                    "ok": False,
+                    "presets": {},
+                    "error": err or out or "models list failed",
+                    "cli_exit": rc,
+                },
+            )
             return
         if path == "/healthz":
             self._json(200, {"ok": True})
@@ -556,7 +816,24 @@ class WizardHandler(BaseHTTPRequestHandler):
                 data["ok"] = rc == 0
                 data["partial"] = rc == 2
                 data["cli_exit"] = rc
-                data["summary"] = "addons ok" if rc == 0 else (err or out or "failed")[:300]
+                actions = data.get("actions") or []
+                if actions:
+                    n_ok = sum(
+                        1
+                        for a in actions
+                        if isinstance(a, dict) and a.get("status") not in ("failed", "skipped")
+                    )
+                    n_skip = sum(
+                        1 for a in actions if isinstance(a, dict) and a.get("status") == "skipped"
+                    )
+                    n_fail = sum(
+                        1 for a in actions if isinstance(a, dict) and a.get("status") == "failed"
+                    )
+                    data["summary"] = (
+                        f"lean addons: {n_ok} installed, {n_skip} skipped, {n_fail} failed"
+                    )
+                else:
+                    data["summary"] = "addons ok" if rc == 0 else (err or out or "failed")[:300]
                 data["log_tail"] = _log_tail()
                 self._json(200, data)
                 return
@@ -568,7 +845,13 @@ class WizardHandler(BaseHTTPRequestHandler):
                     data = {}
                 data["ok"] = rc == 0
                 data["cli_exit"] = rc
-                data["summary"] = "models applied" if rc == 0 else (err or out or "failed")[:300]
+                actions = data.get("actions") or []
+                if actions:
+                    data["summary"] = "; ".join(str(a) for a in actions[:6])
+                else:
+                    data["summary"] = (
+                        "models applied" if rc == 0 else (err or out or "failed")[:300]
+                    )
                 self._json(200, data)
                 return
 

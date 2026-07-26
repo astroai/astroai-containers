@@ -257,6 +257,10 @@ if [[ "${FAILURES}" -eq 0 && ( "${IMAGE}" == "openresearch" || "${IMAGE}" == "op
         echo "AstroAI hub page check failed." >&2
         FAILURES=$((FAILURES + 1))
     fi
+    if ! grep -q 'back-link' "${HUB_HTML}"; then
+        echo "AstroAI hub missing Back link." >&2
+        FAILURES=$((FAILURES + 1))
+    fi
     if ! curl -sk --max-time 20 "${URL}" | grep -q 'astroai-agents-chip'; then
         echo "AstroAI chip missing from root HTML." >&2
         FAILURES=$((FAILURES + 1))
@@ -271,6 +275,18 @@ if [[ "${FAILURES}" -eq 0 && ( "${IMAGE}" == "openresearch" || "${IMAGE}" == "op
     echo "Hub /api/platform HTTP ${platform_code}"
     if [[ "${platform_code}" != "200" ]] || ! python3 -c "import json; d=json.load(open('${HUB_JSON}')); assert 'ray' in d and 'canfar' in d" 2>/dev/null; then
         echo "Hub /api/platform check failed." >&2
+        FAILURES=$((FAILURES + 1))
+    fi
+    addons_code="$(curl -sk -o "${HUB_JSON}" -w '%{http_code}' --max-time 60 "${BASE}/astroai-agents/api/addons?tag=lean" || true)"
+    echo "Hub /api/addons HTTP ${addons_code}"
+    if [[ "${addons_code}" != "200" ]] || ! python3 -c "import json; d=json.load(open('${HUB_JSON}')); assert 'addons' in d" 2>/dev/null; then
+        echo "Hub /api/addons check failed." >&2
+        FAILURES=$((FAILURES + 1))
+    fi
+    models_code="$(curl -sk -o "${HUB_JSON}" -w '%{http_code}' --max-time 45 "${BASE}/astroai-agents/api/models" || true)"
+    echo "Hub /api/models HTTP ${models_code}"
+    if [[ "${models_code}" != "200" ]] || ! python3 -c "import json; d=json.load(open('${HUB_JSON}')); assert 'presets' in d" 2>/dev/null; then
+        echo "Hub /api/models check failed." >&2
         FAILURES=$((FAILURES + 1))
     fi
     rm -f "${HUB_HTML}" "${HUB_JSON}"
