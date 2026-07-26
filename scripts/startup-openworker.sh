@@ -7,7 +7,7 @@ source /cadc/common-init.sh
 # shellcheck disable=SC1091
 source /opt/astroai/lib/skaha-proxy.sh
 
-export PATH="/opt/openworker/venv/bin:/opt/astroai/bin:${PATH}"
+export PATH="/opt/openworker/venv/bin:/opt/astroai/venv/cadc/bin:/opt/astroai/bin:${PATH}"
 export ASTROAI_OPENWORKER_PORT="${ASTROAI_OPENWORKER_PORT:-5000}"
 export OPENWORKER_PORT="${OPENWORKER_PORT:-8765}"
 export ASTROAI_AGENT_WIZARD_PORT="${ASTROAI_AGENT_WIZARD_PORT:-4792}"

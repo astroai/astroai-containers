@@ -47,7 +47,8 @@ def _run_cmd(cmd: list[str], *, timeout: int) -> tuple[int, str, str]:
 
 
 def _run_lab(args: list[str], *, timeout: int | None = None) -> tuple[int, str, str]:
-    return _run_cmd(["astroai-lab", *args], timeout=timeout or CLI_TIMEOUT)
+    lab = shutil.which("astroai-lab") or "/opt/astroai/venv/cadc/bin/astroai-lab"
+    return _run_cmd([lab, *args], timeout=timeout or CLI_TIMEOUT)
 
 
 def _parse_json_stdout(stdout: str) -> object | None:

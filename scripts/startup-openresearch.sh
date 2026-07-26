@@ -9,7 +9,7 @@ source /cadc/common-init.sh
 source /opt/astroai/lib/skaha-proxy.sh
 
 export ORX_NO_UPDATE_CHECK=1
-export PATH="/opt/astroai/bin:${PATH}"
+export PATH="/opt/astroai/venv/cadc/bin:/opt/astroai/bin:${PATH}"
 
 # orx persists local store under XDG data home.
 mkdir -p "${XDG_DATA_HOME:-${HOME}/.local/share}/openresearch" \
