@@ -117,6 +117,11 @@ echo "=================================="
 
 check "agent setup" login_shell 'astroai-lab --yes agent setup'
 check "agent verify" login_shell 'astroai-lab agent verify'
+check "agent verify --fix" login_shell 'astroai-lab agent verify --fix'
+check "agent fix" login_shell 'astroai-lab agent fix'
+check "agent clean" login_shell 'astroai-lab agent clean'
+check "agent catalog" login_shell 'astroai-lab agent catalog | grep -q openresearch'
+check "agent interact" login_shell 'astroai-lab agent interact | grep -q Endpoints'
 check "agent setup stamp" login_shell 'test -f "${HOME}/.astroai/lab/agent-setup-stamp"'
 check "cursor MCP" login_shell 'python3 -c "import json, pathlib; d=json.loads(pathlib.Path(\"${HOME}/.cursor/mcp.json\").read_text()); assert d.get(\"mcpServers\")"'
 check "astroai-lab-workflow skill" login_shell 'test -f "${HOME}/.cursor/skills/astroai-lab-workflow/SKILL.md"'

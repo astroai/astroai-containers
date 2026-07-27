@@ -344,6 +344,8 @@ INDEX_HTML = """<!DOCTYPE html>
 
     <div class="actions">
       <button id="btn-setup">Core setup</button>
+      <button id="btn-fix">Auto-Fix</button>
+      <button id="btn-clean" class="secondary">Clean</button>
       <button id="btn-verify" class="secondary">Verify</button>
       <button id="btn-update" class="secondary">Update</button>
       <button id="btn-refresh" class="secondary">Refresh</button>
@@ -363,8 +365,14 @@ INDEX_HTML = """<!DOCTYPE html>
       </section>
 
       <section class="panel">
-        <h2>Session resources<span class="hint">This pod only — home quota is shared across sessions.</span></h2>
+        <h2>AI Tools &amp; Container Catalog<span class="hint">Curated directory of AI coding agents, skills, rules, MCPs, and container UIs.</span></h2>
+        <div id="catalog">Loading…</div>
+      </section>
+
+      <section class="panel">
+        <h2>Session resources &amp; Endpoints<span class="hint">This pod only — home quota and active container services.</span></h2>
         <div id="resources">Loading…</div>
+        <div id="interact" style="margin-top:.75rem">Loading endpoints…</div>
       </section>
 
       <section class="panel">
@@ -535,13 +543,37 @@ function renderModels(d) {
   html += '<p class="sub">Default apply uses preset <code class="inline">coding</code>. Set <code class="inline">OPENROUTER_API_KEY</code> for Goose/OpenCode/Codex free tiers; Kilo can sign in at kilo.ai.</p>';
   return html;
 }
+function renderCatalog(d) {
+  const rows = (d && d.items) || [];
+  if (!rows.length) return '<p class="sub">No catalog items loaded.</p>';
+  return '<table><tr><th>Item</th><th>Kind</th><th>Status</th><th>Summary</th></tr>' +
+    rows.slice(0, 15).map(i => `<tr><td><code class="inline">${esc(i.id)}</code></td>` +
+      `<td>${esc(i.kind)}</td>` +
+      `<td>${i.installed ? '<span class="ok">installed</span>' : '<span class="sub">available</span>'}</td>` +
+      `<td class="sub">${esc(i.summary||'')}</td></tr>`).join('') + '</table>';
+}
+function renderInteract(d) {
+  const eps = (d && d.endpoints) || [];
+  if (!eps.length) return '<p class="sub">No endpoints detected.</p>';
+  let html = '<ul class="clean">';
+  for (const ep of eps) {
+    const mark = ep.active ? '<span class="ok">✓ ONLINE</span>' : '<span class="sub">— OFFLINE</span>';
+    html += `<li>[${mark}] <strong>${esc(ep.name)}</strong> (${esc(ep.url_hint)})<br/><span class="sub">${esc(ep.description)}</span></li>`;
+  }
+  html += '</ul>';
+  return html;
+}
 async function refreshLists() {
-  const [add, mod] = await Promise.all([
+  const [add, mod, cat, inter] = await Promise.all([
     api('api/addons?tag=lean'),
     api('api/models'),
+    api('api/catalog'),
+    api('api/interact'),
   ]);
   document.getElementById('addons').innerHTML = renderAddons(add.data || {});
   document.getElementById('models').innerHTML = renderModels(mod.data || {});
+  document.getElementById('catalog').innerHTML = renderCatalog(cat.data || {});
+  document.getElementById('interact').innerHTML = renderInteract(inter.data || {});
 }
 async function refresh() {
   setMsg('Loading…');
@@ -603,6 +635,8 @@ async function action(path, label, resultId) {
 }
 document.getElementById('btn-refresh').onclick = () => refresh();
 document.getElementById('btn-setup').onclick = () => action('api/setup', 'Core setup');
+document.getElementById('btn-fix').onclick = () => action('api/fix', 'Auto-Fix');
+document.getElementById('btn-clean').onclick = () => action('api/clean', 'Clean state');
 document.getElementById('btn-verify').onclick = () => action('api/verify', 'Verify');
 document.getElementById('btn-update').onclick = () => action('api/update', 'Update');
 document.getElementById('btn-kilo').onclick = () => action('api/install?tool=kilo', 'Install Kilo');
@@ -734,6 +768,22 @@ class WizardHandler(BaseHTTPRequestHandler):
                 },
             )
             return
+        if path in ("/api/catalog", "/api/awesome"):
+            rc, out, err = _run_lab(["--json", "agent", "catalog"], timeout=30)
+            data = _parse_json_stdout(out)
+            if isinstance(data, list):
+                self._json(200, {"ok": rc == 0, "items": data, "cli_exit": rc})
+                return
+            self._json(200 if rc == 0 else 500, {"ok": False, "items": [], "error": err or out})
+            return
+        if path == "/api/interact":
+            rc, out, err = _run_lab(["--json", "agent", "interact"], timeout=30)
+            data = _parse_json_stdout(out)
+            if isinstance(data, dict):
+                self._json(200, data)
+                return
+            self._json(200 if rc == 0 else 500, {"ok": False, "endpoints": [], "error": err or out})
+            return
         if path == "/healthz":
             self._json(200, {"ok": True})
             return
@@ -759,6 +809,28 @@ class WizardHandler(BaseHTTPRequestHandler):
                     if rc == 0
                     else ("partial setup" if rc == 2 else (err or out or "setup failed")[:300])
                 )
+                data["log_tail"] = _log_tail()
+                self._json(200, data)
+                return
+
+            if path == "/api/fix":
+                rc, out, err = _run_lab(["--json", "agent", "fix"], timeout=180)
+                data = _parse_json_stdout(out) or {}
+                if isinstance(data, list):
+                    data = {"ok": rc == 0, "actions": data}
+                data["ok"] = rc == 0
+                data["summary"] = "fix ok" if rc == 0 else (err or out or "fix failed")[:300]
+                data["log_tail"] = _log_tail()
+                self._json(200, data)
+                return
+
+            if path == "/api/clean":
+                rc, out, err = _run_lab(["--json", "agent", "clean"], timeout=60)
+                data = _parse_json_stdout(out) or {}
+                if isinstance(data, list):
+                    data = {"ok": rc == 0, "actions": data}
+                data["ok"] = rc == 0
+                data["summary"] = "clean ok" if rc == 0 else (err or out or "clean failed")[:300]
                 data["log_tail"] = _log_tail()
                 self._json(200, data)
                 return
