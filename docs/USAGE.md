@@ -73,6 +73,8 @@ Launch **ray-manager** from the portal (or CLI), open Connect URL, create a clus
 canfar create --name raymgr contributed images.canfar.net/astroai/ray-manager:26.07
 astroai-lab ray guide    # cheat sheet (inside any AstroAI session)
 astroai-lab ray status   # when inside a manager session
+# after workers join:
+astroai-workload run train.py --cpus 2 --memory 8GiB
 ```
 
 Dashboard: `connectURL/dashboard/`. Full detail: [RAY.md](RAY.md). Prefer manager memory **≥8 GiB**.
@@ -133,5 +135,5 @@ astroai-lab status --json
 ## Related
 
 - [astroai-lab](https://github.com/astroai/astroai-lab) — CLI detail
-- [astroai-workload](https://github.com/astroai/astroai-workload) — Ray Jobs from Python
+- [astroai-workload](https://github.com/astroai/astroai-workload) — Ray Jobs CLI (`astroai-workload run`) on ray-manager
 - [OPERATORS.md](OPERATORS.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [RAY.md](RAY.md)

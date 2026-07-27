@@ -24,8 +24,9 @@ flowchart TB
 | Stock **Ray Dashboard** at `connectURL/dashboard/` | Jobs, actors, nodes, logs |
 | Manager control panel at `/` | Auth, preflight, create/stop cluster |
 | `astroai-lab ray guide` / `ray status` | Launch cheat sheet + local cluster state |
-| [`astroai-workload`](https://github.com/astroai/astroai-workload) or Dashboard Jobs | Submit training entrypoints |
+| **`astroai-workload run`** (on PATH in ray-manager) | Scripted Jobs submit / status / logs |
 | One `ray-worker` image | Request `gpus=N` per worker; CPU and GPU share the image |
+
 
 The FastAPI control panel is feature-frozen for stability (`ray/manager/FROZEN.md`).
 ML/CUDA stacks live in user pixi/uv projects. Spill/temp need **`/scratch`** on
@@ -145,7 +146,7 @@ sequenceDiagram
 
 1. **Run network preflight**
 2. **Create cluster** — worker count, CPU/RAM, GPUs per worker, `min_joined`, partial-start policy
-3. **Use Ray** — Dashboard, `ray.init(address="auto")` on the manager, or Jobs / `astroai-workload`
+3. **Use Ray** — Dashboard, `ray.init(address="auto")`, or `astroai-workload run train.py --cpus 2 --memory 8GiB`
 4. **Stop cluster** — destroys worker sessions
 
 Partial-start policies: `accept_partial`, `fail_and_cleanup`, `continue_waiting`.
@@ -184,5 +185,5 @@ examples/ray/                Container smokes
 
 - [USAGE.md](USAGE.md) — general sessions
 - [OPERATORS.md](OPERATORS.md) — publish and platform notes
-- [astroai-workload](https://github.com/astroai/astroai-workload) — Jobs helpers + MNIST example
+- [astroai-workload](https://github.com/astroai/astroai-workload) — Jobs CLI (`astroai-workload run`) + MNIST example
 - Starter notebook in-image: `/opt/astroai/notebooks/ray_train.ipynb`

@@ -28,7 +28,9 @@ RUN uv python install 3.12 \
     && chmod a+r /opt/astroai/ray-version.txt \
     && uv pip install --python /opt/astroai/venv/ray \
         canfar \
-        fastapi uvicorn[standard] python-multipart httpx websockets
+        fastapi uvicorn[standard] python-multipart httpx websockets \
+        "astroai-workload @ git+https://github.com/astroai/astroai-workload.git@49b04c449eeeafb54538b3a2559c3998f16b75bd" \
+    && /opt/astroai/venv/ray/bin/astroai-workload --help >/dev/null
 
 ENV PATH="/opt/astroai/venv/ray/bin:/opt/astroai/venv/cadc/bin:${PATH}"
 
