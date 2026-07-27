@@ -15,12 +15,13 @@ source /cadc/common-init.sh
 SESSION_ID="${1:-${JUPYTER_TOKEN:-}}"
 PORT=8888
 
-# Image config only — ignore deprecated NotebookApp keys in persisted ~/.jupyter.
-export JUPYTER_CONFIG_DIR=/etc/jupyter
+# Read image defaults from /etc/jupyter, but keep JUPYTER_CONFIG_DIR writable —
+# jupyter_core migrate() tries to create $JUPYTER_CONFIG_DIR/migrated as the user.
+export JUPYTER_CONFIG_DIR="${TMPDIR:-/tmp}/jupyter-config"
 export JUPYTER_CONFIG_PATH=/etc/jupyter
 export JUPYTER_RUNTIME_DIR="${TMPDIR:-/tmp}/jupyter-runtime"
 export JUPYTER_DATA_DIR="${TMPDIR:-/tmp}/jupyter-data"
-mkdir -p "${JUPYTER_RUNTIME_DIR}" "${JUPYTER_DATA_DIR}"
+mkdir -p "${JUPYTER_CONFIG_DIR}" "${JUPYTER_RUNTIME_DIR}" "${JUPYTER_DATA_DIR}"
 
 # ponytail: quarantine legacy ~/.jupyter keys every startup → drop when platform stops writing NotebookApp to /arc/home
 if [[ -d "${HOME}/.jupyter" ]]; then
