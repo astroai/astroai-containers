@@ -25,6 +25,8 @@ CLI_TIMEOUT = int(os.environ.get("ASTROAI_AGENT_WIZARD_CLI_TIMEOUT", "600"))
 # VOSpace/GMS; prefer short canfar + ray probes in parallel instead.
 PLATFORM_CANFAR_TIMEOUT = int(os.environ.get("ASTROAI_HUB_CANFAR_TIMEOUT", "12"))
 PLATFORM_RAY_TIMEOUT = int(os.environ.get("ASTROAI_HUB_RAY_TIMEOUT", "30"))
+# One-click ensure can create a manager + workers — allow a long wall clock.
+COMPUTE_ENSURE_TIMEOUT = int(os.environ.get("ASTROAI_HUB_COMPUTE_ENSURE_TIMEOUT", "1200"))
 HOME = Path.home()
 
 
@@ -140,12 +142,10 @@ def _platform_payload() -> dict:
         out["ray_cli_exit"] = rc2
     else:
         out["ray"] = {
-            "hint": "astroai-lab ray status unavailable",
-            "launch_command": (
-                "canfar create --name raymgr --cpu 2 --memory 8 contributed "
-                f"images.canfar.net/astroai/ray-manager:{tag}"
-            ),
+            "hint": "No batch-compute manager yet — use Start batch compute",
+            "launch_command": "astroai-lab ray ensure",
             "error": ray_err,
+            "compute_ready": False,
         }
         out["ok"] = False
     if out["canfar"].get("error") and not out["canfar"].get("sessions"):
@@ -167,8 +167,8 @@ canfar auth show
 canfar ps
 canfar login
 
-# Ray (large Jobs — separate ray-manager session)
-astroai-lab ray guide
+# Batch compute (manager + workers; wires OpenResearch)
+astroai-lab ray ensure
 astroai-lab ray status
 # Put shared batch I/O on /arc — /scratch is per-pod only
 """
@@ -336,7 +336,7 @@ INDEX_HTML = """<!DOCTYPE html>
     <header class="top">
       <div class="brand">
         <a class="back" id="back-link" href="../">← Back to __BACK_LABEL__</a>
-        <div class="tag">Agents · CANFAR · Ray</div>
+        <div class="tag">Agents · CANFAR · Batch compute</div>
         <h1>AstroAI</h1>
         <p class="lede">Status and setup for coding agents on shared <code class="inline">/arc/home</code> — not a chat UI. Your __BACK_LABEL__ session keeps running.</p>
       </div>
@@ -394,13 +394,18 @@ INDEX_HTML = """<!DOCTYPE html>
       </section>
 
       <section class="panel">
-        <h2>CANFAR sessions<span class="hint">Your interactive/headless sessions from <code class="inline">canfar ps</code> — not Ray Jobs or a full portal.</span></h2>
+        <h2>CANFAR sessions<span class="hint">Auth + your open sessions (quota). Batch workers are started below, not listed here as Jobs.</span></h2>
         <div id="canfar">Loading…</div>
       </section>
 
       <section class="panel">
-        <h2>Ray<span class="hint">Large batch Jobs need a separate ray-manager session. Heartbeats live on shared home.</span></h2>
+        <h2>Batch compute<span class="hint">One click starts a manager session + workers and wires OpenResearch. You do not need to configure Ray.</span></h2>
         <div id="ray">Loading…</div>
+        <div class="actions" style="margin-top:.75rem;margin-bottom:0">
+          <button id="btn-compute">Start batch compute</button>
+          <button id="btn-compute-refresh" class="secondary">Refresh</button>
+        </div>
+        <div id="compute-result" class="result">Not started yet — click Start after agents/keys are set.</div>
       </section>
     </div>
 
@@ -472,7 +477,7 @@ function renderResources(r) {
 }
 function renderCanfar(c) {
   if (!c) return '<p class="warn">CANFAR probe unavailable.</p>';
-  let html = '<p class="sub">Useful to check auth and which sessions you already have open (quota). Ray Jobs and worker pods are managed in ray-manager, not here.</p>';
+  let html = '<p class="sub">Confirm you are logged in (<code class="inline">canfar login</code> once in webterm). Session quota includes the batch-compute manager.</p>';
   if (c.error && !(c.sessions||[]).length) {
     html += `<p class="warn">${esc(c.error)}</p>`;
   }
@@ -488,28 +493,25 @@ function renderCanfar(c) {
 }
 function renderRay(r) {
   if (!r) return '<span class="warn">unavailable</span>';
-  const tag = r.ray_image_tag || '26.07';
   let html = '';
-  if (r.heartbeat_present) {
+  if (r.compute_ready || r.ray_address || r.connect_url) {
+    html += '<p class="ok">Batch compute is configured for OpenResearch.</p>';
+    if (r.ray_address) {
+      html += '<p class="sub">Jobs endpoint ready (wired automatically).</p>';
+    }
+    if (r.connect_url) {
+      html += `<p class="sub">Manager: <a href="${esc(r.connect_url)}" target="_blank" rel="noopener">open panel</a></p>`;
+    }
+  } else if (r.heartbeat_present) {
     html += `<p class="ok">Manager heartbeat: <code class="inline">${esc(r.cluster_id)}</code>` +
       (r.heartbeat_age_seconds!=null ? ` · age ${r.heartbeat_age_seconds}s` : '') +
       (r.phase ? ` · phase ${esc(r.phase)}` : '') + '</p>';
   } else {
-    html += '<p class="warn">No Ray manager heartbeat on this home yet.</p>';
+    html += '<p class="warn">No batch-compute cluster yet — click <strong>Start batch compute</strong>.</p>';
   }
   if (r.hint) html += `<p class="sub">${esc(r.hint)}</p>`;
-  const launch = r.launch_command ||
-    `canfar create --name raymgr --cpu 2 --memory 8 contributed images.canfar.net/astroai/ray-manager:${tag}`;
-  html += `<p>Launch manager (Portal or CLI):</p><pre id="ray-launch">${esc(launch)}</pre>`;
-  html += '<button class="secondary" id="btn-copy-ray">Copy launch command</button>';
   html += `<p class="sub">${esc(r.scratch_note || '/scratch is per-pod — share Jobs data on /arc.')}</p>`;
-  html += '<p class="sub">Open the manager Connect URL for the control panel and Jobs dashboard.</p>';
-  const clusters = (r.clusters || []).filter(c => c.heartbeat_present);
-  if (clusters.length > 1) {
-    html += '<p>Heartbeats:</p><ul class="clean">' + clusters.map(c =>
-      `<li><code class="inline">${esc(c.cluster_id)}</code> age ${c.heartbeat_age_seconds??'—'}s` +
-      (c.phase ? ` · ${esc(c.phase)}` : '') + '</li>').join('') + '</ul>';
-  }
+  html += '<p class="sub">After Start succeeds, go back to OpenResearch and run experiments — default compute is set for you. Focus on agent API keys above.</p>';
   return html;
 }
 function renderAddons(d) {
@@ -578,7 +580,7 @@ async function refreshLists() {
 async function refresh() {
   setMsg('Loading…');
   document.getElementById('canfar').innerHTML = '<span class="sub">Loading CANFAR…</span>';
-  document.getElementById('ray').innerHTML = '<span class="sub">Loading Ray…</span>';
+  document.getElementById('ray').innerHTML = '<span class="sub">Loading batch compute…</span>';
   const rep = await api('api/report');
   const data = rep.data || {};
   const setup = (data.setup || {});
@@ -598,18 +600,10 @@ async function refresh() {
     : '<span class="ok">No verify issues</span>';
   document.getElementById('log').textContent = data.log_tail || '(empty)';
   await refreshLists();
-  setMsg('Refreshing CANFAR / Ray…');
+  setMsg('Refreshing CANFAR / batch compute…');
   const plat = await api('api/platform');
   document.getElementById('canfar').innerHTML = renderCanfar((plat.data||{}).canfar);
   document.getElementById('ray').innerHTML = renderRay((plat.data||{}).ray);
-  const copyBtn = document.getElementById('btn-copy-ray');
-  if (copyBtn) {
-    copyBtn.onclick = async () => {
-      const t = document.getElementById('ray-launch')?.textContent || '';
-      try { await navigator.clipboard.writeText(t); setMsg('Copied launch command', 'ok'); }
-      catch { setMsg('Copy failed — select the command manually', 'warn'); }
-    };
-  }
   setMsg('');
 }
 async function action(path, label, resultId) {
@@ -617,13 +611,13 @@ async function action(path, label, resultId) {
   setMsg(label + '…');
   try {
     const { data } = await api(path, { method: 'POST' });
-    const summary = data.summary || data.error || '';
+    const summary = data.summary || data.error || data.user_message || '';
     setMsg((data.ok ? 'OK: ' : 'Done with issues: ') + summary, data.ok ? 'ok' : 'warn');
     if (resultId) {
       const detail = Array.isArray(data.actions)
         ? data.actions.map(a => typeof a === 'string' ? a :
             `${a.id||''}: ${a.status||''}${a.detail ? ' — '+a.detail : ''}`).join('\\n')
-        : summary;
+        : (data.user_message || summary);
       setResult(resultId, detail || summary || '(no detail)', !!data.ok);
     }
   } catch (e) {
@@ -642,6 +636,9 @@ document.getElementById('btn-update').onclick = () => action('api/update', 'Upda
 document.getElementById('btn-kilo').onclick = () => action('api/install?tool=kilo', 'Install Kilo');
 document.getElementById('btn-lean').onclick = () => action('api/add?tag=lean', 'Install lean addons', 'addons-result');
 document.getElementById('btn-models').onclick = () => action('api/models-free', 'Apply free models', 'models-result');
+document.getElementById('btn-compute').onclick = () =>
+  action('api/compute/ensure', 'Starting batch compute (can take several minutes)', 'compute-result');
+document.getElementById('btn-compute-refresh').onclick = () => refresh();
 refresh();
 setInterval(refresh, 45000);
 </script>
@@ -924,6 +921,30 @@ class WizardHandler(BaseHTTPRequestHandler):
                 else:
                     data["summary"] = (
                         "models applied" if rc == 0 else (err or out or "failed")[:300]
+                    )
+                self._json(200, data)
+                return
+
+            if path == "/api/compute/ensure":
+                # Long-running: create manager + workers + wire orx.
+                rc, out, err = _run_lab(
+                    ["--json", "ray", "ensure"],
+                    timeout=COMPUTE_ENSURE_TIMEOUT,
+                )
+                data = _parse_json_stdout(out)
+                if not isinstance(data, dict):
+                    data = {
+                        "ok": False,
+                        "error": (err or out or "ray ensure failed")[:800],
+                        "cli_exit": rc,
+                    }
+                else:
+                    data["cli_exit"] = rc
+                    if "ok" not in data:
+                        data["ok"] = rc == 0
+                if not data.get("summary"):
+                    data["summary"] = data.get("user_message") or (
+                        "batch compute ready" if data.get("ok") else (err or "failed")[:300]
                     )
                 self._json(200, data)
                 return

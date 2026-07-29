@@ -16,6 +16,9 @@ mkdir -p "${XDG_DATA_HOME:-${HOME}/.local/share}/openresearch" \
     "${XDG_CONFIG_HOME:-${HOME}/.config}/openresearch" \
     "${XDG_CACHE_HOME:-${HOME}/.cache}/openresearch"
 
+# Best-effort: default OpenResearch compute to CANFAR batch (Ray under the hood).
+python3 /opt/astroai/lib/orx-wire-compute.py >/dev/null 2>&1 || true
+
 # Best-effort: drop OpenResearch skills after core agent setup (avoid lock races).
 if command -v orx >/dev/null 2>&1; then
     orx --no-telemetry telemetry off >/dev/null 2>&1 || true

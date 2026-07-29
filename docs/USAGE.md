@@ -20,26 +20,26 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
 4. Persist to `/arc/home` or `/arc/projects` before the session ends (`save` / `data sync` / `push`).
 5. Hourly backup: `/srcdir` → `~/.astroai/lab/backups/<session>/` (`astroai-lab backup status`).
 
-### Home base: Agents · CANFAR · Ray (openresearch / openworker)
+### Home base: Agents · CANFAR · Batch compute (openresearch / openworker)
 
 1. Launch **`openresearch`** or **`openworker`** with tag `26.07` / `latest`.
 2. Open the connect URL, then either:
    - click the blue **AstroAI** button (top-right), or
    - append `/astroai-agents/` (e.g. `…/session/contrib/<id>/astroai-agents/`).
 3. In the hub:
-   - **← Back to OpenResearch / OpenWorker** returns to the main UI (or strip `/astroai-agents/` from the URL)
-   - **Agents** — setup / verify / update coding CLIs on shared home
-   - **Lean addons / Free models** — lists what will be installed, then Apply shows results
-   - **CANFAR sessions** — auth + `canfar ps` (your sessions, not Ray Jobs; `canfar login` once in **webterm** if needed)
-   - **Ray** — manager heartbeats; copy the `canfar create …/ray-manager` command for large Jobs
-4. Ray control panel + Jobs live in the **ray-manager** session (separate Connect URL). Put shared batch I/O on `/arc` — `/scratch` is per-pod only.
-5. On other images use the CLI: `astroai-lab agent setup` · `astroai-lab ray guide` · `canfar ps`.
+   - **Agents** — install an agent and set API keys (main setup)
+   - **Start batch compute** — creates a manager + workers and wires OpenResearch (Ray is under the hood)
+   - **CANFAR sessions** — auth check; `canfar login` once in **webterm** if needed
+   - **← Back to OpenResearch / OpenWorker** returns to the main UI
+4. Run experiments in OpenResearch — default compute is already CANFAR batch. Put shared I/O on `/arc` (`/scratch` is per-pod only).
+5. On other images: `astroai-lab agent setup` · `astroai-lab ray ensure` · `canfar ps`.
 
 ```bash
 canfar login   # once, from webterm — persists under /arc/home
 canfar create --name orx contributed images.canfar.net/astroai/openresearch:26.07
 canfar open <session-id>
-# Hub: …/astroai-agents/
+# Hub: …/astroai-agents/ → Agents + Start batch compute
+# Or: astroai-lab ray ensure
 ```
 
 ---
@@ -67,12 +67,18 @@ astroai-lab data sync /scratch/out /arc/projects/mygroup/out
 
 ## Ray (first-class)
 
-Launch **ray-manager** from the portal (or CLI), open Connect URL, create a cluster from the UI. Workers are headless images the manager starts for you.
+**Preferred:** from openresearch/openworker, AstroAI hub → **Start batch compute**
+(or `astroai-lab ray ensure`). That launches **ray-manager**, starts workers, and
+wires OpenResearch.
+
+Manual path: launch **ray-manager** from the portal (or CLI), open Connect URL,
+create a cluster from the UI. Workers are headless images the manager starts for you.
 
 ```bash
-canfar create --name raymgr contributed images.canfar.net/astroai/ray-manager:26.07
-astroai-lab ray guide    # cheat sheet (inside any AstroAI session)
-astroai-lab ray status   # when inside a manager session
+astroai-lab ray ensure   # recommended
+# or:
+canfar create --name astroai-compute --cpu 2 --memory 8 contributed images.canfar.net/astroai/ray-manager:26.07
+astroai-lab ray status
 # after workers join:
 astroai-workload run train.py --cpus 2 --memory 8GiB
 ```
@@ -81,13 +87,13 @@ Dashboard: `connectURL/dashboard/`. Full detail: [RAY.md](RAY.md). Prefer manage
 
 ### OpenResearch → Ray (`orx exp run --backend ray`)
 
-`openresearch` ships `orx` with a **Ray Jobs** compute target (Settings → Compute → Ray). Use it after the hub / ray-manager shows a healthy cluster:
+`openresearch` defaults compute to CANFAR batch (Ray Jobs under the hood). Preferred path:
 
-1. Start **ray-manager**, run preflight, create workers (hub at `/astroai-agents/` on openresearch/openworker, or the manager UI).
-2. In OpenResearch: **Settings → Compute → Ray** — set the Jobs / Dashboard URL to the manager’s reachable Jobs endpoint when you can reach it from the openresearch session; otherwise run launches from a shell that can see the manager (or rely on `ASTROAI_RAY_JOBS_ADDRESS` / `RAY_DASHBOARD_URL` when those are set in-process on the manager).
-3. Launch: `orx exp run <expId> --backend ray` (optional `--flavor gpu:1` / `cpu:2` / `mem:8GiB`).
+1. AstroAI hub → **Start batch compute** (or `astroai-lab ray ensure`) — creates manager + workers and wires Settings.
+2. Set agent API keys in the hub / agent configs.
+3. Run experiments in OpenResearch (no `--backend` needed once defaulted).
 
-Do **not** look for a CANFAR card in OpenResearch Settings — cluster lifecycle stays on the AstroAI hub + ray-manager.
+Manual fallback: Settings → Compute → Ray with the manager Jobs URL (`connectURL/dashboard`). Cluster lifecycle stays on the hub / ray-manager — not a CANFAR card in upstream OpenResearch.
 
 Put env saves on `/arc` (`~/.astroai/lab/saves/` or `/arc/projects/<group>/env-saves/`). Slim workers can resume with `ASTROAI_LAB_RESUME=<name>` (optional) before joining — see RAY.md.
 

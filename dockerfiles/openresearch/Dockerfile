@@ -68,10 +68,11 @@ ENV PATH="/opt/astroai/bin:${PATH}" \
     ASTROAI_SESSION_KIND=openresearch
 
 COPY scripts/lib/skaha-proxy.sh scripts/lib/orx-canfar-proxy.py \
-     scripts/lib/agent-wizard.py /opt/astroai/lib/
+     scripts/lib/agent-wizard.py scripts/lib/orx-wire-compute.py /opt/astroai/lib/
 COPY scripts/common-init.sh scripts/startup-openresearch.sh /cadc/
 COPY scripts/skaha-startup-openresearch.sh /skaha/startup.sh
 RUN chmod a+rx /opt/astroai/lib/orx-canfar-proxy.py /opt/astroai/lib/agent-wizard.py \
+        /opt/astroai/lib/orx-wire-compute.py \
         /cadc/*.sh /skaha/startup.sh \
     && chmod a+r /opt/astroai/lib/skaha-proxy.sh
 

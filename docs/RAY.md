@@ -125,19 +125,26 @@ On the manager pod, Jobs clients use **`ASTROAI_RAY_JOBS_ADDRESS`**
 
 ### OpenResearch (`orx`) on Ray
 
-AstroAI’s `openresearch` image pins an `orx` build with `--backend ray` (Ray
-Jobs API). After the manager cluster is healthy:
+AstroAI’s `openresearch` image defaults compute to CANFAR batch (Ray Jobs under
+the hood). Preferred path:
 
 ```bash
-# On a host that can reach the manager Jobs API (or on the manager itself):
-export ASTROAI_RAY_JOBS_ADDRESS=http://127.0.0.1:8265   # or the manager URL
-orx exp run <expId> --backend ray
-# optional resource hints: --flavor gpu:1 | cpu:2 | gpu:1,mem:8GiB
+# From openresearch / openworker (or any AstroAI session with canfar auth):
+astroai-lab ray ensure
+# Or AstroAI hub → Start batch compute
+# Then in OpenResearch: run experiments (no --backend needed)
 ```
 
-In the OpenResearch UI: **Settings → Compute → Ray** → set the Jobs URL →
-**Make default** if desired. CANFAR session create/join stays in the AstroAI
-hub (`/astroai-agents/`) or ray-manager — not in OpenResearch’s Compute list.
+Manual:
+
+```bash
+export ASTROAI_RAY_JOBS_ADDRESS=http://127.0.0.1:8265   # on the manager
+# or connectURL/dashboard from another session
+orx exp run <expId> --backend ray
+```
+
+CANFAR session create/join stays in the AstroAI hub (`/astroai-agents/`) or
+ray-manager — not in upstream OpenResearch’s Compute list.
 
 Local UI smoke: `./scripts/test-ray-ui-local.sh` (part of `make test-ray`).
 
