@@ -85,9 +85,10 @@ target "openresearch" {
   dockerfile = "dockerfiles/openresearch/Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/openresearch:${TAG}"]
   args = {
-    ORX_VERSION      = "0.1.76"
-    ORX_SHA256_X64   = "8bc1d10c1a511ecb4935e4eac911b6525c7e8c051b9302422859a6fe26bfe93d"
-    ORX_SHA256_ARM64 = "0e8c7d000db569102f47a17d062478f7b376e59b30f2b2b1d27b86e7dc5ab41f"
+    # Ray Jobs backend — pin fork SHA until alphaXiv ships a release with
+    # https://github.com/alphaXiv/openresearch-cli/pull/138
+    ORX_REPO = "https://github.com/sfabbro/openresearch-cli.git"
+    ORX_SHA  = "e076d027c9cbbac8b7bb5ded0821efa9d0a41c6b"
   }
 }
 

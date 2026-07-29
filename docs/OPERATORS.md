@@ -132,6 +132,8 @@ make test-canfar-session IMAGE=openworker TAG=26.07
 
 **OpenWorker notes:** Image pins `OPENWORKER_SHA` (see `docker-bake.hcl`). Browser UI + `openworker-server` only — no Tauri desktop shell. Desktop-only connectors may be limited on CANFAR. Agents wizard: `/astroai-agents/` (also on openresearch).
 
+**OpenResearch notes:** Image pins `ORX_SHA` / `ORX_REPO` (see `docker-bake.hcl`) and builds `orx` from that commit (includes `--backend ray`). Switch back to alphaXiv release tarballs once a release includes [PR #138](https://github.com/alphaXiv/openresearch-cli/pull/138). Ray cluster lifecycle stays on ray-manager + `/astroai-agents/`; see [USAGE.md](USAGE.md#openresearch--ray-orx-exp-run---backend-ray) / [RAY.md](RAY.md).
+
 **Agent auto-setup:** UI kinds (`openresearch`, `openworker`, `vscode`) default `ASTROAI_LAB_AGENT_SETUP=bg` when unset. **Marimo** stays opt-in for full setup (startup still runs `agent setup marimo` only). Webterm stays opt-in. Failures never block the main UI; see `~/.astroai/lab/agent-setup.log`.
 
 **Home quota readings:** Prefer CephFS xattrs over raw `df` (`astroai-lab` `disk_usage`). `ceph.dir.rbytes` can lag after writes — expected Ceph behavior.

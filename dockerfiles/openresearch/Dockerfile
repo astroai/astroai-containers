@@ -1,44 +1,67 @@
 # syntax=docker/dockerfile:1
 # AstroAI openresearch: OpenResearch (orx) autoresearch dashboard.
-# Prebuilt release binary only — no cargo rebuild. Proxies :4791 → :5000.
+# Builds orx from a pinned git SHA (Ray Jobs backend). Proxies :4791 → :5000.
+# When alphaXiv ships a release with Ray, prefer switching back to their
+# musl tarball + ORX_VERSION / ORX_SHA256_* args.
 
 ARG REGISTRY=images.canfar.net
 ARG OWNER=astroai
 ARG BASE_NAME=base
 ARG TAG=local
-ARG ORX_VERSION=0.1.76
-ARG ORX_SHA256_X64=8bc1d10c1a511ecb4935e4eac911b6525c7e8c051b9302422859a6fe26bfe93d
-ARG ORX_SHA256_ARM64=0e8c7d000db569102f47a17d062478f7b376e59b30f2b2b1d27b86e7dc5ab41f
+# Fork pin until https://github.com/alphaXiv/openresearch-cli/pull/138 lands in a release.
+ARG ORX_REPO=https://github.com/sfabbro/openresearch-cli.git
+ARG ORX_SHA=e076d027c9cbbac8b7bb5ded0821efa9d0a41c6b
+ARG NODE_VERSION=20
 
+# --- UI (embedded into orx via rust-embed) ---
+FROM node:${NODE_VERSION}-bookworm-slim AS ui-build
+ARG ORX_REPO
+ARG ORX_SHA
+WORKDIR /src
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && git init repo && cd repo \
+    && git remote add origin "${ORX_REPO}" \
+    && git fetch --depth 1 origin "${ORX_SHA}" \
+    && git checkout FETCH_HEAD \
+    && cd ui \
+    && npm install -g pnpm@9.15.0 \
+    && pnpm install --frozen-lockfile \
+    && pnpm run build
+
+# --- orx binary ---
+FROM rust:1-bookworm AS orx-build
+ARG ORX_REPO
+ARG ORX_SHA
+WORKDIR /src
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+        pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && git init repo && cd repo \
+    && git remote add origin "${ORX_REPO}" \
+    && git fetch --depth 1 origin "${ORX_SHA}" \
+    && git checkout FETCH_HEAD
+COPY --from=ui-build /src/repo/ui/dist /src/repo/ui/dist
+WORKDIR /src/repo
+RUN cargo build --release \
+    && install -m 0755 target/release/orx /orx \
+    && /orx --version
+
+# --- Runtime ---
 FROM ${REGISTRY}/${OWNER}/${BASE_NAME}:${TAG}
 
-ARG ORX_VERSION
-ARG ORX_SHA256_X64
-ARG ORX_SHA256_ARM64
+ARG ORX_SHA
 
 LABEL io.canfar.skaha.session.type="contributed" \
       org.opencontainers.image.title="AstroAI OpenResearch" \
       org.opencontainers.image.description="OpenResearch (orx) autoresearch dashboard for CANFAR" \
-      org.opencontainers.image.source="https://github.com/alphaXiv/openresearch-cli"
+      org.opencontainers.image.source="https://github.com/alphaXiv/openresearch-cli" \
+      org.opencontainers.image.revision="${ORX_SHA}"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# No socat — path-rewriting proxy is scripts/lib/orx-canfar-proxy.py (stdlib).
-
-RUN ARCH="$(uname -m)" \
-    && case "${ARCH}" in \
-        x86_64) TRIPLE=x86_64-unknown-linux-musl; SHA256="${ORX_SHA256_X64}" ;; \
-        aarch64) TRIPLE=aarch64-unknown-linux-musl; SHA256="${ORX_SHA256_ARM64}" ;; \
-        *) echo "unsupported arch: ${ARCH}" >&2; exit 1 ;; \
-       esac \
-    && TARBALL="openresearch-cli-${TRIPLE}.tar.xz" \
-    && curl -fsSL -o "${TARBALL}" \
-        "https://github.com/alphaXiv/openresearch-cli/releases/download/v${ORX_VERSION}/${TARBALL}" \
-    && echo "${SHA256}  ${TARBALL}" | sha256sum -c - \
-    && tar -xJf "${TARBALL}" \
-    && install -m 0755 "openresearch-cli-${TRIPLE}/orx" /opt/astroai/bin/orx \
-    && rm -rf "${TARBALL}" "openresearch-cli-${TRIPLE}" \
-    && /opt/astroai/bin/orx --version
+COPY --from=orx-build /orx /opt/astroai/bin/orx
+RUN /opt/astroai/bin/orx --version
 
 ENV PATH="/opt/astroai/bin:${PATH}" \
     ORX_NO_UPDATE_CHECK=1 \

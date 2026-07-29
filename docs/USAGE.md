@@ -79,6 +79,16 @@ astroai-workload run train.py --cpus 2 --memory 8GiB
 
 Dashboard: `connectURL/dashboard/`. Full detail: [RAY.md](RAY.md). Prefer manager memory **≥8 GiB**.
 
+### OpenResearch → Ray (`orx exp run --backend ray`)
+
+`openresearch` ships `orx` with a **Ray Jobs** compute target (Settings → Compute → Ray). Use it after the hub / ray-manager shows a healthy cluster:
+
+1. Start **ray-manager**, run preflight, create workers (hub at `/astroai-agents/` on openresearch/openworker, or the manager UI).
+2. In OpenResearch: **Settings → Compute → Ray** — set the Jobs / Dashboard URL to the manager’s reachable Jobs endpoint when you can reach it from the openresearch session; otherwise run launches from a shell that can see the manager (or rely on `ASTROAI_RAY_JOBS_ADDRESS` / `RAY_DASHBOARD_URL` when those are set in-process on the manager).
+3. Launch: `orx exp run <expId> --backend ray` (optional `--flavor gpu:1` / `cpu:2` / `mem:8GiB`).
+
+Do **not** look for a CANFAR card in OpenResearch Settings — cluster lifecycle stays on the AstroAI hub + ray-manager.
+
 Put env saves on `/arc` (`~/.astroai/lab/saves/` or `/arc/projects/<group>/env-saves/`). Slim workers can resume with `ASTROAI_LAB_RESUME=<name>` (optional) before joining — see RAY.md.
 
 ---
