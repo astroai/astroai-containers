@@ -310,12 +310,52 @@ INDEX_HTML = """<!DOCTYPE html>
   }
   ul.clean { margin: .4rem 0; padding-left: 1.1rem; }
   ul.clean li { margin: .25rem 0; }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: .4rem;
+    font-family: Sora, sans-serif; font-weight: 600; font-size: .78rem;
+    letter-spacing: .04em; text-transform: uppercase;
+    padding: .28rem .55rem; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted); margin: 0 0 .65rem;
+  }
+  .status-pill.ready { color: var(--ok); border-color: rgba(93,222,154,.45); background: rgba(93,222,154,.08); }
+  .status-pill.partial { color: var(--warn); border-color: rgba(230,184,77,.4); background: rgba(230,184,77,.08); }
+  .status-pill.idle { color: var(--muted); }
+  .status-pill .dot {
+    width: .45rem; height: .45rem; border-radius: 50%; background: currentColor;
+    box-shadow: 0 0 0 0 currentColor; animation: pulse 1.6s ease infinite;
+  }
+  .status-pill.idle .dot { animation: none; opacity: .5; }
+  .steps {
+    margin: .65rem 0 0; padding: 0; list-style: none;
+    counter-reset: none;
+  }
+  .steps li {
+    position: relative; padding: .2rem 0 .2rem 1.15rem; color: var(--muted); font-size: .88rem;
+  }
+  .steps li::before {
+    content: ""; position: absolute; left: .15rem; top: .55rem;
+    width: .45rem; height: .45rem; border-radius: 50%; background: var(--line);
+  }
+  .steps li.done { color: var(--ink); }
+  .steps li.done::before { background: var(--ok); }
+  .steps li.active { color: var(--teal); }
+  .steps li.active::before { background: var(--teal); box-shadow: 0 0 0 3px rgba(46,196,182,.2); }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(46,196,182,.45); }
+    70% { box-shadow: 0 0 0 6px rgba(46,196,182,0); }
+    100% { box-shadow: 0 0 0 0 rgba(46,196,182,0); }
+  }
   .result {
     margin-top: .75rem; padding: .65rem .75rem; border-radius: 8px;
     border: 1px dashed var(--line); color: var(--muted); font-size: .9rem;
     white-space: pre-wrap;
   }
   .result.has { color: var(--ink); border-style: solid; border-color: rgba(46,196,182,.35); }
+  .result.ok { border-color: rgba(93,222,154,.4); }
+  .result.warn { border-color: rgba(230,184,77,.4); }
+  .result.busy {
+    border-style: solid; border-color: rgba(46,196,182,.45); color: var(--ink);
+  }
   details.more {
     margin-top: 1.25rem; border-top: 1px solid var(--line); padding-top: 1rem;
     animation: rise .6s .12s ease both;
@@ -338,7 +378,7 @@ INDEX_HTML = """<!DOCTYPE html>
         <a class="back" id="back-link" href="../">← Back to __BACK_LABEL__</a>
         <div class="tag">Agents · CANFAR · Batch compute</div>
         <h1>AstroAI</h1>
-        <p class="lede">Status and setup for coding agents on shared <code class="inline">/arc/home</code> — not a chat UI. Your __BACK_LABEL__ session keeps running.</p>
+        <p class="lede">Status and setup for coding agents on shared <code class="inline">/arc/home</code> — not a chat UI. Your __BACK_LABEL__ session keeps running. For experiments, start <strong>Batch compute</strong> below after API keys.</p>
       </div>
     </header>
 
@@ -362,6 +402,21 @@ INDEX_HTML = """<!DOCTYPE html>
           <button id="btn-kilo" class="secondary">Install Kilo CLI</button>
         </div>
         <p class="sub">Kilo is an optional coding agent (<code class="inline">kilo auth</code> after install). Use agents from webterm / the main UI — this page only installs and verifies.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Batch compute<span class="hint">One click starts a manager + workers and wires OpenResearch. You do not need to configure Ray.</span></h2>
+        <div id="ray">Loading…</div>
+        <div class="actions" style="margin-top:.75rem;margin-bottom:0">
+          <button id="btn-compute">Start batch compute</button>
+          <button id="btn-compute-refresh" class="secondary">Refresh status</button>
+        </div>
+        <div id="compute-result" class="result">Not started yet — set agent API keys, then click Start.</div>
+      </section>
+
+      <section class="panel">
+        <h2>CANFAR sessions<span class="hint">Auth + your open sessions (quota). Batch workers are started by Batch compute, not listed here as Jobs.</span></h2>
+        <div id="canfar">Loading…</div>
       </section>
 
       <section class="panel">
@@ -392,21 +447,6 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
         <div id="models-result" class="result">No apply run yet.</div>
       </section>
-
-      <section class="panel">
-        <h2>CANFAR sessions<span class="hint">Auth + your open sessions (quota). Batch workers are started below, not listed here as Jobs.</span></h2>
-        <div id="canfar">Loading…</div>
-      </section>
-
-      <section class="panel">
-        <h2>Batch compute<span class="hint">One click starts a manager session + workers and wires OpenResearch. You do not need to configure Ray.</span></h2>
-        <div id="ray">Loading…</div>
-        <div class="actions" style="margin-top:.75rem;margin-bottom:0">
-          <button id="btn-compute">Start batch compute</button>
-          <button id="btn-compute-refresh" class="secondary">Refresh</button>
-        </div>
-        <div id="compute-result" class="result">Not started yet — click Start after agents/keys are set.</div>
-      </section>
     </div>
 
     <details class="more">
@@ -419,6 +459,9 @@ INDEX_HTML = """<!DOCTYPE html>
   </div>
 <script>
 const BACK_LABEL = __BACK_LABEL_JSON__;
+let computeEnsureBusy = false;
+let computeEnsureLabel = '';
+let computeEnsureStarted = 0;
 const base = (document.querySelector('base') && document.querySelector('base').href) ||
   (location.pathname.replace(/\\/?$/, '/') );
 function mainUiHref() {
@@ -436,7 +479,7 @@ function mainUiHref() {
   a.textContent = '← Back to ' + BACK_LABEL;
 })();
 async function api(path, opts) {
-  const r = await fetch(base.replace(/\\/?$/, '/') + path.replace(/^\\//,''), opts);
+  const r = await fetch(base.replace(/\\/?$/, '/') + path.replace(/^\\//,''), opts || {});
   const text = await r.text();
   let data;
   try { data = JSON.parse(text); } catch { data = { ok: false, error: text }; }
@@ -477,12 +520,15 @@ function renderResources(r) {
 }
 function renderCanfar(c) {
   if (!c) return '<p class="warn">CANFAR probe unavailable.</p>';
-  let html = '<p class="sub">Confirm you are logged in (<code class="inline">canfar login</code> once in webterm). Session quota includes the batch-compute manager.</p>';
+  let html = '<p class="sub">Batch compute needs a one-time <code class="inline">canfar login</code> in webterm (same home).</p>';
   if (c.error && !(c.sessions||[]).length) {
     html += `<p class="warn">${esc(c.error)}</p>`;
   }
   const authLine = ((c.auth||'').split('\\n')[0] || '').trim();
-  html += `<p>Auth: <code class="inline">${esc(authLine || '(unknown)')}</code></p>`;
+  const authBad = !authLine || /not authenticated|timed out|failed|error/i.test(authLine);
+  html += `<p>Auth: <code class="inline">${esc(authLine || '(unknown)')}</code>` +
+    (authBad ? ' <span class="warn">— login required before Start</span>' : ' <span class="ok">ok</span>') +
+    `</p>`;
   const sessions = c.sessions || [];
   if (!sessions.length) {
     html += '<p class="sub">No session list yet. If auth looks empty, open <strong>webterm</strong> (same home) and run <code class="inline">canfar login</code> once, then Refresh.</p>';
@@ -493,26 +539,70 @@ function renderCanfar(c) {
 }
 function renderRay(r) {
   if (!r) return '<span class="warn">unavailable</span>';
+  const wired = !!(r.orx_wired || r.ray_address);
+  // Only a Running canfar manager counts — stale heartbeat/persisted URL do not.
+  const mgr = !!r.manager_running;
+  const pending = !!r.manager_pending;
+  const stale = !mgr && !pending && !!(r.heartbeat_present || r.persisted_connect_url);
+  let pill = '<div class="status-pill idle"><span class="dot"></span>Not started</div>';
   let html = '';
-  if (r.compute_ready || r.ray_address || r.connect_url) {
-    html += '<p class="ok">Batch compute is configured for OpenResearch.</p>';
-    if (r.ray_address) {
-      html += '<p class="sub">Jobs endpoint ready (wired automatically).</p>';
-    }
-    if (r.connect_url) {
-      html += `<p class="sub">Manager: <a href="${esc(r.connect_url)}" target="_blank" rel="noopener">open panel</a></p>`;
-    }
-  } else if (r.heartbeat_present) {
-    html += `<p class="ok">Manager heartbeat: <code class="inline">${esc(r.cluster_id)}</code>` +
-      (r.heartbeat_age_seconds!=null ? ` · age ${r.heartbeat_age_seconds}s` : '') +
-      (r.phase ? ` · phase ${esc(r.phase)}` : '') + '</p>';
+  if (wired) {
+    pill = '<div class="status-pill ready"><span class="dot"></span>Ready for OpenResearch</div>';
+    html += '<p class="ok">OpenResearch is wired to batch compute.</p>';
+    html += '<p class="sub">Default compute is batch — go back and run experiments (no <code class="inline">--backend</code> needed).</p>';
+  } else if (pending) {
+    pill = '<div class="status-pill partial"><span class="dot"></span>Manager starting</div>';
+    html += '<p class="warn">Manager session is Pending — click <strong>Start batch compute</strong> to wait and finish wiring.</p>';
+  } else if (mgr) {
+    pill = '<div class="status-pill partial"><span class="dot"></span>Manager up · not wired</div>';
+    html += '<p class="warn">Manager is Running, but OpenResearch is not wired yet — click <strong>Start batch compute</strong>.</p>';
+  } else if (stale) {
+    pill = '<div class="status-pill idle"><span class="dot"></span>Stale leftovers</div>';
+    html += '<p class="warn">Old manager files on this home, but no Running session — click <strong>Start batch compute</strong>.</p>';
   } else {
     html += '<p class="warn">No batch-compute cluster yet — click <strong>Start batch compute</strong>.</p>';
   }
+  html = pill + html;
+  if (r.connect_url && mgr) {
+    html += `<p class="sub">Manager panel: <a href="${esc(r.connect_url)}" target="_blank" rel="noopener">open</a></p>`;
+  }
+  if (r.ray_address) {
+    html += `<p class="sub">Jobs URL: <code class="inline">${esc(r.ray_address)}</code></p>`;
+  } else if (r.jobs_address_discoverable && mgr) {
+    html += `<p class="sub">Discoverable Jobs URL (not wired): <code class="inline">${esc(r.jobs_address_discoverable)}</code></p>`;
+  }
+  if (r.orx_default_backend && r.orx_default_backend !== 'ray' && wired) {
+    html += `<p class="warn">OpenResearch defaultBackend is <code class="inline">${esc(r.orx_default_backend)}</code> — Start will switch it to batch.</p>`;
+  }
   if (r.hint) html += `<p class="sub">${esc(r.hint)}</p>`;
   html += `<p class="sub">${esc(r.scratch_note || '/scratch is per-pod — share Jobs data on /arc.')}</p>`;
-  html += '<p class="sub">After Start succeeds, go back to OpenResearch and run experiments — default compute is set for you. Focus on agent API keys above.</p>';
+  html += '<ol class="steps">'
+    + `<li class="${wired||mgr?'done':''}">Agent API keys in OpenResearch / agents above</li>`
+    + `<li class="${wired?'done':(mgr||pending?'active':'')}">Start batch compute (manager + workers)</li>`
+    + `<li class="${wired?'done':''}">Back to OpenResearch → run</li>`
+    + '</ol>';
+  // Update primary button label for next click
+  const btn = document.getElementById('btn-compute');
+  if (btn && !btn.disabled) {
+    if (wired) btn.textContent = 'Refresh batch compute';
+    else if (mgr || pending) btn.textContent = 'Finish wiring batch compute';
+    else btn.textContent = 'Start batch compute';
+  }
   return html;
+}
+function formatEnsureDetail(data) {
+  if (!data || typeof data !== 'object') return '';
+  const lines = [];
+  if (data.user_message) lines.push(data.user_message);
+  const steps = data.steps || [];
+  if (steps.length) lines.push('Steps: ' + steps.join(' → '));
+  if (data.jobs_address) lines.push('Jobs: ' + data.jobs_address);
+  const w = data.workers || {};
+  if (w.already_ready) lines.push('Workers: already joined');
+  else if (w.joined_workers != null) lines.push('Workers joined: ' + w.joined_workers);
+  if (w.preflight_fallback) lines.push('Note: network preflight failed — manager wired anyway; workers may stay Pending.');
+  if (data.error) lines.push('Error: ' + data.error);
+  return lines.join('\\n');
 }
 function renderAddons(d) {
   const rows = (d && d.addons) || [];
@@ -578,9 +668,12 @@ async function refreshLists() {
   document.getElementById('interact').innerHTML = renderInteract(inter.data || {});
 }
 async function refresh() {
-  setMsg('Loading…');
+  if (!computeEnsureBusy) setMsg('Loading…');
   document.getElementById('canfar').innerHTML = '<span class="sub">Loading CANFAR…</span>';
-  document.getElementById('ray').innerHTML = '<span class="sub">Loading batch compute…</span>';
+  // Keep batch panel visible during ensure so progress isn't replaced with "Loading…"
+  if (!computeEnsureBusy) {
+    document.getElementById('ray').innerHTML = '<span class="sub">Loading batch compute…</span>';
+  }
   const rep = await api('api/report');
   const data = rep.data || {};
   const setup = (data.setup || {});
@@ -600,29 +693,81 @@ async function refresh() {
     : '<span class="ok">No verify issues</span>';
   document.getElementById('log').textContent = data.log_tail || '(empty)';
   await refreshLists();
-  setMsg('Refreshing CANFAR / batch compute…');
+  if (!computeEnsureBusy) setMsg('Refreshing CANFAR / batch compute…');
   const plat = await api('api/platform');
   document.getElementById('canfar').innerHTML = renderCanfar((plat.data||{}).canfar);
   document.getElementById('ray').innerHTML = renderRay((plat.data||{}).ray);
-  setMsg('');
+  if (computeEnsureBusy) {
+    const s = Math.round((Date.now() - computeEnsureStarted) / 1000);
+    setMsg((computeEnsureLabel || 'Starting batch compute') + '… ' + s + 's', '');
+  } else {
+    setMsg('');
+  }
 }
 async function action(path, label, resultId) {
-  document.querySelectorAll('button').forEach(b => b.disabled = true);
-  setMsg(label + '…');
+  // Keep Refresh enabled during long ensure so status can still update.
+  const keepAlive = new Set(['btn-refresh', 'btn-compute-refresh']);
+  document.querySelectorAll('button').forEach(b => {
+    if (!keepAlive.has(b.id)) b.disabled = true;
+  });
+  const started = Date.now();
+  let tick = null;
+  const isCompute = path.indexOf('compute/ensure') >= 0;
+  if (isCompute) {
+    computeEnsureBusy = true;
+    computeEnsureLabel = label;
+    computeEnsureStarted = started;
+    setResult('compute-result',
+      'Starting…\\nThis can take several minutes (manager session + workers).\\nKeep this tab open; Refresh status stays available.',
+      null);
+    document.getElementById('compute-result').classList.add('busy');
+    tick = setInterval(() => {
+      const s = Math.round((Date.now() - started) / 1000);
+      setMsg(label + '… ' + s + 's', '');
+      const el = document.getElementById('compute-result');
+      if (el) el.textContent =
+        'Still working (' + s + 's)…\\nManager create / network check / workers can each take a few minutes.\\nRefresh status to watch progress.';
+    }, 1000);
+  } else {
+    setMsg(label + '…');
+  }
   try {
-    const { data } = await api(path, { method: 'POST' });
+    const ctrl = new AbortController();
+    // Match server COMPUTE_ENSURE_TIMEOUT (~20m) with a little headroom.
+    const ms = isCompute ? 1260000 : 600000;
+    const to = setTimeout(() => ctrl.abort(), ms);
+    const { data } = await api(path, { method: 'POST', signal: ctrl.signal });
+    clearTimeout(to);
     const summary = data.summary || data.error || data.user_message || '';
     setMsg((data.ok ? 'OK: ' : 'Done with issues: ') + summary, data.ok ? 'ok' : 'warn');
     if (resultId) {
-      const detail = Array.isArray(data.actions)
-        ? data.actions.map(a => typeof a === 'string' ? a :
-            `${a.id||''}: ${a.status||''}${a.detail ? ' — '+a.detail : ''}`).join('\\n')
-        : (data.user_message || summary);
+      let detail;
+      if (Array.isArray(data.actions)) {
+        detail = data.actions.map(a => typeof a === 'string' ? a :
+          `${a.id||''}: ${a.status||''}${a.detail ? ' — '+a.detail : ''}`).join('\\n');
+      } else if (isCompute) {
+        detail = formatEnsureDetail(data) || summary;
+      } else {
+        detail = data.user_message || summary;
+      }
       setResult(resultId, detail || summary || '(no detail)', !!data.ok);
     }
   } catch (e) {
-    setMsg(String(e), 'bad');
-    if (resultId) setResult(resultId, String(e), false);
+    const aborted = e && (e.name === 'AbortError' || String(e).indexOf('abort') >= 0);
+    const msg = aborted
+      ? 'Timed out waiting for batch compute. Check webterm: astroai-lab ray status — Start may still finish in the background.'
+      : String(e);
+    setMsg(msg, 'bad');
+    if (resultId) setResult(resultId, msg, false);
+  } finally {
+    if (tick) clearInterval(tick);
+    if (isCompute) {
+      computeEnsureBusy = false;
+      computeEnsureLabel = '';
+      computeEnsureStarted = 0;
+    }
+    const cr = document.getElementById('compute-result');
+    if (cr) cr.classList.remove('busy');
   }
   document.querySelectorAll('button').forEach(b => b.disabled = false);
   await refresh();

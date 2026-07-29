@@ -7,4 +7,4 @@
 #
 # Bump deliberately: pick a SHA on `main` that you have tested, replace the
 # line below, then `make lock-astroai-lab`. Never edit the lockfile by hand.
-astroai-lab @ git+https://github.com/astroai/astroai-lab.git@8b53bc83f318a21782fd0dc43a8b2fa1bbddcd19
+astroai-lab @ git+https://github.com/astroai/astroai-lab.git@d800f7055b0d0362178dafd982aab1450bd994b9

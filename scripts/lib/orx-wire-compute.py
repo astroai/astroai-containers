@@ -2,8 +2,9 @@
 """Best-effort: default OpenResearch compute to CANFAR batch (Ray under the hood).
 
 Called from openresearch startup. Never fails the session.
-- If a manager Jobs URL is already known, wire orx settings.
-- Else leave a defaultBackend=ray so the first `ray ensure` / hub Start is enough.
+- If a manager Jobs URL is already known, wire orx settings (ray.json + defaultBackend).
+- If no Jobs URL is known, do nothing — never set defaultBackend=ray alone
+  (orx would fall through to localhost:8265).
 """
 
 from __future__ import annotations
@@ -27,19 +28,8 @@ def main() -> int:
             _session_status,
         )
     except Exception:
-        # Minimal fallback without lab helpers.
-        cfg = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "openresearch"
-        cfg.mkdir(parents=True, exist_ok=True)
-        settings_path = cfg / "settings.json"
-        settings: dict = {}
-        if settings_path.is_file():
-            try:
-                settings = json.loads(settings_path.read_text(encoding="utf-8"))
-            except Exception:
-                settings = {}
-        if not settings.get("defaultBackend"):
-            settings["defaultBackend"] = "ray"
-            settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+        # Without lab helpers we cannot discover a manager URL — leave orx alone
+        # (no defaultBackend=ray without an address).
         return 0
 
     jobs = (os.environ.get("ASTROAI_RAY_JOBS_ADDRESS") or "").strip().rstrip("/")
@@ -62,20 +52,9 @@ def main() -> int:
 
     if jobs:
         wire_orx(jobs_address=jobs, make_default=True)
-    else:
-        # Still prefer ray as default so agents don't pick HF by accident.
-        cfg = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "openresearch"
-        cfg.mkdir(parents=True, exist_ok=True)
-        settings_path = cfg / "settings.json"
-        settings = {}
-        if settings_path.is_file():
-            try:
-                settings = json.loads(settings_path.read_text(encoding="utf-8"))
-            except Exception:
-                settings = {}
-        if not settings.get("defaultBackend"):
-            settings["defaultBackend"] = "ray"
-            settings_path.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    # Do NOT set defaultBackend=ray without a Jobs URL — orx would fall through
+    # to http://127.0.0.1:8265 and confuse first-run users. Hub Start / ray ensure
+    # wires both address + default together.
     return 0
 
 
