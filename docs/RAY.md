@@ -99,10 +99,10 @@ never listens on Ray ports).
 | Outcome | Meaning |
 |---------|---------|
 | Probe stays **Pending** | Headless scheduling issue — [science-platform#1124](https://github.com/opencadc/science-platform/issues/1124) |
-| `worker→manager` checks fail | Often **wrong Skaha server** in `~/.canfar` on `/arc/home` (e.g. manager on staging, `active.server=canfar` → workers on production). Also possible: true session-to-session network isolation |
+| `worker→manager` checks fail | Often **wrong Skaha server** in `~/.canfar` on `/arc/home/<user>` (e.g. manager on staging, `active.server=canfar` → workers on production). Also possible: true session-to-session network isolation |
 | Worker log: cannot reach head `:6379` | Same class — confirm worker and manager are on the same server (`canfar auth show` / session lists) before assuming platform isolation |
 
-**Server pin:** `/arc/home/.canfar` must use the same `active.server` as the cluster where the manager runs. Registry bootstrap can set `ACTIVE_SERVER=staging` (or `canfar`). Manager sessions also accept `CANFAR_ACTIVE_SERVER` / `ACTIVE_SERVER` env to re-pin on startup.
+**Server pin:** `/arc/home/<user>/.canfar` must use the same `active.server` as the cluster where the manager runs. Registry bootstrap can set `ACTIVE_SERVER=staging` (or `canfar`). Manager sessions also accept `CANFAR_ACTIVE_SERVER` / `ACTIVE_SERVER` env to re-pin on startup.
 
 Preflight results are bound to the manager pod IP. Creating a cluster after moving
 to a new manager session requires a fresh preflight.

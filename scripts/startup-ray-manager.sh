@@ -28,10 +28,11 @@ export RAY_HEAD_PORT="${RAY_HEAD_PORT:-6379}"
 export RAY_IMAGE_TAG="${RAY_IMAGE_TAG:-${BUILD_TAG:-${TAG:-local}}}"
 export RAY_NODE_IP_ADDRESS="${RAY_NODE_IP_ADDRESS:-$(hostname -i | awk '{print $1}')}"
 
-# Workers/preflight are launched via the canfar client using ~/.canfar on
-# /arc/home. If that home still has active.server=canfar (production) while
-# this manager pod was started on staging, workers land on the wrong cluster
-# and cannot reach the head. Honor an explicit pin from session env.
+# Workers/preflight are launched via the canfar client using
+# /arc/home/<user>/.canfar. If that config still has active.server=canfar
+# (production) while this manager pod was started on staging, workers land on
+# the wrong cluster and cannot reach the head. Honor an explicit pin from
+# session env.
 _srv="${CANFAR_ACTIVE_SERVER:-${ACTIVE_SERVER:-}}"
 if [[ -n "${_srv}" ]]; then
     CANFAR_BIN="$(command -v canfar || true)"

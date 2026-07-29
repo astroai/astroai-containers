@@ -1,12 +1,12 @@
 #!/bin/bash -e
 # Persist Harbor registry credentials (and optional active server) to
-# ~/.canfar/config.yaml on /arc/home.
+# $HOME/.canfar/config.yaml (on CANFAR: /arc/home/<user>/.canfar/config.yaml).
 #
 # Env:
 #   REGISTRY_URL, REGISTRY_USER, REGISTRY_SECRET — Harbor pull creds (required)
 #   ACTIVE_SERVER — optional canfar active.server name (e.g. staging / canfar).
-#     When the manager is launched on staging but /arc/home still points at
-#     production, workers land on the wrong cluster and cannot join.
+#     When the manager is launched on staging but /arc/home/<user>/.canfar still
+#     points at production, workers land on the wrong cluster and cannot join.
 #   ACTIVE_SERVER_URL — Skaha base URL for ACTIVE_SERVER when it must be added
 #     to the servers map (default: https://staging.canfar.net/skaha for staging,
 #     https://ws-uv.canfar.net/skaha for canfar).
