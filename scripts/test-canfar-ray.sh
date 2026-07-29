@@ -92,10 +92,24 @@ bootstrap_canfar_registry_on_arc() {
     local create_out="" bootstrap_id="" status=""
 
     echo "Persisting Harbor registry credentials to /arc/home via headless bootstrap..."
+    # Pin active.server to whatever this host is using (staging vs production).
+    # Otherwise /arc/home may still point at production while the manager pod
+    # runs on staging — workers then cannot reach the head.
+    local active_server="${CANFAR_ACTIVE_SERVER:-}"
+    if [[ -z "${active_server}" ]]; then
+        active_server="$(canfar auth show 2>/dev/null | awk '/Server/{print $NF; exit}')"
+    fi
+    local -a boot_env=(
+        -e "REGISTRY_URL=${registry_url}"
+        -e "REGISTRY_USER=${CANFAR_REGISTRY__USERNAME}"
+        -e "REGISTRY_SECRET=${CANFAR_REGISTRY__SECRET}"
+    )
+    if [[ -n "${active_server}" ]]; then
+        boot_env+=(-e "ACTIVE_SERVER=${active_server}")
+        echo "  also pinning /arc/home active.server=${active_server}"
+    fi
     create_out="$(canfar create --name "${bootstrap_name}" headless "${base_image}" \
-        -e "REGISTRY_URL=${registry_url}" \
-        -e "REGISTRY_USER=${CANFAR_REGISTRY__USERNAME}" \
-        -e "REGISTRY_SECRET=${CANFAR_REGISTRY__SECRET}" \
+        "${boot_env[@]}" \
         -- bash /opt/astroai/bin/bootstrap-canfar-registry.sh 2>&1)" || {
         echo "${create_out}" >&2
         return 1
@@ -143,6 +157,8 @@ bootstrap_canfar_registry_on_arc() {
 create_manager_session() {
     local cores="${RAY_MANAGER_CORES:-2}"
     local ram="${RAY_MANAGER_RAM:-8}"
+    # Note: Skaha rejects env/cmd/args on contributed sessions — server pin must
+    # live in /arc/home via bootstrap (ACTIVE_SERVER), not manager create -e.
     canfar create --name "${SESSION_NAME}" --cpu "${cores}" --memory "${ram}" \
         contributed "${FULL_IMAGE}" 2>&1
 }
