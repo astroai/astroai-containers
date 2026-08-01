@@ -20,7 +20,7 @@ fi
 export RAY_NODE_IP_ADDRESS
 
 cluster_id="${RAY_CLUSTER_ID:-local}"
-spill_root="${TMP_SCRATCH_DIR:-/scratch}/ray/${cluster_id}"
+spill_root="${SCRATCH:-/scratch}/ray/${cluster_id}"
 mkdir -p "${spill_root}"
 export RAY_spill_dir="${spill_root}"
 

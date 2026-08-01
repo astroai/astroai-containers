@@ -1,0 +1,14 @@
+# Lint rules mirror astroai-lab/pyproject.toml so both repos enforce the same set.
+# Marimo notebooks and the starter notebook are excluded there too.
+line-length = 100
+target-version = "py310"
+
+[lint]
+select = ["E", "F", "I", "UP", "BLE", "SIM", "PIE"]
+exclude = ["*.ipynb", "config/notebooks/starter.py"]
+
+# Files dominated by embedded HTML/CSS/JS templates keep lines intact for
+# byte-identical rendering; wrapping them risks changing output.
+[lint.per-file-ignores]
+"scripts/lib/agent-wizard.py" = ["E501"]
+"scripts/build-custom-webterm-ui.py" = ["E501"]

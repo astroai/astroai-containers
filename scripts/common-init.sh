@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# Shared session setup: code on TMP_SRC_DIR, data on TMP_SCRATCH_DIR, config on /arc.
+# Shared session setup: code on WORK, data on SCRATCH, config on /arc.
 
 if [[ -f /etc/profile.d/astroai.sh ]]; then
     # shellcheck disable=SC1091
@@ -63,11 +63,11 @@ if [[ ! -f "${_state}/welcomed" ]]; then
 
   Welcome to AstroAI on CANFAR!
   ─────────────────────────────
-  astroai-lab init <name>     New project       astroai-lab guide    Full command list
+  astroai-lab init <name>     New project       astroai-lab help     Full command list
   astroai-lab clone <repo>    Clone from GitHub  less /opt/astroai/USAGE.md  Full docs
 
   Storage: /srcdir (code)  /scratch (session-private data)  /arc (shared across sessions)
-  Backup:  hourly → ~/.astroai/lab/backups/<session>  (astroai-lab backup status)
+  Persist: astroai-lab save / git push  (session disks are ephemeral)
   Agents:  astroai-lab agent install claude|goose|opencode|codex
 WELCOME
         if [[ "${ASTROAI_SESSION_KIND:-}" == "webterm" ]]; then
@@ -131,8 +131,6 @@ if command -v astroai-lab >/dev/null 2>&1; then
       fi
       ;;
   esac
-  # Hourly /srcdir → /arc/home backup (opt-out: ASTROAI_LAB_BACKUP_ENABLED=false).
-  astroai-lab backup start >/dev/null 2>&1 || true
 fi
 
 unset ASTROAI_LAB_PROFILE_LOADED

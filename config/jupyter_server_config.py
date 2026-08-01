@@ -1,14 +1,15 @@
 # Minimal JupyterLab config for CANFAR sessions.
 import os
 import runpy
+import sys
 
 # Apply scratch-backed cache env before the server starts (no login shell needed).
 _env_helper = "/etc/astroai-lab/jupyter_astroai_scratch_env.py"
 if os.path.isfile(_env_helper):
     try:
         runpy.run_path(_env_helper)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 — best-effort helper; env loads normally
+        print(f"astroai-lab scratch env helper failed: {exc}", file=sys.stderr)
 
 c = get_config()  # noqa: F821
 

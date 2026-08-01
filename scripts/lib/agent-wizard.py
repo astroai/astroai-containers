@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""AstroAI hub sidecar — agents + CANFAR + Ray over ``astroai-lab`` CLI.
+"""AstroAI hub sidecar — agents, CANFAR sessions, and Ray status.
 
 Listens on 127.0.0.1:ASTROAI_AGENT_WIZARD_PORT (default 4792).
 Proxied as /astroai-agents/ by the session path-rewrite proxy.
@@ -8,13 +7,13 @@ Failures here must never affect the main UI process.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import shutil
 import subprocess
 import sys
 import traceback
-from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -22,11 +21,14 @@ from urllib.parse import parse_qs, urlparse
 PORT = int(os.environ.get("ASTROAI_AGENT_WIZARD_PORT", "4792"))
 CLI_TIMEOUT = int(os.environ.get("ASTROAI_AGENT_WIZARD_CLI_TIMEOUT", "600"))
 # Hub platform probes must stay snappy — full `astroai-lab status` can hang on
-# VOSpace/GMS; prefer short canfar + ray probes in parallel instead.
+# VOSpace/GMS; prefer a short canfar probe instead. astroai-lab no longer
+# manages Ray — ray state is derived from `canfar ps` sessions here.
 PLATFORM_CANFAR_TIMEOUT = int(os.environ.get("ASTROAI_HUB_CANFAR_TIMEOUT", "12"))
-PLATFORM_RAY_TIMEOUT = int(os.environ.get("ASTROAI_HUB_RAY_TIMEOUT", "30"))
 # One-click ensure can create a manager + workers — allow a long wall clock.
 COMPUTE_ENSURE_TIMEOUT = int(os.environ.get("ASTROAI_HUB_COMPUTE_ENSURE_TIMEOUT", "1200"))
+RAY_MANAGER_IMAGE = os.environ.get(
+    "RAY_MANAGER_IMAGE", "images.canfar.net/astroai/ray-manager:latest"
+)
 HOME = Path.home()
 
 
@@ -38,6 +40,7 @@ def _run_cmd(cmd: list[str], *, timeout: int) -> tuple[int, str, str]:
             text=True,
             timeout=timeout,
             env=os.environ.copy(),
+            check=False,
         )
         return proc.returncode, proc.stdout or "", proc.stderr or ""
     except FileNotFoundError:
@@ -122,35 +125,43 @@ def _platform_payload() -> dict:
             payload["error"] = ps_err
         return payload
 
-    def _ray() -> tuple[int, dict | None, str]:
-        rc2, stdout2, err2 = _run_lab(
-            ["--json", "ray", "status"], timeout=PLATFORM_RAY_TIMEOUT
-        )
-        ray = _parse_json_stdout(stdout2)
-        if isinstance(ray, dict):
-            return rc2, ray, ""
-        return rc2, None, err2 or stdout2 or "ray status failed"
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        fut_c = pool.submit(_canfar)
-        fut_r = pool.submit(_ray)
-        out["canfar"] = fut_c.result()
-        rc2, ray, ray_err = fut_r.result()
-
-    if ray is not None:
-        out["ray"] = ray
-        out["ray_cli_exit"] = rc2
-    else:
-        out["ray"] = {
-            "hint": "No batch-compute manager yet — use Start batch compute",
-            "launch_command": "astroai-lab ray ensure",
-            "error": ray_err,
-            "compute_ready": False,
-        }
+    out["canfar"] = _canfar()
+    out["ray"] = _ray_from_sessions(out["canfar"].get("sessions") or [])
+    if not out["ray"].get("manager_running"):
         out["ok"] = False
     if out["canfar"].get("error") and not out["canfar"].get("sessions"):
         out["canfar_soft_fail"] = True
     return out
+
+
+def _ray_from_sessions(sessions: list[str]) -> dict:
+    """Derive ray-manager state from `canfar ps` lines (astroai-lab no longer manages Ray)."""
+    ray_lines = [ln for ln in sessions if "ray" in ln.lower()]
+    running = [ln for ln in ray_lines if "running" in ln.lower()]
+    pending = [ln for ln in ray_lines if "pending" in ln.lower()]
+    jobs = os.environ.get("ASTROAI_RAY_JOBS_ADDRESS", "").strip()
+    if running:
+        out: dict = {
+            "manager_running": True,
+            "compute_ready": True,
+            "hint": "ray-manager session detected — open its connect URL from `canfar ps`.",
+        }
+        if jobs:
+            out["ray_address"] = jobs
+            out["orx_wired"] = True
+        return out
+    if pending:
+        return {
+            "manager_pending": True,
+            "compute_ready": False,
+            "hint": "ray-manager session is Pending — wait for it to start.",
+        }
+    return {
+        "manager_running": False,
+        "compute_ready": False,
+        "hint": "No ray-manager session — use Start batch compute",
+        "launch_command": f"canfar create --name raymgr --cpu 2 --memory 8 contributed {RAY_MANAGER_IMAGE}",
+    }
 
 
 CHEATSHEET = """\
@@ -167,9 +178,9 @@ canfar auth show
 canfar ps
 canfar login
 
-# Batch compute (manager + workers; wires OpenResearch)
-astroai-lab ray ensure
-astroai-lab ray status
+# Batch compute (manager + workers via the portal / ray-launch)
+canfar create --name raymgr --cpu 2 --memory 8 contributed images.canfar.net/astroai/ray-manager:latest
+canfar ps
 # Put shared batch I/O on /arc — /scratch is per-pod only
 """
 
@@ -755,7 +766,7 @@ async function action(path, label, resultId) {
   } catch (e) {
     const aborted = e && (e.name === 'AbortError' || String(e).indexOf('abort') >= 0);
     const msg = aborted
-      ? 'Timed out waiting for batch compute. Check webterm: astroai-lab ray status — Start may still finish in the background.'
+      ? 'Timed out waiting for batch compute. Check webterm: canfar ps — the manager may still finish starting in the background.'
       : String(e);
     setMsg(msg, 'bad');
     if (resultId) setResult(resultId, msg, false);
@@ -816,10 +827,8 @@ class WizardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        try:
+        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
             self.wfile.write(body)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
 
     def _json(self, code: int, payload: dict) -> None:
         raw = json.dumps(payload).encode("utf-8")
@@ -833,7 +842,7 @@ class WizardHandler(BaseHTTPRequestHandler):
                 path = path[len(prefix) :] or "/"
         return path, parse_qs(parsed.query)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         path, _qs = self._path()
         if path in ("/", "/index.html"):
             self._send(200, INDEX_HTML.encode("utf-8"), "text/html; charset=utf-8")
@@ -910,7 +919,7 @@ class WizardHandler(BaseHTTPRequestHandler):
                 },
             )
             return
-        if path in ("/api/catalog", "/api/awesome"):
+        if path == "/api/catalog":
             rc, out, err = _run_lab(["--json", "agent", "catalog"], timeout=30)
             data = _parse_json_stdout(out)
             if isinstance(data, list):
@@ -931,7 +940,7 @@ class WizardHandler(BaseHTTPRequestHandler):
             return
         self._send(404, b"not found\n", "text/plain; charset=utf-8")
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         path, qs = self._path()
         length = int(self.headers.get("Content-Length", "0") or "0")
         if length:
@@ -1071,26 +1080,35 @@ class WizardHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/compute/ensure":
-                # Long-running: create manager + workers + wire orx.
-                rc, out, err = _run_lab(
-                    ["--json", "ray", "ensure"],
+                # Long-running: create manager + workers + wire orx. astroai-lab
+                # no longer manages Ray — launch the manager via the platform CLI.
+                rc, out, err = _run_cmd(
+                    [
+                        "canfar",
+                        "create",
+                        "--name",
+                        "raymgr",
+                        "--cpu",
+                        "2",
+                        "--memory",
+                        "8",
+                        "contributed",
+                        RAY_MANAGER_IMAGE,
+                    ],
                     timeout=COMPUTE_ENSURE_TIMEOUT,
                 )
-                data = _parse_json_stdout(out)
-                if not isinstance(data, dict):
-                    data = {
-                        "ok": False,
-                        "error": (err or out or "ray ensure failed")[:800],
-                        "cli_exit": rc,
-                    }
-                else:
-                    data["cli_exit"] = rc
-                    if "ok" not in data:
-                        data["ok"] = rc == 0
-                if not data.get("summary"):
-                    data["summary"] = data.get("user_message") or (
-                        "batch compute ready" if data.get("ok") else (err or "failed")[:300]
-                    )
+                ok = rc == 0
+                data = {
+                    "ok": ok,
+                    "cli_exit": rc,
+                    "summary": "ray-manager session created" if ok else (err or out or "launch failed")[:300],
+                    "user_message": (
+                        "ray-manager session created. Open its connect URL from `canfar ps`, "
+                        "then start workers from the manager dashboard."
+                        if ok
+                        else (err or out or "launch failed")[:800]
+                    ),
+                }
                 self._json(200, data)
                 return
 
@@ -1114,10 +1132,8 @@ def main() -> int:
         sys.stderr.write(f"agent-wizard: bind failed: {exc}\n")
         return 1
     sys.stderr.write(f"agent-wizard: listening 127.0.0.1:{PORT}\n")
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         server.serve_forever()
-    except KeyboardInterrupt:
-        pass
     return 0
 
 

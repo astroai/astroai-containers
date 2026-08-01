@@ -80,10 +80,10 @@ CHECK_BATCH
 # grouping them avoids 4 extra shell + Python startups)
 # ================================================================
 process_batch < <(batch_login <<'CHECK_BATCH'
-astroai-lab doctor >/dev/null 2>&1 && echo "PASS:astroai-lab doctor" || echo "FAIL:astroai-lab doctor"
-astroai-lab paths --json | grep -q work_dir && echo "PASS:astroai-lab paths" || echo "FAIL:astroai-lab paths"
-astroai-lab tools --json | grep -q '"name": "git"' && echo "PASS:astroai-lab tools" || echo "FAIL:astroai-lab tools"
-astroai-lab check --json | grep -q '"ok": true' && echo "PASS:astroai-lab check" || echo "FAIL:astroai-lab check"
+astroai-lab status --json >/dev/null 2>&1 && echo "PASS:astroai-lab status" || echo "FAIL:astroai-lab status"
+astroai-lab env export --json | grep -q '"WORK"' && echo "PASS:astroai-lab env export" || echo "FAIL:astroai-lab env export"
+astroai-lab saves --json >/dev/null 2>&1 && echo "PASS:astroai-lab saves" || echo "FAIL:astroai-lab saves"
+astroai-lab agent list >/dev/null 2>&1 && echo "PASS:astroai-lab agent list" || echo "FAIL:astroai-lab agent list"
 astroai-lab agent install --list >/dev/null 2>&1 && echo "PASS:astroai-lab agent bundle" || echo "FAIL:astroai-lab agent bundle"
 echo "BATCH_END"
 CHECK_BATCH
@@ -127,27 +127,27 @@ if command -v node >/dev/null 2>&1; then
     npm --version >/dev/null 2>&1 && echo "PASS:npm --version" || echo "FAIL:npm --version"
 fi
 
-# TMP_SRC_DIR (only report when the guard passes — matches legacy behaviour)
-if [[ -n "${TMP_SRC_DIR:-}" && -d "${TMP_SRC_DIR}" && -w "${TMP_SRC_DIR}" ]]; then
-    echo "PASS:TMP_SRC_DIR writable"
+# WORK (only report when the guard passes)
+if [[ -n "${WORK:-}" && -d "${WORK}" && -w "${WORK}" ]]; then
+    echo "PASS:WORK writable"
 fi
 
 # Scratch-mounted checks
-if [[ -d "${TMP_SCRATCH_DIR}" && -w "${TMP_SCRATCH_DIR}" ]]; then
+if [[ -d "${SCRATCH}" && -w "${SCRATCH}" ]]; then
     u="${USER:-$(id -un)}"
-    root="${TMP_SCRATCH_DIR}/.cache-${u}"
+    root="${SCRATCH}/.cache-${u}"
     [[ "${UV_CACHE_DIR}" == "${root}/"* ]] && echo "PASS:session cache root layout" || echo "FAIL:session cache root layout"
     for var in PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR MAMBA_PKGS_DIRS CONDA_PKGS_DIRS; do
         [[ "${!var}" == "${root}/"* ]] && echo "PASS:${var} under session cache root" || echo "FAIL:${var} under session cache root"
     done
-    [[ "${ASTROAI_LAB_BIN_DIR}" == "${TMP_SCRATCH_DIR}/"* ]] && echo "PASS:ASTROAI_LAB_BIN_DIR on scratch" || echo "FAIL:ASTROAI_LAB_BIN_DIR on scratch"
-    [[ "${ASTROAI_LAB_RUNTIME_ROOT}" == "${TMP_SCRATCH_DIR}/"* ]] && echo "PASS:ASTROAI_LAB_RUNTIME_ROOT on scratch" || echo "FAIL:ASTROAI_LAB_RUNTIME_ROOT on scratch"
+    [[ "${ASTROAI_LAB_BIN_DIR}" == "${SCRATCH}/"* ]] && echo "PASS:ASTROAI_LAB_BIN_DIR on scratch" || echo "FAIL:ASTROAI_LAB_BIN_DIR on scratch"
+    [[ "${ASTROAI_LAB_RUNTIME_ROOT}" == "${SCRATCH}/"* ]] && echo "PASS:ASTROAI_LAB_RUNTIME_ROOT on scratch" || echo "FAIL:ASTROAI_LAB_RUNTIME_ROOT on scratch"
     [[ "${UV_PYTHON_INSTALL_DIR}" != "${HOME}/"* ]] && echo "PASS:UV_PYTHON_INSTALL_DIR off home" || echo "FAIL:UV_PYTHON_INSTALL_DIR off home"
     [[ "${PIXI_HOME}" != "${HOME}/.pixi" ]] && echo "PASS:PIXI_HOME off home when scratch mounted" || echo "FAIL:PIXI_HOME off home when scratch mounted"
     astroai-lab env export --no-ensure | grep -q ASTROAI_LAB_BIN_DIR && echo "PASS:astroai-lab env export" || echo "FAIL:astroai-lab env export"
-elif [[ -n "${TMP_SRC_DIR:-}" ]]; then
+elif [[ -n "${WORK:-}" ]]; then
     for var in UV_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR MAMBA_PKGS_DIRS CONDA_PKGS_DIRS; do
-        [[ "${!var}" == "${TMP_SRC_DIR}/"* ]] && echo "PASS:${var} under TMP_SRC_DIR" || echo "FAIL:${var} under TMP_SRC_DIR"
+        [[ "${!var}" == "${WORK}/"* ]] && echo "PASS:${var} under WORK" || echo "FAIL:${var} under WORK"
     done
 fi
 echo "BATCH_END"

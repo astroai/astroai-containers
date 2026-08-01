@@ -8,17 +8,17 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
 | You want… | Read |
 |-----------|------|
 | This page | First session, storage, Ray, troubleshooting |
-| `astroai-lab` command detail | [astroai-lab USAGE](https://github.com/astroai/astroai-lab/blob/main/docs/USAGE.md) · `astroai-lab guide` |
+| `astroai-lab` command detail | [astroai-lab USAGE](https://github.com/astroai/astroai-lab/blob/main/docs/USAGE.md) · `astroai-lab help` |
 | Ray operators | [RAY.md](RAY.md) |
 | Platform CLI | [opencadc.github.io/canfar](https://opencadc.github.io/canfar/) |
 
 ## Scientist card
 
 1. Portal → launch **openresearch** or **openworker** as your day-to-day home base (or webterm/vscode/notebook/marimo/ray-manager as needed).
-2. Inside: `astroai-lab` · `astroai-lab guide` · `less /opt/astroai/USAGE.md`
+2. Inside: `astroai-lab` · `astroai-lab help` · `less /opt/astroai/USAGE.md`
 3. Work under `/srcdir` (code) and `/scratch` (data/caches).
-4. Persist to `/arc/home` or `/arc/projects` before the session ends (`save` / `data sync` / `push`).
-5. Hourly backup: `/srcdir` → `~/.astroai/lab/backups/<session>/` (`astroai-lab backup status`).
+4. Persist to `/arc/home` or `/arc/projects` before the session ends (`astroai-lab save` / `git push`).
+5. Env snapshots live in `~/.astroai/lab/saves/` on `/arc/home` — resume them in the next session with `astroai-lab resume NAME`.
 
 ### Home base: Agents · CANFAR · Batch compute (openresearch / openworker)
 
@@ -32,14 +32,13 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
    - **CANFAR sessions** — auth check; `canfar login` once in **webterm** if needed
    - **← Back to OpenResearch / OpenWorker** returns to the main UI
 4. Run experiments in OpenResearch — default compute is already CANFAR batch. Put shared I/O on `/arc` (`/scratch` is per-pod only).
-5. On other images: `astroai-lab agent setup` · `astroai-lab ray ensure` · `canfar ps`.
+5. On other images: `astroai-lab agent setup` · `astroai-lab status` · `canfar ps`.
 
 ```bash
 canfar login   # once, from webterm — persists under /arc/home
 canfar create --name orx contributed images.canfar.net/astroai/openresearch:26.07
 canfar open <session-id>
 # Hub: …/astroai-agents/ → Agents + Start batch compute
-# Or: astroai-lab ray ensure
 ```
 
 ---
@@ -48,37 +47,35 @@ canfar open <session-id>
 
 | Tier | Path | Lifetime | Shared across sessions? |
 |------|------|----------|-------------------------|
-| Work | `/srcdir` (`TMP_SRC_DIR`) | Session | No |
-| Scratch | `/scratch` (`TMP_SCRATCH_DIR`) | Session | **No** — other sessions cannot see it |
+| Work | `/srcdir` (`WORK`) | Session | No |
+| Scratch | `/scratch` (`SCRATCH`) | Session | **No** — other sessions cannot see it |
 | Home | `/arc/home/<you>` | Persistent | **Yes** |
 | Projects | `/arc/projects/<group>` | Persistent | **Yes** (group ACLs) |
 
-`/scratch` is fast and private to **this** session. Use `/arc/projects/…` (or home) when another session needs the same files live; move with `astroai-lab data sync` / `data stage`.
+`/scratch` is fast and private to **this** session. Use `/arc/projects/…` (or home) when another session needs the same files live; move with `canfar data` (platform archive I/O).
 
 **Home quota %:** CANFAR homes use CephFS directory quotas (`ceph.quota.max_bytes`). `astroai-lab status` prefers those xattrs; `ceph.dir.rbytes` can lag a few seconds after large writes — that is Ceph MDS accounting, not a frozen UI cache. Refresh with `astroai-lab status` (or the Agents / Resources panel).
 
 ```bash
-astroai-lab paths
-astroai-lab data stage /arc/projects/mygroup/raw
-astroai-lab data sync /scratch/out /arc/projects/mygroup/out
+astroai-lab status
+canfar data stage /arc/projects/mygroup/raw
+canfar data sync /scratch/out /arc/projects/mygroup/out
 ```
 
 ---
 
 ## Ray (first-class)
 
-**Preferred:** from openresearch/openworker, AstroAI hub → **Start batch compute**
-(or `astroai-lab ray ensure`). That launches **ray-manager**, starts workers, and
-wires OpenResearch.
+**Preferred:** from openresearch/openworker, AstroAI hub → **Start batch compute**.
+That launches **ray-manager**, starts workers, and wires OpenResearch.
 
 Manual path: launch **ray-manager** from the portal (or CLI), open Connect URL,
 create a cluster from the UI. Workers are headless images the manager starts for you.
 
 ```bash
-astroai-lab ray ensure   # recommended
+# AstroAI hub → Start batch compute
 # or:
 canfar create --name astroai-compute --cpu 2 --memory 8 contributed images.canfar.net/astroai/ray-manager:26.07
-astroai-lab ray status
 # after workers join:
 astroai-workload run train.py --cpus 2 --memory 8GiB
 ```
@@ -89,7 +86,7 @@ Dashboard: `connectURL/dashboard/`. Full detail: [RAY.md](RAY.md). Prefer manage
 
 `openresearch` defaults compute to CANFAR batch (Ray Jobs under the hood). Preferred path:
 
-1. AstroAI hub → **Start batch compute** (or `astroai-lab ray ensure`) — creates manager + workers and wires Settings.
+1. AstroAI hub → **Start batch compute** — creates manager + workers and wires Settings.
 2. Set agent API keys in the hub / agent configs.
 3. Run experiments in OpenResearch (no `--backend` needed once defaulted).
 
@@ -103,13 +100,11 @@ Put env saves on `/arc` (`~/.astroai/lab/saves/` or `/arc/projects/<group>/env-s
 
 ```bash
 astroai-lab init mylab          # or clone owner/repo
-astroai-lab save / resume / push --yes
+astroai-lab save / resume --yes
 astroai-lab agent setup         # once (UI sessions auto-run in background; webterm opt-in)
 astroai-lab agent install claude
 # Or open /astroai-agents/ in openresearch / openworker for the Agents wizard
 astroai-lab kernel ensure       # notebook
-astroai-lab notebook starter
-astroai-lab doctor
 ```
 
 Compilers and editors are in interactive images; put CUDA/ML stacks in your pixi/uv project locks.
@@ -135,15 +130,14 @@ CADC clients (`cadcget`, `vls`, …) are on PATH from `/opt/astroai/venv/cadc`.
 ## Diagnostics / troubleshooting
 
 ```bash
-astroai-lab doctor --json
 astroai-lab status --json
 ```
 
 | Symptom | Action |
 |---------|--------|
-| Other session missing `/scratch` files | Expected — scratch is session-private; use `/arc/projects` or `data sync` |
-| Lost files after session end | Check `~/.astroai/lab/backups/` or sync to `/arc` next time |
-| Home quota full | `astroai-lab clean home --all-safe --dry-run` |
+| Other session missing `/scratch` files | Expected — scratch is session-private; use `/arc/projects` or `canfar data` |
+| Lost files after session end | Persist to `/arc` next time (`astroai-lab save` / `git push` / `canfar data`) |
+| Home quota full | `astroai-lab status` (quota %) — prune caches under `/scratch` manually |
 | Session stuck **Pending** | `canfar ps` / events; contributed quota ≈3; headless Pending is often a Skaha flake ([OPERATORS](OPERATORS.md#platform-notes-headless-pending)) |
 
 ---

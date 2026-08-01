@@ -91,8 +91,8 @@ ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     TERM=xterm-256color \
     SHELL=/bin/bash \
-    ASTROAI_LAB_DEFAULT_SRC_DIR=/srcdir \
-    ASTROAI_LAB_DEFAULT_SCRATCH_DIR=/scratch
+    WORK=/srcdir \
+    SCRATCH=/scratch
 
 RUN printf '%s\n' \
     '[ -f /etc/profile.d/astroai.sh ] && . /etc/profile.d/astroai.sh' \
@@ -101,10 +101,10 @@ RUN printf '%s\n' \
 COPY scripts/astroai-profile.sh /etc/profile.d/astroai.sh
 RUN chmod a+r /etc/profile.d/astroai.sh
 
-RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${ASTROAI_LAB_DEFAULT_SRC_DIR}" \
+RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${WORK}" \
     && chmod -R a+rX /opt/astroai \
     && chmod -R a+rwx /opt/astroai/cache \
-    && chmod 1777 "${ASTROAI_LAB_DEFAULT_SRC_DIR}"
+    && chmod 1777 "${WORK}"
 
 COPY config/cadc-tools.txt /opt/astroai/cadc-tools.txt
 COPY scripts/patch-clint-py313.sh /tmp/patch-clint-py313.sh
@@ -115,10 +115,14 @@ RUN uv venv /opt/astroai/venv/cadc \
     && bash /tmp/patch-clint-py313.sh /opt/astroai/venv/cadc \
     && rm /tmp/patch-clint-py313.sh /tmp/astroai-lab.in /tmp/astroai-lab.lock \
     && chmod -R a+rwX /opt/astroai/venv/cadc \
-    && /opt/astroai/venv/cadc/bin/astroai-lab env install-shell /etc/astroai-lab \
+    # Copy the packaged session shell files straight out of the installed
+    # astroai-lab wheel — astroai-lab itself stays an in-session tool only.
+    && mkdir -p /etc/astroai-lab \
+    && /opt/astroai/venv/cadc/bin/python -c "import importlib.resources as r, shutil; p=r.files('astroai_lab.data.shell'); shutil.copy(p.joinpath('profile.sh'), '/etc/astroai-lab/profile.sh'); shutil.copy(p.joinpath('hooks.sh'), '/etc/astroai-lab/hooks.sh')" \
+    && chmod a+r /etc/astroai-lab/profile.sh /etc/astroai-lab/hooks.sh \
     && test -f /etc/astroai-lab/profile.sh \
     && test -f /etc/astroai-lab/hooks.sh \
-    && HOME=/tmp ASTROAI_LAB_DEFAULT_SRC_DIR=/srcdir ASTROAI_LAB_DEFAULT_SCRATCH_DIR=/scratch \
+    && HOME=/tmp WORK=/srcdir SCRATCH=/scratch \
        /opt/astroai/venv/cadc/bin/astroai-lab env export --no-ensure >/dev/null
 
 COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/

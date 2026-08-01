@@ -22,7 +22,7 @@ Examples:
 Build-time package list: `/opt/astroai/cadc-tools.txt` (unpinned; resolved when the image is built).
 
 Note: uv, pixi, and micromamba are installed from upstream installers at image
-build time (also unpinned). Project deps use pixi/uv under TMP_SRC_DIR; caches
+build time (also unpinned). Project deps use pixi/uv under WORK; caches
 and agent CLIs use scratch paths from astroai-lab env export.
 EOF
 }

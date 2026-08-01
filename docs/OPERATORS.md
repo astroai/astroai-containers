@@ -132,7 +132,7 @@ make test-canfar-session IMAGE=openworker TAG=26.07
 
 **OpenWorker notes:** Image pins `OPENWORKER_SHA` (see `docker-bake.hcl`). Browser UI + `openworker-server` only — no Tauri desktop shell. Desktop-only connectors may be limited on CANFAR. Agents wizard: `/astroai-agents/` (also on openresearch).
 
-**OpenResearch notes:** Image pins `ORX_SHA` / `ORX_REPO` (see `docker-bake.hcl`) and builds `orx` from that commit (includes `--backend ray`). Startup defaults compute to Ray and the AstroAI hub **Start batch compute** button runs `astroai-lab ray ensure` (manager + workers + wire). Switch back to alphaXiv release tarballs once a release includes [PR #138](https://github.com/alphaXiv/openresearch-cli/pull/138). See [USAGE.md](USAGE.md).
+**OpenResearch notes:** Image pins `ORX_SHA` / `ORX_REPO` (see `docker-bake.hcl`) and builds `orx` from that commit (includes `--backend ray`). Startup defaults compute to Ray and the AstroAI hub **Start batch compute** button launches a ray-manager + workers and wires OpenResearch. Switch back to alphaXiv release tarballs once a release includes [PR #138](https://github.com/alphaXiv/openresearch-cli/pull/138). See [USAGE.md](USAGE.md).
 
 **Agent auto-setup:** UI kinds (`openresearch`, `openworker`, `vscode`) default `ASTROAI_LAB_AGENT_SETUP=bg` when unset. **Marimo** stays opt-in for full setup (startup still runs `agent setup marimo` only). Webterm stays opt-in. Failures never block the main UI; see `~/.astroai/lab/agent-setup.log`.
 
@@ -183,17 +183,13 @@ While headless is unhealthy:
 
 | Command | Use |
 |---------|-----|
-| `astroai-lab doctor --json` | Paths, caches, tools, auth probe |
 | `astroai-lab status --json` | Quotas, projects, `canfar ps` |
-
-Doctor fails the process when **cache environment variables still point at `$HOME`**
-while leftovers on disk under home are reported as warnings.
 
 ## Agents and quota (operator view)
 
 - Agents install on demand via `astroai-lab agent install` into scratch/`ASTROAI_LAB_BIN_DIR` — prefer that over baking agent binaries into images.
 - Quota warnings fire at session start and via `astroai-lab status` (≈80 / 90 / 95%).
-- User data lifecycle (`push`, `data stage|sync`) is documented for users in [USAGE.md](USAGE.md).
+- User data lifecycle (`astroai-lab save`, `canfar data`) is documented for users in [USAGE.md](USAGE.md).
 
 ## User-facing docs
 

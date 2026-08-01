@@ -59,7 +59,7 @@ flowchart TB
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Developers — clone, build, test, PRs |
 | [docs/OPERATORS.md](docs/OPERATORS.md) | Maintainers — push, register, smoke tests |
 
-In-session: `astroai-lab guide` · `less /opt/astroai/USAGE.md`
+In-session: `astroai-lab help` · `less /opt/astroai/USAGE.md`
 
 ## Build and test
 
@@ -101,7 +101,7 @@ examples/ray/  container-local Ray smokes
 
 - **Same images for CPU and GPU** — choose the node in the portal; CUDA/ML stacks via pixi/uv in the project.
 - **Bake graph:** `python` → fat `base` (compilers + session tools) → interactive sessions; slim `ray-base` (from `python`) → `ray-worker`; fat `base` → `ray-manager` (scientists use its shell/UI).
-- **Fast session disks:** `TMP_SRC_DIR` (`/srcdir`) for code, `TMP_SCRATCH_DIR` (`/scratch`) for data and caches (session-private); `/arc/home` and `/arc/projects` are shared across sessions. Hourly `/srcdir` backup + `astroai-lab` persist to `/arc`.
+- **Fast session disks:** `WORK` (`/srcdir`) for code, `SCRATCH` (`/scratch`) for data and caches (session-private); `/arc/home` and `/arc/projects` are shared across sessions. Hourly `/srcdir` backup + `astroai-lab` persist to `/arc`.
 - **Skaha types:** Contributed listen on **5000**; Notebook on **8888**.
 - **Auth at the edge:** Session UIs trust CANFAR TLS + portal login. Use these images only behind an authenticating reverse proxy.
 

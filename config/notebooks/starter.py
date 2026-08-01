@@ -3,10 +3,10 @@
 Canonical copy — keep containers in sync:
   make -C ../astroai-containers sync-marimo-starter
 
-Keep code under TMP_SRC_DIR (this folder). Put large data on /scratch.
+Keep code under $WORK (this folder). Put large data on $SCRATCH.
 """
 
-import marimo
+import marimo  # type: ignore
 
 __generated_with = "0.13.0"
 app = marimo.App(width="medium")
@@ -14,7 +14,7 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
-    import marimo as mo
+    import marimo as mo  # type: ignore
 
     return (mo,)
 
@@ -35,19 +35,19 @@ Welcome. Marimo notebooks are plain **`.py` files** — easy to git and review.
 - **Files** — use **Session Files** below, or **File → Open** (Cmd/Ctrl+O).
   Symlinks `📁_scratch`, `📁_srcdir`, `📁_arc` sit next to this notebook.
 - **Terminal** — open a **webterm** tab for `git`, `canfar login`, `vcp`, and
-  mutating `astroai-lab` commands (`init`, `push`, `agent install`).
+  mutating `astroai-lab` commands (`init`, `save`, `agent install`).
 
 ### Quick rules
 
-1. Keep notebooks under `TMP_SRC_DIR/notebooks` (this directory).
-2. Put big files on `/scratch` or `/arc/projects` — never fill `/arc/home` with caches.
-3. `/scratch` is **session-private** — other sessions cannot see it; share via `/arc/projects` or home.
-4. Before the session ends, push code and copy results to `/arc/projects` or `vos:`.
+1. Keep notebooks under `$WORK/notebooks` (this directory).
+2. Put big files on `$SCRATCH` or `/arc/projects` — never fill `/arc/home` with caches.
+3. `$SCRATCH` is **session-private** — other sessions cannot see it; share via `/arc/projects` or home.
+4. Before the session ends, save your environment and copy results to `/arc/projects` or `vos:`.
 
 ### Open an existing project
 
 1. In a **webterm**: `astroai-lab init mylab` or `astroai-lab clone owner/repo`
-   (projects land under `TMP_SRC_DIR`).
+   (projects land under `$WORK`).
 2. Here: **File → Open** and browse into that folder, or follow the paths listed
    in **Session status** below.
 """
@@ -81,37 +81,34 @@ def _(mo):
     except Exception as exc:  # noqa: BLE001 — show in notebook, don't crash
         notes.append(f"`env export` skipped: `{exc}`")
 
-    scratch = pathlib.Path(os.environ.get("TMP_SCRATCH_DIR", "").strip() or "/scratch")
-    work = pathlib.Path(os.environ.get("TMP_SRC_DIR", "").strip() or "/srcdir")
+    scratch = pathlib.Path(os.environ.get("SCRATCH", "").strip() or "/scratch")
+    work = pathlib.Path(os.environ.get("WORK", "").strip() or "/srcdir")
 
     lines = [
-        f"- **work** (`TMP_SRC_DIR`): `{work}`",
+        f"- **work** (`WORK`): `{work}`",
         f"- **scratch**: `{scratch}` "
         f"({'writable' if scratch.is_dir() and os.access(scratch, os.W_OK) else 'not writable'})",
         f"- **home** (keep tiny): `{pathlib.Path.home()}`",
         f"- **XDG_CACHE_HOME**: `{os.environ.get('XDG_CACHE_HOME', '(unset)')}`",
     ]
 
-    # doctor exits 1 on env hygiene failure but still prints JSON — do not use check_output.
+    # Banner JSON shows session paths and save count.
     try:
         proc = subprocess.run(
-            ["astroai-lab", "doctor", "--json"],
+            ["astroai-lab", "--json"],
             check=False,
             capture_output=True,
             text=True,
         )
         raw = (proc.stdout or "").strip()
         if raw:
-            doctor = json.loads(raw)
-            ok = doctor.get("hygiene_ok")
-            lines.append(f"- **hygiene**: `{'ok' if ok else 'issues'}`")
-            for issue in doctor.get("hygiene_issues") or []:
-                lines.append(f"  - {issue}")
+            banner = json.loads(raw)
+            lines.append(f"- **saves**: {banner.get('saves_count', '?')}")
         else:
             err = (proc.stderr or "").strip() or f"exit {proc.returncode}"
-            lines.append(f"- **doctor**: no output (`{err}`)")
+            lines.append(f"- **astroai-lab**: no output (`{err}`)")
     except Exception as exc:  # noqa: BLE001
-        lines.append(f"- **doctor**: skipped (`{exc}`)")
+        lines.append(f"- **astroai-lab**: skipped (`{exc}`)")
 
     # Surface existing projects under the session work root.
     markers = ("pyproject.toml", "pixi.toml", "environment.yml", ".git")
@@ -148,11 +145,11 @@ def _(mo):
 @app.cell(hide_code=True)
 def _():
     try:
-        from canfar_marimo import file_browser
+        from canfar_marimo import file_browser  # type: ignore
 
         fb = file_browser()
     except ImportError:
-        import marimo as mo
+        import marimo as mo  # type: ignore
 
         fb = mo.ui.file_browser(
             initial_path="/scratch",
@@ -166,7 +163,7 @@ def _():
 @app.cell(hide_code=True)
 def _(fb, mo):
     try:
-        from canfar_marimo import file_browser_tips as _fb_tips
+        from canfar_marimo import file_browser_tips as _fb_tips  # type: ignore
     except ImportError:
 
         def _fb_tips():
@@ -213,7 +210,7 @@ ships fsspec support — until then this is the in-notebook path.
 def _(mo):
     # Bind widgets to cell globals so button clicks re-run the result cell.
     try:
-        from canfar_marimo import vospace_controls
+        from canfar_marimo import vospace_controls  # type: ignore
 
         vc = vospace_controls()
         vos_uri = vc.uri
@@ -238,7 +235,13 @@ Use `vls` / `vcp` in a **webterm** for VOSpace access.
 
 @app.cell(hide_code=True)
 def _(mo, vc, vos_dest, vos_fetch_btn, vos_list_btn, vos_uri):
-    if vc is None or vos_list_btn is None:
+    if (
+        vc is None
+        or vos_uri is None
+        or vos_dest is None
+        or vos_list_btn is None
+        or vos_fetch_btn is None
+    ):
         out = mo.md("")
     else:
         # Touch globals so marimo re-runs this cell on interaction.
@@ -270,19 +273,18 @@ astroai-lab clone owner/repo --from-env
 
 ```bash
 astroai-lab save
-astroai-lab data sync /scratch/out /arc/projects/mygroup/out
-astroai-lab push --yes
+# copy results to /arc/projects or vos: with canfar data / vcp
 ```
 
 **AI agents** (config on `/arc/home`)
 
 ```bash
 astroai-lab agent setup             # once per user (also seeds marimo AI)
-astroai-lab agent install kilo      # or goose, claude, opencode, codex
+astroai-lab agent install kilo      # or goose, claude, opencode, codex, qoder
 astroai-lab agent update
 ```
 
-Full reference: `astroai-lab guide` · [astroai-lab docs](https://github.com/astroai/astroai-lab)
+Full reference: `astroai-lab help` · [astroai-lab docs](https://github.com/astroai/astroai-lab)
 """
     )
     return
@@ -313,7 +315,6 @@ def _(mo):
 
 - Install packages into a **project** (`astroai-lab init mylab`), not `$HOME`.
 - Or use a short-lived venv under `/scratch` if you must.
-- Re-copy this template anytime: `astroai-lab notebook starter marimo`
 """
     )
     return

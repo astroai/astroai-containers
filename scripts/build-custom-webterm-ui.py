@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-import sys
 import re
 import subprocess
+import sys
 import time
 import urllib.request
+
 
 def main():
     if len(sys.argv) < 2:
@@ -26,7 +27,7 @@ def main():
             success = True
             print("Successfully fetched ttyd template.")
             break
-        except Exception as e:
+        except OSError:
             time.sleep(0.5)
 
     p.terminate()

@@ -65,7 +65,7 @@ def vospace_controls() -> SimpleNamespace:
     vos_mod = None
     err = ""
     try:
-        import vos as vos_mod  # noqa: F841
+        import vos as vos_mod
     except ImportError:
         err = (
             "`vos` module not found (expected in the Docker image). "
@@ -150,8 +150,8 @@ class VOSpaceUI:
 
 
 __all__ = [
+    "VOSpaceUI",
     "file_browser",
     "file_browser_tips",
     "vospace_controls",
-    "VOSpaceUI",
 ]

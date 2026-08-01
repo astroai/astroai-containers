@@ -12,17 +12,18 @@ elif [[ -f "${BASH_SOURCE[0]%/*}/astroai-ui.sh" ]]; then
     source "${BASH_SOURCE[0]%/*}/astroai-ui.sh"
 fi
 
-# Runtime paths — set TMP_SRC_DIR / TMP_SCRATCH_DIR to override; defaults from image ENV only.
+# Runtime paths — WORK / SCRATCH (canonical; Skaha bridge in astroai-profile.sh
+# maps TMP_* → WORK/SCRATCH). Defaults come from image ENV only.
 astroai_default_src_dir() {
-    echo "${ASTROAI_LAB_DEFAULT_SRC_DIR:-/srcdir}"
+    echo "${WORK:-/srcdir}"
 }
 
 astroai_default_scratch_dir() {
-    echo "${ASTROAI_LAB_DEFAULT_SCRATCH_DIR:-/scratch}"
+    echo "${SCRATCH:-/scratch}"
 }
 
 astroai_scratch_dir() {
-    echo "${TMP_SCRATCH_DIR:-$(astroai_default_scratch_dir)}"
+    echo "${SCRATCH:-$(astroai_default_scratch_dir)}"
 }
 
 astroai_scratch_available() {
@@ -31,10 +32,10 @@ astroai_scratch_available() {
     [[ -d "${_scratch}" && -w "${_scratch}" ]]
 }
 
-# Code/env root: TMP_SRC_DIR when set, else default src dir if writable, else scratch, else HOME.
+# Code/env root: WORK when set, else default src dir if writable, else scratch, else HOME.
 astroai_src_dir() {
-    if [[ -n "${TMP_SRC_DIR:-}" ]]; then
-        echo "${TMP_SRC_DIR}"
+    if [[ -n "${WORK:-}" ]]; then
+        echo "${WORK}"
         return
     fi
     local _default_src
@@ -88,7 +89,7 @@ astroai_check_quota() {
         astroai_warn "  ⚠  ${label}: ${used_pct}% used — CRITICAL (near quota limit)"
         return 2
     elif [[ "${used_pct}" -ge 90 ]]; then
-        astroai_warn "  ⚠  ${label}: ${used_pct}% used — prune soon (astroai-lab clean home --all-safe)"
+        astroai_warn "  ⚠  ${label}: ${used_pct}% used — prune caches soon (check astroai-lab status)"
         return 1
     elif [[ "${used_pct}" -ge 80 ]]; then
         astroai_warn "  ⚠  ${label}: ${used_pct}% used — monitor (astroai-lab status)"

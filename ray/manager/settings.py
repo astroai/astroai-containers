@@ -47,7 +47,7 @@ class ManagerSettings:
             ray_head_port=int(os.environ.get("RAY_HEAD_PORT", "6379")),
             worker_image=os.environ.get("RAY_WORKER_IMAGE", default_worker),
             probe_image=os.environ.get("RAY_PROBE_IMAGE", default_worker),
-            scratch_dir=os.environ.get("TMP_SCRATCH_DIR", "/scratch"),
+            scratch_dir=os.environ.get("SCRATCH", "/scratch"),
             heartbeat_timeout_seconds=int(
                 os.environ.get("RAY_MANAGER_HEARTBEAT_TIMEOUT_SECONDS", "120")
             ),

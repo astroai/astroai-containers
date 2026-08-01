@@ -19,7 +19,7 @@ mkdir -p \
     "${XDG_CONFIG_HOME:-${HOME}/.config}/openworker" \
     "${XDG_CACHE_HOME:-${HOME}/.cache}/openworker"
 
-WORKDIR="${TMP_SRC_DIR:-/srcdir}"
+WORKDIR="${WORK:-/srcdir}"
 mkdir -p "${WORKDIR}"
 
 # Agent wizard — never block the main UI.

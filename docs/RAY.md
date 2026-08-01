@@ -23,7 +23,7 @@ flowchart TB
 |------|-----|
 | Stock **Ray Dashboard** at `connectURL/dashboard/` | Jobs, actors, nodes, logs |
 | Manager control panel at `/` | Auth, preflight, create/stop cluster |
-| `astroai-lab ray guide` / `ray status` | Launch cheat sheet + local cluster state |
+| AstroAI hub → **Start batch compute** | One-click manager + workers + orx wiring |
 | **`astroai-workload run`** (on PATH in ray-manager) | Scripted Jobs submit / status / logs |
 | One `ray-worker` image | Request `gpus=N` per worker; CPU and GPU share the image |
 
@@ -132,8 +132,7 @@ the hood). Preferred path:
 
 ```bash
 # From openresearch / openworker (or any AstroAI session with canfar auth):
-astroai-lab ray ensure
-# Or AstroAI hub → Start batch compute
+# AstroAI hub → Start batch compute
 # Then in OpenResearch: run experiments (no --backend needed)
 ```
 

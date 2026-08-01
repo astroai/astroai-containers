@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Path-rewriting reverse proxy for OpenWorker on CANFAR contributed sessions.
 
 Listens on ``0.0.0.0:5000`` and:
@@ -11,6 +10,7 @@ Listens on ``0.0.0.0:5000`` and:
 
 from __future__ import annotations
 
+import contextlib
 import mimetypes
 import os
 import select
@@ -21,14 +21,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
-
 PUBLIC_PORT = int(os.environ.get("ASTROAI_OPENWORKER_PORT", "5000"))
 OW_HOST = os.environ.get("OPENWORKER_HOST", "127.0.0.1")
 OW_PORT = int(os.environ.get("OPENWORKER_PORT", "8765"))
 WIZARD_HOST = os.environ.get("ASTROAI_AGENT_WIZARD_HOST", "127.0.0.1")
 WIZARD_PORT = int(os.environ.get("ASTROAI_AGENT_WIZARD_PORT", "4792"))
 UI_ROOT = Path(os.environ.get("OPENWORKER_UI_ROOT", "/opt/openworker/gui")).resolve()
-SESSION_ID = (os.environ.get("skaha_sessionid") or "").strip()
+SESSION_ID = (os.environ.get("skaha_sessionid") or "").strip()  # noqa: SIM112 — platform env var is lowercase
 PREFIX = f"/session/contrib/{SESSION_ID}" if SESSION_ID else ""
 WIZARD_MOUNT = "/astroai-agents"
 
@@ -115,10 +114,8 @@ def _forward_http(handler: BaseHTTPRequestHandler, host: str, port: int, path: s
             handler.send_header("Content-Type", "text/html; charset=utf-8")
             handler.send_header("Content-Length", str(len(fallback)))
             handler.end_headers()
-            try:
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
                 handler.wfile.write(fallback)
-            except (BrokenPipeError, ConnectionResetError):
-                pass
             return
         handler.send_error(502, f"upstream unreachable: {exc}")
         return
@@ -132,10 +129,8 @@ def _forward_http(handler: BaseHTTPRequestHandler, host: str, port: int, path: s
     handler.send_header("Content-Length", str(len(raw)))
     handler.send_header("Connection", "close")
     handler.end_headers()
-    try:
+    with contextlib.suppress(BrokenPipeError, ConnectionResetError):
         handler.wfile.write(raw)
-    except (BrokenPipeError, ConnectionResetError):
-        pass
     conn.close()
 
 
@@ -185,10 +180,8 @@ def _tunnel_websocket(handler: BaseHTTPRequestHandler, host: str, port: int, pat
     except OSError:
         pass
     finally:
-        try:
+        with contextlib.suppress(OSError):
             upstream.close()
-        except OSError:
-            pass
 
 
 def _serve_static(handler: BaseHTTPRequestHandler, url_path: str) -> None:
@@ -216,12 +209,13 @@ def _serve_static(handler: BaseHTTPRequestHandler, url_path: str) -> None:
     handler.send_response(200)
     handler.send_header("Content-Type", ctype)
     handler.send_header("Content-Length", str(len(data)))
-    handler.send_header("Cache-Control", "no-cache" if candidate.name == "index.html" else "public, max-age=3600")
+    handler.send_header(
+        "Cache-Control",
+        "no-cache" if candidate.name == "index.html" else "public, max-age=3600",
+    )
     handler.end_headers()
-    try:
+    with contextlib.suppress(BrokenPipeError, ConnectionResetError):
         handler.wfile.write(data)
-    except (BrokenPipeError, ConnectionResetError):
-        pass
 
 
 class OpenWorkerProxyHandler(BaseHTTPRequestHandler):
@@ -248,25 +242,25 @@ class OpenWorkerProxyHandler(BaseHTTPRequestHandler):
 
         _serve_static(self, path)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         self._dispatch()
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         self._dispatch()
 
-    def do_PUT(self) -> None:  # noqa: N802
+    def do_PUT(self) -> None:
         self._dispatch()
 
-    def do_PATCH(self) -> None:  # noqa: N802
+    def do_PATCH(self) -> None:
         self._dispatch()
 
-    def do_DELETE(self) -> None:  # noqa: N802
+    def do_DELETE(self) -> None:
         self._dispatch()
 
-    def do_HEAD(self) -> None:  # noqa: N802
+    def do_HEAD(self) -> None:
         self._dispatch()
 
-    def do_OPTIONS(self) -> None:  # noqa: N802
+    def do_OPTIONS(self) -> None:
         self._dispatch()
 
 
@@ -278,10 +272,8 @@ def main() -> int:
         f"openworker-proxy: 0.0.0.0:{PUBLIC_PORT} ui={UI_ROOT} "
         f"api={OW_HOST}:{OW_PORT} wizard={WIZARD_PORT} prefix={PREFIX or '(none)'}\n"
     )
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         server.serve_forever()
-    except KeyboardInterrupt:
-        pass
     return 0
 
 

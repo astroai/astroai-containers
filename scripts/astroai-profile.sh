@@ -6,6 +6,14 @@ if [ -z "${BASH_VERSION:-}" ]; then
     return 0 2>/dev/null || exit 0
 fi
 
+# Skaha bridge → Slurm-style canonical names. Skaha sessions export
+# TMP_SRC_DIR / TMP_SCRATCH_DIR; astroai-lab now reads WORK / SCRATCH only.
+# Map the platform vars to the canonical names here, before astroai-lab runs.
+# Platform vars win over image ENV defaults (the image sets WORK=/srcdir,
+# which must not shadow a non-default session disk path from Skaha).
+export WORK="${TMP_SRC_DIR:-${WORK:-/srcdir}}"
+export SCRATCH="${TMP_SCRATCH_DIR:-${SCRATCH:-/scratch}}"
+
 # CADC venv first — astroai-lab env export runs from profile.sh below.
 case ":${PATH}:" in
     *":/opt/astroai/venv/cadc/bin:"*) ;;

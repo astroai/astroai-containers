@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Reverse-proxy orx (or similar) for CANFAR contributed sessions.
 
 orx serves a Vite SPA with absolute paths (``/assets/...``, ``/api/...``).
@@ -17,6 +16,7 @@ This proxy:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import select
 import socket
@@ -25,13 +25,12 @@ from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
-
 PUBLIC_PORT = int(os.environ.get("ASTROAI_OPENRESEARCH_PORT", "5000"))
 ORX_HOST = os.environ.get("ORX_HOST", "127.0.0.1")
 ORX_PORT = int(os.environ.get("ORX_PORT", "4791"))
 WIZARD_HOST = os.environ.get("ASTROAI_AGENT_WIZARD_HOST", "127.0.0.1")
 WIZARD_PORT = int(os.environ.get("ASTROAI_AGENT_WIZARD_PORT", "4792"))
-SESSION_ID = (os.environ.get("skaha_sessionid") or "").strip()
+SESSION_ID = (os.environ.get("skaha_sessionid") or "").strip()  # noqa: SIM112 — platform env var is lowercase
 PREFIX = f"/session/contrib/{SESSION_ID}" if SESSION_ID else ""
 WIZARD_MOUNT = "/astroai-agents"
 
@@ -86,10 +85,7 @@ def rewrite_body(data: bytes, content_type: str) -> bytes:
         chip = AGENTS_CHIP.format(href=href)
         lower = text.lower()
         idx = lower.rfind("</body>")
-        if idx >= 0:
-            text = text[:idx] + chip + text[idx:]
-        else:
-            text = text + chip
+        text = text[:idx] + chip + text[idx:] if idx >= 0 else text + chip
     return text.encode("utf-8")
 
 
@@ -101,7 +97,7 @@ def rewrite_location(value: str) -> str:
     for abs_prefix in ABS_PREFIXES:
         if value == abs_prefix.rstrip("/") or value.startswith(abs_prefix):
             return PREFIX + value
-    if value.startswith("/api") or value.startswith("/assets") or value.startswith(WIZARD_MOUNT):
+    if value.startswith(("/api", "/assets", WIZARD_MOUNT)):
         return PREFIX + value
     return value
 
@@ -148,10 +144,8 @@ def _forward(handler: BaseHTTPRequestHandler, host: str, port: int, path: str) -
             handler.send_header("Content-Type", "text/html; charset=utf-8")
             handler.send_header("Content-Length", str(len(fallback)))
             handler.end_headers()
-            try:
+            with contextlib.suppress(BrokenPipeError, ConnectionResetError):
                 handler.wfile.write(fallback)
-            except (BrokenPipeError, ConnectionResetError):
-                pass
             return
         handler.send_error(502, f"upstream unreachable: {exc}")
         return
@@ -187,10 +181,8 @@ def _forward(handler: BaseHTTPRequestHandler, host: str, port: int, path: str) -
         except (BrokenPipeError, ConnectionResetError):
             pass
     else:
-        try:
+        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
             handler.wfile.write(raw)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
     conn.close()
 
 
@@ -209,10 +201,10 @@ class OrxProxyHandler(BaseHTTPRequestHandler):
             return
         _forward(self, ORX_HOST, ORX_PORT, path)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         self._proxy()
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         self._proxy()
 
     def do_PUT(self) -> None:  # noqa: N802
@@ -238,10 +230,8 @@ def main() -> int:
         f"wizard={WIZARD_HOST}:{WIZARD_PORT}{WIZARD_MOUNT} "
         f"prefix={PREFIX or '(none)'}\n"
     )
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         server.serve_forever()
-    except KeyboardInterrupt:
-        pass
     return 0
 
 

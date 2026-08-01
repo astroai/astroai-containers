@@ -99,7 +99,7 @@ def healthz() -> JSONResponse:
 
 @app.get("/readyz")
 def readyz() -> JSONResponse:
-    scratch = Path(os.environ.get("TMP_SCRATCH_DIR", "/scratch"))
+    scratch = Path(os.environ.get("SCRATCH", "/scratch"))
     if not scratch.is_dir() or not os.access(scratch, os.W_OK):
         return JSONResponse({"ready": False, "reason": "scratch unavailable"}, status_code=503)
     if not ray_running():

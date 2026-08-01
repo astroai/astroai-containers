@@ -67,9 +67,9 @@ if [[ "${VERIFY_ONLY}" -eq 1 ]]; then
     echo "  /srcdir=${FAKE_SRC}  /scratch=${FAKE_SCRATCH}"
     echo ""
 
-    # --quick: PATH, CADC CLIs, astroai-lab doctor/paths/tools/check, core tools,
-    #          writable venv, peek, agent bundle list.  Skips interactive-shell
-    #          probes, canfar API calls, cache-dir layout, and agent installs.
+    # --quick: PATH, CADC CLIs, astroai-lab status/env export/saves/agent, core tools,
+    #          writable venv, peek.  Skips interactive-shell probes, canfar API
+    #          calls, cache-dir layout, and agent installs.
     run_docker /opt/astroai/bin/canfar-verify.sh --quick || FAILURES=$((FAILURES + 1))
     exit ${FAILURES}
 fi

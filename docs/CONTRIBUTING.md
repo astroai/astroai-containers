@@ -77,7 +77,7 @@ After profile or base changes:
 ./scripts/test-local.sh webterm 5000
 # inside container:
 source /etc/profile.d/astroai.sh
-astroai-lab doctor
+astroai-lab status
 uv run python -c "print('ok')"
 ```
 
@@ -100,7 +100,7 @@ make test-ray BUILD_TAG=local
 
 `/opt/astroai/venv/cadc` is writable so users can run `upgrade-cadc-tools.sh` or
 `uv pip install --python /opt/astroai/venv/cadc …` for this session only.
-Project deps use pixi/uv under `TMP_SRC_DIR`; caches prefer scratch via
+Project deps use pixi/uv under `WORK`; caches prefer scratch via
 `astroai-lab`.
 
 ## Ray tests
@@ -134,7 +134,7 @@ make sync-marimo-starter
 ```
 
 Startup (`scripts/startup-marimo.sh`) seeds that file once into
-`TMP_SRC_DIR/notebooks` and runs `marimo edit starter.py`.
+`WORK/notebooks` and runs `marimo edit starter.py`.
 
 ## Marimo AI ↔ astroai-lab upstream integration (done)
 
