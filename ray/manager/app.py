@@ -9,13 +9,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, Form, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
-from pydantic import BaseModel, Field
-
-from background_tasks import active_operation, start_background
-from canfar_ops import CanfarOps
-from cluster import (
+from astroai_workload.canfar_ops import CanfarOps
+from astroai_workload.cluster import (
     ClusterCreateRequest,
     clean_orphaned_workers,
     create_cluster,
@@ -24,13 +19,20 @@ from cluster import (
     stop_cluster,
     validate_cluster_create,
 )
+from astroai_workload.preflight import run_preflight
+from astroai_workload.ray_cluster import count_live_nodes, list_ray_nodes, ray_address, ray_running
+from astroai_workload.reconcile import reconcile_cluster
+from astroai_workload.settings import ManagerSettings, manager_pod_ip
+from astroai_workload.state_store import ClusterState, StateStore
+from astroai_workload.worker_logs import archive_session_logs, read_worker_logs
+from astroai_workload.workers import destroy_all_workers, destroy_worker, launch_worker
+from fastapi import FastAPI, Form, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from pydantic import BaseModel, Field
+
+from background_tasks import active_operation, start_background
 from dashboard_proxy import dashboard_ready
 from dashboard_proxy import router as dashboard_router
-from preflight import run_preflight
-from ray_cluster import count_live_nodes, list_ray_nodes, ray_address, ray_running
-from reconcile import reconcile_cluster
-from settings import ManagerSettings, manager_pod_ip
-from state_store import ClusterState, StateStore
 from ui import (
     PAGE_STYLE,
     RETRY_PHASES,
@@ -42,8 +44,6 @@ from ui import (
     setup_ready,
     workers_table_html,
 )
-from worker_logs import archive_session_logs, read_worker_logs
-from workers import destroy_all_workers, destroy_worker, launch_worker
 
 _ray_head_proc: subprocess.Popen[str] | None = None
 _settings = ManagerSettings.from_env()

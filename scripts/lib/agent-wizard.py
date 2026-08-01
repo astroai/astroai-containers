@@ -1080,8 +1080,9 @@ class WizardHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/compute/ensure":
-                # Long-running: create manager + workers + wire orx. astroai-lab
-                # no longer manages Ray — launch the manager via the platform CLI.
+                # Long-running: create manager + workers + wire orx. Cluster
+                # resolution/readiness/workers all delegate to astroai-workload
+                # (single code path); astroai-lab no longer manages Ray.
                 rc, out, err = _run_cmd(
                     [
                         "canfar",
@@ -1098,6 +1099,48 @@ class WizardHandler(BaseHTTPRequestHandler):
                     timeout=COMPUTE_ENSURE_TIMEOUT,
                 )
                 ok = rc == 0
+                if ok and shutil.which("astroai-workload"):
+                    ensure_rc, ensure_out, ensure_err = _run_cmd(
+                        [
+                            "astroai-workload",
+                            "cluster",
+                            "ensure",
+                            "--json",
+                            "--workers",
+                            "2",
+                        ],
+                        timeout=COMPUTE_ENSURE_TIMEOUT,
+                    )
+                    if ensure_rc == 0:
+                        payload = _parse_json_stdout(ensure_out) or {}
+                        data = {
+                            "ok": True,
+                            "cli_exit": ensure_rc,
+                            "summary": (
+                                f"cluster {payload.get('cluster_phase', 'running')} — "
+                                f"{payload.get('joined_workers', 0)} worker(s) joined"
+                            ),
+                            "user_message": (
+                                "Ray cluster ready. Jobs/Dashboard: "
+                                f"{payload.get('jobs_address', '')}"
+                            ),
+                            "jobs_address": payload.get("jobs_address"),
+                        }
+                        self._json(200, data)
+                        return
+                    data = {
+                        "ok": False,
+                        "cli_exit": ensure_rc,
+                        "summary": "manager created but worker ensure failed",
+                        "user_message": (
+                            "ray-manager session created; astroai-workload cluster ensure "
+                            f"failed: {(ensure_err or ensure_out or 'unknown')[:800]}. "
+                            "Open its connect URL from `canfar ps` and start workers "
+                            "from the manager dashboard."
+                        ),
+                    }
+                    self._json(200, data)
+                    return
                 data = {
                     "ok": ok,
                     "cli_exit": rc,

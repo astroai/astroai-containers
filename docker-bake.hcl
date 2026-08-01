@@ -97,7 +97,7 @@ target "openworker" {
   dockerfile = "dockerfiles/openworker/Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/openworker:${TAG}"]
   args = {
-    OPENWORKER_SHA = "4766e59c47c0201cbecb22b0e22cc1d0b188446b"
+    OPENWORKER_SHA = "01b6f83b3927e02912dda84bb392942c13ca70d1"
   }
 }
 

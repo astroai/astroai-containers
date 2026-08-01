@@ -87,6 +87,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && git config --system interactive.diffFilter 'delta --color-only' \
     && git config --system delta.navigate true
 
+# Node.js LTS pinned (official tarball + sha256) so every session image ships
+# node/npm/npx on PATH — astroai-lab no longer needs `pixi global install nodejs`.
+# x86_64-pinned (bake is single-arch amd64; no platform decls in docker-bake.hcl).
+# Bump NODE_LTS_VERSION + NODE_LTS_SHA256 together (SHASUMS256.txt on nodejs.org).
+ARG NODE_LTS_VERSION=24.18.1
+ARG NODE_LTS_SHA256=d6c664df3f3f61458e8c277585571328522d705166723a7c7823a9253a4d15a0
+RUN curl -fsSL -o /tmp/node.tar.xz \
+      "https://nodejs.org/dist/v${NODE_LTS_VERSION}/node-v${NODE_LTS_VERSION}-linux-x64.tar.xz" \
+    && echo "${NODE_LTS_SHA256}  /tmp/node.tar.xz" | sha256sum -c - \
+    && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
+    && rm /tmp/node.tar.xz \
+    && node --version \
+    && npm --version \
+    && npx --version
+
 ENV LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     TERM=xterm-256color \
@@ -109,11 +124,19 @@ RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${WORK}" \
 COPY config/cadc-tools.txt /opt/astroai/cadc-tools.txt
 COPY scripts/patch-clint-py313.sh /tmp/patch-clint-py313.sh
 COPY config/astroai-lab.in config/astroai-lab.lock /tmp/
+COPY config/astroai-workload.in config/astroai-workload.lock /tmp/
 RUN uv venv /opt/astroai/venv/cadc \
     && uv pip install --python /opt/astroai/venv/cadc -r /opt/astroai/cadc-tools.txt \
     && uv pip install --python /opt/astroai/venv/cadc --requirements /tmp/astroai-lab.lock \
+    # astroai-workload[cluster] puts `astroai-workload cluster ensure|dashboard` on
+    # PATH in every session image (webterm/vscode/notebook/marimo/orx/openworker) so
+    # any agent can launch/manage a CANFAR Ray cluster without Ray installed (py3.13).
+    # Installed from the regenerated lock (single source of truth for the pin).
+    && uv pip install --python /opt/astroai/venv/cadc --requirements /tmp/astroai-workload.lock \
+    && /opt/astroai/venv/cadc/bin/astroai-workload cluster --help >/dev/null \
     && bash /tmp/patch-clint-py313.sh /opt/astroai/venv/cadc \
     && rm /tmp/patch-clint-py313.sh /tmp/astroai-lab.in /tmp/astroai-lab.lock \
+       /tmp/astroai-workload.in /tmp/astroai-workload.lock \
     && chmod -R a+rwX /opt/astroai/venv/cadc \
     # Copy the packaged session shell files straight out of the installed
     # astroai-lab wheel — astroai-lab itself stays an in-session tool only.

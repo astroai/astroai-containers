@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
+.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
 
 SHELL := bash
 OWNER ?= astroai
@@ -32,6 +32,7 @@ help:
 	@echo "  make clean-all          clean + prune buildx cache"
 	@echo "  make lock-ray           regenerate config/ray-deps.lock"
 	@echo "  make lock-astroai-lab   regenerate config/astroai-lab.lock"
+	@echo "  make lock-workload      regenerate config/astroai-workload.lock"
 	@echo "  make lock-check         fail if a lockfile drifts from its source"
 	@echo "  make lint-doc-quota     forbid false 'headless consumes quota' advice in test-canfar.sh"
 	@echo "  make lint               run lock-check + lint-doc-quota"
@@ -97,10 +98,15 @@ lock-astroai-lab: ## regenerate config/astroai-lab.lock from the SHA pin in conf
 	uv pip compile --python-version 3.13 --output-file "$$tmp" config/astroai-lab.in >/dev/null; \
 	mv -f "$$tmp" config/astroai-lab.lock
 
-lock-check: ## fail CI if either lockfile's package body drifts from its source. The uv-generated header (3 lines) is stripped before comparison so output paths in the embedded command line don't cause false-positive drift.
+lock-workload: ## regenerate config/astroai-workload.lock from the SHA pin in config/astroai-workload.in.
+	@tmp=$$(mktemp); \
+	uv pip compile --python-version 3.13 --output-file "$$tmp" config/astroai-workload.in >/dev/null; \
+	mv -f "$$tmp" config/astroai-workload.lock
+
+lock-check: ## fail CI if a lockfile's package body drifts from its source. The uv-generated header (3 lines) is stripped before comparison so output paths in the embedded command line don't cause false-positive drift. astroai-workload is gated on its lock existing (generated post-push via make lock-workload).
 	@# Compile into fresh mktemp paths — uv treats an existing --output-file as a
 	@# preference lock, so reusing /tmp/__ray.lock across runs hides real drift.
-	@tmp_ray=$$(mktemp); tmp_lab=$$(mktemp); \
+	@tmp_ray=$$(mktemp); tmp_lab=$$(mktemp); tmp_wl=$$(mktemp); \
 	UV_NO_CACHE=1 uv pip compile --python-version 3.12 --output-file "$$tmp_ray" config/ray-deps.txt >/dev/null; \
 	tail -n +4 "$$tmp_ray" > /tmp/__ray.body; \
 	tail -n +4 config/ray-deps.lock > /tmp/__ray.committed.body; \
@@ -111,6 +117,15 @@ lock-check: ## fail CI if either lockfile's package body drifts from its source.
 	tail -n +4 config/astroai-lab.lock > /tmp/__lab.committed.body; \
 	rm -f "$$tmp_lab"; \
 	cmp -s /tmp/__lab.body /tmp/__lab.committed.body || { echo "astroai-lab.lock drift — run make lock-astroai-lab" >&2; exit 1; }; \
+	if [[ -f config/astroai-workload.lock ]]; then \
+		uv pip compile --python-version 3.13 --output-file "$$tmp_wl" config/astroai-workload.in >/dev/null; \
+		tail -n +4 "$$tmp_wl" > /tmp/__wl.body; \
+		tail -n +4 config/astroai-workload.lock > /tmp/__wl.committed.body; \
+		rm -f "$$tmp_wl"; \
+		cmp -s /tmp/__wl.body /tmp/__wl.committed.body || { echo "astroai-workload.lock drift — run make lock-workload" >&2; exit 1; }; \
+	else \
+		echo "astroai-workload.lock not present (bump SHA in config/astroai-workload.in after push, then make lock-workload)"; \
+	fi; \
 	echo "lockfile package bodies match their source constraints"
 
 test-local: ## verify session images (parallel)

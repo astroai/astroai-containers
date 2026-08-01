@@ -24,6 +24,33 @@ spill_root="${SCRATCH:-/scratch}/ray/${cluster_id}"
 mkdir -p "${spill_root}"
 export RAY_spill_dir="${spill_root}"
 
+# Ray-native autoscaling: when enabled, write the CANFAR node-provider config
+# and hand it to `ray start --head` so Ray's own autoscaler launches/destroys
+# ray-worker sessions on demand (see astroai-workload autoscaler).
+autoscaling_args=()
+if [[ "${RAY_AUTOSCALING_ENABLED:-0}" == "1" ]]; then
+    autoscaling_cfg="${RAY_AUTOSCALING_CONFIG:-${spill_root}/autoscaling.yaml}"
+    wl_cli="${ASTROAI_WORKLOAD_BIN:-/opt/astroai/venv/ray/bin/astroai-workload}"
+    if [[ ! -x "${wl_cli}" ]]; then
+        echo "Warning: RAY_AUTOSCALING_ENABLED=1 but ${wl_cli} missing — skipping autoscaling config" >&2
+    else
+        "${wl_cli}" autoscaler write-config \
+            --path "${autoscaling_cfg}" \
+            --cluster-name "${cluster_id}" \
+            --workers "${RAY_AUTOSCALING_MIN_WORKERS:-0}" \
+            --max-workers "${RAY_AUTOSCALING_MAX_WORKERS:-8}" \
+            --cores "${RAY_AUTOSCALING_CORES:-1}" \
+            --ram-gb "${RAY_AUTOSCALING_RAM_GB:-4}" \
+            --gpus "${RAY_AUTOSCALING_GPUS:-0}" \
+            --ray-head-port "${RAY_HEAD_PORT:-6379}" \
+            --ray-version "${RAY_VERSION_EXPECTED:-}" \
+            --heartbeat-path "${RAY_MANAGER_HEARTBEAT_PATH:-}" \
+            --spill-dir "${spill_root}"
+        autoscaling_args=(--autoscaling-config="${autoscaling_cfg}")
+        echo "Ray autoscaler enabled: ${autoscaling_cfg} (max ${RAY_AUTOSCALING_MAX_WORKERS:-8} workers)"
+    fi
+fi
+
 echo "Starting Ray head on ${RAY_NODE_IP_ADDRESS}:${RAY_HEAD_PORT} (cluster ${cluster_id})"
 
 "${RAY_BIN}" start --head \
@@ -39,6 +66,7 @@ echo "Starting Ray head on ${RAY_NODE_IP_ADDRESS}:${RAY_HEAD_PORT} (cluster ${cl
     --min-worker-port="${RAY_MIN_WORKER_PORT}" \
     --max-worker-port="${RAY_MAX_WORKER_PORT}" \
     --include-dashboard=true \
+    "${autoscaling_args[@]}" \
     --disable-usage-stats
 
 echo "Ray head ready: ${RAY_NODE_IP_ADDRESS}:${RAY_HEAD_PORT}"

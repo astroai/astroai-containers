@@ -50,10 +50,9 @@ check "manager app loads" docker run --rm --entrypoint python "${MGR}" -c "impor
 
 if [[ "${SMOKE}" -eq 0 ]]; then
 check "preflight module" docker run --rm --entrypoint python "${MGR}" -c "
-import sys
-sys.path.insert(0,'/opt/astroai/ray-manager')
-import preflight
-src = open('/opt/astroai/ray-manager/preflight.py').read()
+import inspect
+import astroai_workload.preflight as preflight
+src = inspect.getsource(preflight)
 assert 'passed=probe_ok' in src, 'preflight must assign passed from probe_ok'
 "
 check "worker image tag env" bash -c "docker run --rm --entrypoint printenv \"${MGR}\" RAY_IMAGE_TAG | grep -qx \"${TAG}\""

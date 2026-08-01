@@ -16,13 +16,12 @@ extend-ignore = ["SIM112"]
 #   - tests/*.py: late-import after sys.path.insert (E402); tolerance for
 #     long fixture URLs (E501); relaxed for SIM105 / SIM117 / F841 to keep
 #     test boilerplate readable.
-#   - cluster.py + dashboard_proxy.py: explicit `try`/`except`/`pass`
+#   - dashboard_proxy.py: explicit `try`/`except`/`pass`
 #     patterns around I/O teardown are more readable than
 #     `contextlib.suppress(Exception)` (SIM105).
 [tool.ruff.lint.per-file-ignores]
 "app.py" = ["E501"]
 "ui.py" = ["E501"]
-"cluster.py" = ["SIM105"]
 "dashboard_proxy.py" = ["SIM105"]
 "tests/*.py" = ["E402", "E501", "SIM117", "SIM105", "F841"]
 
@@ -45,6 +44,9 @@ dependencies = [
     "python-multipart>=0.0.9",
     "httpx>=0.27",
     "websockets>=12",
+    # Cluster lifecycle + CANFAR ops live in astroai-workload (single home);
+    # the [cluster] extra pulls the canfar client for session ops.
+    "astroai-workload[cluster] @ git+https://github.com/astroai/astroai-workload.git@93d44f9dd258d6c28456dc209111ca7569aa3270",
 ]
 
 [dependency-groups]
