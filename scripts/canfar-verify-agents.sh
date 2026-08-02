@@ -120,8 +120,10 @@ check "agent verify" login_shell 'astroai-lab agent verify'
 check "agent verify --fix" login_shell 'astroai-lab agent verify --fix'
 check "agent fix" login_shell 'astroai-lab agent fix'
 check "agent clean" login_shell 'astroai-lab agent clean'
-check "agent catalog" login_shell 'astroai-lab agent catalog | grep -q openresearch'
-check "agent interact" login_shell 'astroai-lab agent interact | grep -q Endpoints'
+# astroai-lab renders its tables via a rich console on stderr — pipe 2>&1 so
+# the greps see the rows on a plain pipe (discovered by remote CANFAR smoke).
+check "agent catalog" login_shell 'astroai-lab agent catalog 2>&1 | grep -q openresearch'
+check "agent interact" login_shell 'astroai-lab agent interact 2>&1 | grep -q Endpoints'
 check "agent setup stamp" login_shell 'test -f "${HOME}/.astroai/lab/agent-setup-stamp"'
 check "cursor MCP" login_shell 'python3 -c "import json, pathlib; d=json.loads(pathlib.Path(\"${HOME}/.cursor/mcp.json\").read_text()); assert d.get(\"mcpServers\")"'
 check "astroai-lab-workflow skill" login_shell 'test -f "${HOME}/.cursor/skills/astroai-lab-workflow/SKILL.md"'
@@ -135,7 +137,7 @@ check "goose openrouter config" login_shell 'grep -q GOOSE_PROVIDER "${HOME}/.co
 check "opencode model config" login_shell 'python3 -c "import json, pathlib; d=json.loads(pathlib.Path(\"${HOME}/.config/opencode/opencode.json\").read_text()); assert d.get(\"model\", \"\").startswith(\"openrouter/\")"'
 check "openrouter.env.example" login_shell 'test -f "${HOME}/.config/canfar/lab/openrouter.env.example"'
 
-check "agent install --list" login_shell 'astroai-lab agent install --list | grep -q kilo'
+check "agent install --list" login_shell 'astroai-lab agent install --list 2>&1 | grep -q kilo'
 
 if [[ "${SETUP_ONLY}" -eq 1 ]]; then
     echo ""

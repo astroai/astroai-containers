@@ -56,7 +56,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "astroai-workload", extras = ["cluster"], git = "https://github.com/astroai/astroai-workload.git?rev=93d44f9dd258d6c28456dc209111ca7569aa3270" },
+    { name = "astroai-workload", extras = ["cluster"], git = "https://github.com/astroai/astroai-workload.git?rev=898b51f11ab3bd023aa6d3099b3eb00724dedd6c" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pydantic", specifier = ">=2.9" },
@@ -75,7 +75,7 @@ dev = [
 [[package]]
 name = "astroai-workload"
 version = "0.2.0"
-source = { git = "https://github.com/astroai/astroai-workload.git?rev=93d44f9dd258d6c28456dc209111ca7569aa3270#93d44f9dd258d6c28456dc209111ca7569aa3270" }
+source = { git = "https://github.com/astroai/astroai-workload.git?rev=898b51f11ab3bd023aa6d3099b3eb00724dedd6c#898b51f11ab3bd023aa6d3099b3eb00724dedd6c" }
 dependencies = [
     { name = "httpx" },
     { name = "typer" },
