@@ -30,9 +30,17 @@ RUN uv python install 3.12 \
         canfar \
         fastapi uvicorn[standard] python-multipart httpx websockets \
         # [all] = ray (Jobs client + native autoscaler) + canfar (session ops).
-        "astroai-workload[all] @ git+https://github.com/astroai/astroai-workload.git@898b51f11ab3bd023aa6d3099b3eb00724dedd6c" \
+        "astroai-workload[all] @ git+https://github.com/astroai/astroai-workload.git@a0ac2eaef1de080913cc2ab785051fcf2a5e4c7b" \
     && /opt/astroai/venv/ray/bin/astroai-workload cluster --help >/dev/null \
-    && /opt/astroai/venv/ray/bin/astroai-workload autoscaler --help >/dev/null
+    && /opt/astroai/venv/ray/bin/astroai-workload autoscaler --help >/dev/null \
+    # MCP smoke: drive a real stdio handshake (initialize + tools/list) and
+    # require the cluster_ensure tool to appear. This imports the mcp module,
+    # so it catches import-chain breaks that a bare `--help` would miss.
+    && printf '%s\n' \
+        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' \
+        '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+        | /opt/astroai/venv/ray/bin/astroai-workload mcp serve \
+        | grep -q cluster_ensure
 
 ENV PATH="/opt/astroai/venv/ray/bin:/opt/astroai/venv/cadc/bin:${PATH}"
 

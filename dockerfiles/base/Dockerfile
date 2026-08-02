@@ -134,6 +134,14 @@ RUN uv venv /opt/astroai/venv/cadc \
     # Installed from the regenerated lock (single source of truth for the pin).
     && uv pip install --python /opt/astroai/venv/cadc --requirements /tmp/astroai-workload.lock \
     && /opt/astroai/venv/cadc/bin/astroai-workload cluster --help >/dev/null \
+    # mcp serve needs only the [cluster] extra (no Ray). A real stdio
+    # handshake proves the lean base venv imports the MCP module and serves
+    # the tools without ray installed.
+    && printf '%s\n' \
+        '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05"}}' \
+        '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+        | /opt/astroai/venv/cadc/bin/astroai-workload mcp serve \
+        | grep -q cluster_ensure \
     && bash /tmp/patch-clint-py313.sh /opt/astroai/venv/cadc \
     && rm /tmp/patch-clint-py313.sh /tmp/astroai-lab.in /tmp/astroai-lab.lock \
        /tmp/astroai-workload.in /tmp/astroai-workload.lock \
