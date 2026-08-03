@@ -3,8 +3,10 @@
 # httpx/typer/canfar only — no Ray) so every session can run
 # `astroai-workload cluster ensure|status|stop|scale|dashboard`.
 #
-# Pin is a fixed commit SHA, NOT a git tag and NOT a package version.
-#
-# Bump deliberately: pick a SHA on `main` that you have tested, replace the
-# line below, then `make lock-workload`. Never edit the lockfile by hand.
-astroai-workload[cluster] @ git+https://github.com/astroai/astroai-workload.git@b3c061b1149cdca478005ebf9ee5d294bd761821
+# Unpinned on purpose: the container TAG is the user-facing version, so the
+# image bakes whatever `main` is at lock time (regenerate with
+# `make lock-workload` — never edit the lockfile by hand).
+# NOTE: because this is unpinned, `make lock-check` re-resolves `main` HEAD,
+# so lock drift is now automatic on every upstream push — CI fails with
+# "lockfile drift" until `make lock-workload` + commit (expected workflow).
+astroai-workload[cluster] @ git+https://github.com/astroai/astroai-workload.git

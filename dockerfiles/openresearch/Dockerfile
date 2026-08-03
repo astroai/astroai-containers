@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # AstroAI openresearch: OpenResearch (orx) autoresearch dashboard.
-# Builds orx from a pinned git SHA (Ray Jobs backend). Proxies :4791 → :5000.
+# Builds orx from the sfabbro fork's main HEAD (unpinned — the container TAG
+# is the user-facing version). Proxies :4791 → :5000.
 # When alphaXiv ships a release with Ray, prefer switching back to their
 # musl tarball + ORX_VERSION / ORX_SHA256_* args.
 
@@ -8,38 +9,43 @@ ARG REGISTRY=images.canfar.net
 ARG OWNER=astroai
 ARG BASE_NAME=base
 ARG TAG=local
-# Fork pin until https://github.com/alphaXiv/openresearch-cli/pull/138 lands in a release.
+# Fork (unpinned: tracks main HEAD) until https://github.com/alphaXiv/openresearch-cli/pull/138
+# lands in a release. The container TAG is the user-facing version, so the
+# image bakes the latest fork commit at build time.
 ARG ORX_REPO=https://github.com/sfabbro/openresearch-cli.git
-ARG ORX_SHA=e076d027c9cbbac8b7bb5ded0821efa9d0a41c6b
-ARG NODE_VERSION=20
+ARG NODE_VERSION=24
 
 # --- UI (embedded into orx via rust-embed) ---
 FROM node:${NODE_VERSION}-bookworm-slim AS ui-build
 ARG ORX_REPO
-ARG ORX_SHA
 WORKDIR /src
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && git init repo && cd repo \
     && git remote add origin "${ORX_REPO}" \
-    && git fetch --depth 1 origin "${ORX_SHA}" \
+    && git fetch --depth 1 origin main \
     && git checkout FETCH_HEAD \
     && cd ui \
-    && npm install -g pnpm@9.15.0 \
+    && npm install -g pnpm \
+    # pnpm 10+ blocks dependency build scripts by default (ERR_PNPM_IGNORED_BUILDS
+    # for esbuild), so the first frozen install exits 1 (deps ARE installed);
+    # approve-builds --all runs the blocked postinstall non-interactively, the
+    # re-install then exits 0, and the UI builds. (Validated against pnpm 11.)
+    && (pnpm install --frozen-lockfile || true) \
+    && pnpm approve-builds --all \
     && pnpm install --frozen-lockfile \
     && pnpm run build
 
 # --- orx binary ---
 FROM rust:1-bookworm AS orx-build
 ARG ORX_REPO
-ARG ORX_SHA
 WORKDIR /src
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
         pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/* \
     && git init repo && cd repo \
     && git remote add origin "${ORX_REPO}" \
-    && git fetch --depth 1 origin "${ORX_SHA}" \
+    && git fetch --depth 1 origin main \
     && git checkout FETCH_HEAD
 COPY --from=ui-build /src/repo/ui/dist /src/repo/ui/dist
 WORKDIR /src/repo
@@ -50,13 +56,11 @@ RUN cargo build --release \
 # --- Runtime ---
 FROM ${REGISTRY}/${OWNER}/${BASE_NAME}:${TAG}
 
-ARG ORX_SHA
-
 LABEL io.canfar.skaha.session.type="contributed" \
       org.opencontainers.image.title="AstroAI OpenResearch" \
       org.opencontainers.image.description="OpenResearch (orx) autoresearch dashboard for CANFAR" \
       org.opencontainers.image.source="https://github.com/alphaXiv/openresearch-cli" \
-      org.opencontainers.image.revision="${ORX_SHA}"
+      org.opencontainers.image.revision="main"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

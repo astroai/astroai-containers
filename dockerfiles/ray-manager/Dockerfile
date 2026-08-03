@@ -30,7 +30,7 @@ RUN uv python install 3.12 \
         canfar \
         fastapi uvicorn[standard] python-multipart httpx websockets \
         # [all] = ray (Jobs client + native autoscaler) + canfar (session ops).
-        "astroai-workload[all] @ git+https://github.com/astroai/astroai-workload.git@a0ac2eaef1de080913cc2ab785051fcf2a5e4c7b" \
+        "astroai-workload[all] @ git+https://github.com/astroai/astroai-workload.git" \
     && /opt/astroai/venv/ray/bin/astroai-workload cluster --help >/dev/null \
     && /opt/astroai/venv/ray/bin/astroai-workload autoscaler --help >/dev/null \
     # MCP smoke: drive a real stdio handshake (initialize + tools/list) and

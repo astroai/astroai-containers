@@ -1,3 +1,5 @@
 # Ray stack (Python 3.12 venv — Ray has no cp313 wheels yet).
-# Pin the Ray version so manager/worker stay aligned and lock-check is stable.
-ray[default]==2.56.1
+# Unpinned on purpose: the container TAG is the user-facing version, so the
+# image bakes the latest Ray at lock time (regenerate with `make lock-ray`).
+# Manager and worker share this same lockfile, so they stay aligned.
+ray[default]

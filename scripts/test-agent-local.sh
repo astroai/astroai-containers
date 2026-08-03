@@ -5,7 +5,8 @@
 # home, non-root user), that:
 #   1. every agent/plugin/models command works out of the box
 #      (list, catalog, install, verify, plugins list/install/remove,
-#       configure, addons, models);
+#       configure, addons, models, and the Phase 2 registry-driven verbs
+#       setup <agent> / config <agent> / fix-config <agent> / update <agent>);
 #   2. agent CLI installs NEVER land in the user home (~/.local) — the
 #      session bin dir is scratch-backed when SCRATCH is mounted, else the
 #      work-dir runtime root (work/.runtime-$USER/bin).
@@ -123,6 +124,94 @@ astroai-lab agent models list | grep -qi coding || fail "agent models list has n
 astroai-lab agent remove kilo >/dev/null || fail "agent remove kilo"
 [[ ! -e "${BIN_DIR}/kilo" ]] || fail "kilo still in ${BIN_DIR} after remove"
 [[ ! -d "${HOME_DIR}/.local/bin" ]] || fail "~/.local/bin was created"
+
+# 7. Phase 2 verbs (registry-driven): setup / config / update for hermes.
+#    setup + config are fully offline; update takes the up-to-date path via
+#    a fake binary so the plugin re-apply (bundled skill copy + MCP merge)
+#    is exercised with zero network.
+mkdir -p "${BIN_DIR}"
+astroai-lab agent setup hermes >/dev/null || fail "agent setup hermes"
+[[ -f "${HOME_DIR}/.hermes/config.yaml" ]] || fail "setup hermes: config.yaml not scaffolded"
+[[ -d "${HOME_DIR}/.hermes/skills" ]] || fail "setup hermes: skills dir missing"
+
+astroai-lab agent config hermes model=hermes-test-model >/dev/null \
+    || fail "agent config hermes model=..."
+# Human output goes to stderr (rich Console(stderr=True)), so assert via the
+# stream-safe --json variant (print_json → stdout).
+astroai-lab --json agent config hermes --key model | python3 -c '
+import json, sys
+assert json.load(sys.stdin)["value"] == "hermes-test-model"
+' || fail "agent config hermes --key model"
+astroai-lab --json agent config hermes | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert d["format"] == "yaml", d
+assert d["data"].get("model") == "hermes-test-model", d
+' || fail "--json agent config hermes"
+astroai-lab agent config hermes --unset model >/dev/null \
+    || fail "agent config hermes --unset model"
+
+# Fake hermes binary → `agent update hermes` skips the network install and
+# force re-applies the hermes plugins (canfar-ray skill + ray-manager-mcp).
+printf '#!/bin/sh\necho hermes fake 0.0.0\n' > "${BIN_DIR}/hermes"
+chmod +x "${BIN_DIR}/hermes"
+# Precondition: update must see the fake binary via the SESSION bin dir (the
+# exact check update_registry_agent uses) — if this fails, `agent update
+# hermes` would attempt a real network install instead of the offline path.
+astroai-lab --json agent list | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+hermes = next(r for r in d["registry"] if r["id"] == "hermes")
+assert hermes["binary_ok"], "fake hermes not detected in session bin dir"
+' || fail "update hermes: fake binary not on session bin dir"
+astroai-lab agent update hermes >/dev/null || fail "agent update hermes"
+[[ -f "${HOME_DIR}/.hermes/skills/canfar-ray/SKILL.md" ]] \
+    || fail "update hermes: canfar-ray skill not re-applied"
+[[ -f "${HOME_DIR}/.hermes/config.yaml" ]] \
+    || fail "update hermes: config.yaml missing after update"
+
+# 8. Phase 6 wipe verb: --dry-run previews the factory reset on the (now
+#    mostly clean) home and must NOT remove anything. --json --yes would wipe
+#    the whole agent layer, so only the safe preview path is exercised here.
+astroai-lab --json agent wipe --dry-run | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert d["ok"] and d["dry_run"] is True
+assert d["counts"]["removed"] == 0, d["counts"]
+# hermes config + fake binary exist at this point, so the preview must list
+# them as would_remove (never removed) — proves the wipe sees them.
+assert d["counts"]["would_remove"] > 0, d["counts"]
+' || fail "agent wipe --dry-run"
+
+# 9. Phase 2 fix-config verb: broken config repair + healthy no-op.
+#    Corrupt ~/.hermes/config.yaml with unparseable YAML → fix-config resets
+#    it to a format-aware scaffold; a healthy config is reported and never
+#    clobbered (fix_registry_agent semantics).
+printf 'model: [unclosed\n' > "${HOME_DIR}/.hermes/config.yaml"
+# NOTE: the reset discards the plugin-written entries from the `agent update`
+# above (documented fix_registry_agent behavior) — nothing later needs them.
+astroai-lab --json agent fix-config hermes | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert d["ok"] and d["agent"] == "hermes"
+assert any("repaired broken yaml config" in a for a in d["actions"]), d["actions"]
+' || fail "fix-config hermes: broken yaml not repaired"
+astroai-lab --json agent config hermes >/dev/null \
+    || fail "fix-config hermes: repaired config still unreadable"
+
+# Healthy no-op: a marker value must survive fix-config untouched.
+astroai-lab agent config hermes marker=keep-me >/dev/null \
+    || fail "agent config hermes marker=keep-me"
+astroai-lab --json agent fix-config hermes | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert d["ok"]
+assert any("config healthy" in a for a in d["actions"]), d["actions"]
+' || fail "fix-config hermes: healthy run not reported"
+astroai-lab --json agent config hermes --key marker | python3 -c '
+import json, sys
+assert json.load(sys.stdin)["value"] == "keep-me"
+' || fail "fix-config hermes: healthy config clobbered"
 
 ok "no ~/.local pollution; all agent commands OK (bin dir ${BIN_DIR})"
 PROBE_EOF

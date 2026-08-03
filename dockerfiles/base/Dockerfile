@@ -87,12 +87,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && git config --system interactive.diffFilter 'delta --color-only' \
     && git config --system delta.navigate true
 
-# Node.js LTS pinned (official tarball + sha256) so every session image ships
-# node/npm/npx on PATH — astroai-lab no longer needs `pixi global install nodejs`.
+# Node.js LTS (official tarball + sha256 supply-chain check) so every session
+# image ships node/npm/npx on PATH — the single Node version across images.
 # x86_64-pinned (bake is single-arch amd64; no platform decls in docker-bake.hcl).
 # Bump NODE_LTS_VERSION + NODE_LTS_SHA256 together (SHASUMS256.txt on nodejs.org).
-ARG NODE_LTS_VERSION=24.18.1
-ARG NODE_LTS_SHA256=d6c664df3f3f61458e8c277585571328522d705166723a7c7823a9253a4d15a0
+ARG NODE_LTS_VERSION=24.19.0
+ARG NODE_LTS_SHA256=14b342e71204f811bde6153be8e04b62aef63c236fef92b55f9c83154b409647
 RUN curl -fsSL -o /tmp/node.tar.xz \
       "https://nodejs.org/dist/v${NODE_LTS_VERSION}/node-v${NODE_LTS_VERSION}-linux-x64.tar.xz" \
     && echo "${NODE_LTS_SHA256}  /tmp/node.tar.xz" | sha256sum -c - \
