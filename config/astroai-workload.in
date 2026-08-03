@@ -7,4 +7,4 @@
 #
 # Bump deliberately: pick a SHA on `main` that you have tested, replace the
 # line below, then `make lock-workload`. Never edit the lockfile by hand.
-astroai-workload[cluster] @ git+https://github.com/astroai/astroai-workload.git@a0ac2eaef1de080913cc2ab785051fcf2a5e4c7b
+astroai-workload[cluster] @ git+https://github.com/astroai/astroai-workload.git@b3c061b1149cdca478005ebf9ee5d294bd761821

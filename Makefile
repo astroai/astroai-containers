@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-ray test-canfar test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
+.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-agent-local test-ray test-canfar test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
 
 SHELL := bash
 OWNER ?= astroai
@@ -22,6 +22,7 @@ help:
 	@echo "  make push-all           push session images to Harbor"
 	@echo "  make push-ray           push Ray images to Harbor"
 	@echo "  make test-local         verify session images locally"
+	@echo "  make test-agent-local   agent command matrix + no ~/.local pollution (base)"
 	@echo "  make test-ray           Ray container + local cluster + UI tests"
 	@echo "  make test-ray SMOKE=1   fast smoke: skip cluster formation"
 	@echo "  make test-canfar        post-push headless verify on CANFAR"
@@ -157,6 +158,14 @@ test-local: ## verify session images (parallel)
 	for pid in "$${pids[@]}"; do wait "$$pid" || fails=$$((fails + 1)); done; \
 	if [[ "$$fails" -gt 0 ]]; then echo "$$fails image(s) failed." >&2; exit 1; fi
 	./scripts/test-status-arc-project.sh
+
+# Tests the DEFAULT image (base, built by the dependency). To run a derived
+# image (e.g. IMAGE=openresearch), build it first (make build/openresearch) —
+# the target only builds base so a stale image would give misleading results.
+test-agent-local: build/base ## agent command matrix on the base image (local, mounted fresh home)
+	@chmod +x scripts/test-agent-local.sh
+	@./scripts/test-agent-local.sh $(or $(IMAGE),base)
+	@echo "agent-local E2E passed for $(or $(IMAGE),base)"
 
 test-ray: build-ray build/base ## Ray image checks + local cluster join + UI
 	chmod +x scripts/test-ray-*.sh scripts/test-astroai-lab-loop.sh scripts/ray-head-start.sh \
