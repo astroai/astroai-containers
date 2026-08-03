@@ -1,7 +1,7 @@
 #!/bin/bash -e
 # Local CANFAR-emulation E2E for the astroai-lab agent command surface.
 #
-# Proves, against a session image run like a CANFAR session (fresh MOUNTED
+# Proves, against each session image run like a CANFAR session (fresh MOUNTED
 # home, non-root user), that:
 #   1. every agent/plugin/models command works out of the box
 #      (list, catalog, install, verify, plugins list/install/remove,
@@ -15,8 +15,9 @@
 # fallback that replaced the old ~/.local default.
 #
 # Usage:
-#   ./scripts/test-agent-local.sh [image]        # default: base
-#   ./scripts/test-agent-local.sh openresearch
+#   ./scripts/test-agent-local.sh                 # ALL session images
+#   ./scripts/test-agent-local.sh openresearch    # one image
+#   ./scripts/test-agent-local.sh base webterm    # explicit list
 #
 # Env:
 #   OWNER / REGISTRY / TAG     image coordinates (defaults: astroai /
@@ -25,17 +26,17 @@
 #                              (mounted at /opt/astroai-lab-src + PYTHONPATH)
 #                              for testing uncommitted astroai-lab code.
 
-IMAGE="${1:-base}"
+# Images under test: explicit args win; default = all session images (same set
+# as the Makefile SESSION_IMAGES / test-local loop).
+if [[ "$#" -gt 0 ]]; then
+    IMAGES=("$@")
+else
+    IMAGES=(base webterm notebook vscode marimo openresearch openworker)
+fi
 OWNER="${OWNER:-astroai}"
 REGISTRY="${REGISTRY:-images.canfar.net}"
 TAG="${TAG:-local}"
-FULL_IMAGE="${REGISTRY}/${OWNER}/${IMAGE}:${TAG}"
 FAILURES=0
-
-FAKE_HOME="$(mktemp -d)"
-FAKE_SRC="$(mktemp -d)"
-FAKE_SCRATCH="$(mktemp -d)"
-trap 'rm -rf "${FAKE_HOME}" "${FAKE_SRC}" "${FAKE_SCRATCH}"' EXIT
 
 OVERLAY_ARGS=()
 if [[ -n "${ASTROAI_LAB_SRC:-}" ]]; then
@@ -46,7 +47,10 @@ if [[ -n "${ASTROAI_LAB_SRC:-}" ]]; then
 fi
 
 PROBE="$(mktemp)"
-trap 'rm -rf "${FAKE_HOME}" "${FAKE_SRC}" "${FAKE_SCRATCH}" "${PROBE}"' EXIT
+# Clean up the probe plus any in-flight per-image temp dirs on early exit
+# (Ctrl-C / unexpected set -e abort mid-loop), not just the happy path.
+FAKE_HOME="" FAKE_SRC="" FAKE_SCRATCH=""
+trap 'rm -f "${PROBE}"; [[ -n "${FAKE_HOME}" ]] && rm -rf "${FAKE_HOME}" "${FAKE_SRC}" "${FAKE_SCRATCH}"' EXIT
 
 cat > "${PROBE}" <<'PROBE_EOF'
 #!/bin/bash
@@ -157,11 +161,30 @@ run_scenario() {
     return 0
 }
 
-run_scenario "with-scratch" || FAILURES=$((FAILURES + 1))
-run_scenario "without-scratch" || FAILURES=$((FAILURES + 1))
+# Deliberately SEQUENTIAL (unlike test-local's parallel `& pids`): each image
+# runs 2 docker scenarios with a real `agent install kilo` (network fetch), so
+# parallelizing 7 images x 2 scenarios would contend on network/CPU.
+for IMAGE in "${IMAGES[@]}"; do
+    FULL_IMAGE="${REGISTRY}/${OWNER}/${IMAGE}:${TAG}"
+    echo ""
+    echo ">>> ${FULL_IMAGE}"
+    # Fresh mounts per image so no state leaks between images.
+    FAKE_HOME="$(mktemp -d)"
+    FAKE_SRC="$(mktemp -d)"
+    FAKE_SCRATCH="$(mktemp -d)"
+    if ! run_scenario "with-scratch"; then
+        FAILURES=$((FAILURES + 1))
+    fi
+    if ! run_scenario "without-scratch"; then
+        FAILURES=$((FAILURES + 1))
+    fi
+    rm -rf "${FAKE_HOME}" "${FAKE_SRC}" "${FAKE_SCRATCH}"
+    FAKE_HOME="" FAKE_SRC="" FAKE_SCRATCH=""
+done
 
 if [[ "${FAILURES}" -gt 0 ]]; then
-    echo "${FAILURES} scenario(s) failed." >&2
+    echo "${FAILURES} scenario(s) failed across ${#IMAGES[@]} image(s)." >&2
     exit 1
 fi
-echo "ALL PASS: ${FULL_IMAGE} agent command matrix + no ~/.local pollution"
+echo ""
+echo "ALL PASS: ${#IMAGES[@]} image(s) — agent command matrix + no ~/.local pollution"

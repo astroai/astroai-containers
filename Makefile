@@ -22,7 +22,7 @@ help:
 	@echo "  make push-all           push session images to Harbor"
 	@echo "  make push-ray           push Ray images to Harbor"
 	@echo "  make test-local         verify session images locally"
-	@echo "  make test-agent-local   agent command matrix + no ~/.local pollution (base)"
+	@echo "  make test-agent-local   agent command matrix + no ~/.local pollution (all session images)"
 	@echo "  make test-ray           Ray container + local cluster + UI tests"
 	@echo "  make test-ray SMOKE=1   fast smoke: skip cluster formation"
 	@echo "  make test-canfar        post-push headless verify on CANFAR"
@@ -159,13 +159,14 @@ test-local: ## verify session images (parallel)
 	if [[ "$$fails" -gt 0 ]]; then echo "$$fails image(s) failed." >&2; exit 1; fi
 	./scripts/test-status-arc-project.sh
 
-# Tests the DEFAULT image (base, built by the dependency). To run a derived
-# image (e.g. IMAGE=openresearch), build it first (make build/openresearch) —
-# the target only builds base so a stale image would give misleading results.
-test-agent-local: build/base ## agent command matrix on the base image (local, mounted fresh home)
+# Runs ALL session images — SESSION_IMAGES is the canonical list (pass it so
+# adding/removing an image stays single-sourced). For a single-image dev run
+# use the script directly after building it: make build/openresearch &&
+# ./scripts/test-agent-local.sh openresearch (no build-all dependency).
+test-agent-local: build-all ## agent command matrix on all session images (local, mounted fresh home)
 	@chmod +x scripts/test-agent-local.sh
-	@./scripts/test-agent-local.sh $(or $(IMAGE),base)
-	@echo "agent-local E2E passed for $(or $(IMAGE),base)"
+	@./scripts/test-agent-local.sh $(if $(IMAGE),$(IMAGE),$(SESSION_IMAGES))
+	@echo "agent-local E2E passed for $(if $(IMAGE),$(IMAGE),all session images)"
 
 test-ray: build-ray build/base ## Ray image checks + local cluster join + UI
 	chmod +x scripts/test-ray-*.sh scripts/test-astroai-lab-loop.sh scripts/ray-head-start.sh \
