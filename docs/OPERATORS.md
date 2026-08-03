@@ -99,6 +99,7 @@ entrypoint, ask the science-platform team for a per-image override that sets
 4. Leave `base`, `ray-base`, and `ray-worker` off the interactive catalog.
 5. Document the published tag for users (`YY.MM`).
 6. Smoke: `make test-canfar-session IMAGE=webterm TAG=…`, `IMAGE=openresearch`, `IMAGE=openworker`, and `make test-canfar-ray TAG=…`.
+7. **Agent verbs:** `make test-canfar-agents TAG=…` (lightweight in-session probe of the full agent verb surface — required after every image push; see below).
 
 ## Local smoke
 
@@ -116,7 +117,8 @@ Requires authenticated [`canfar`](https://opencadc.github.io/canfar/) (`canfar l
 ```mermaid
 flowchart TD
   S1["make test-canfar-session IMAGE=…"] --> S2["Headless: make test-canfar IMAGE=base"]
-  S2 --> S3["make test-canfar-ray TAG=…"]
+  S2 --> S3["make test-canfar-agents TAG=…"]
+  S3 --> S4["make test-canfar-ray TAG=…"]
 ```
 
 **Interactive HTTP smoke** (works when headless scheduling is unhealthy):
@@ -145,6 +147,24 @@ CANFAR_TEST_QUICK=1 make test-canfar IMAGE=base TAG=26.07
 ```
 
 `test-canfar.sh` waits for completion and expects `All checks passed.` in logs.
+
+**Agent verb-surface probe (run after EVERY image push):**
+
+```bash
+make test-canfar-agents TAG=26.07
+```
+
+Runs `canfar-verify.sh --agents` in a headless `base` session, which invokes
+`canfar-verify-agents.sh --setup` — the full agent verb surface
+(`setup`, `verify`, `fix-config`, `plugins list`, `models`, registry verbs)
+**without** the slow 16-tool install loop. This is the lightweight gate that
+verifies agents work out of the box on CANFAR after each release; run the
+full `make test-canfar IMAGE=base` (installs) plus `make test-canfar-ray`
+before major releases.
+
+This probe is **operator-invoked** — the CI workflow (`ci.yml`) is Docker-free
+by design and never touches CANFAR. Treat `make test-canfar-agents` as a
+required step in the release checklist, same as `test-canfar` / `test-canfar-ray`.
 If status stays **Pending** with no Start Time for `CANFAR_PENDING_STUCK_SECS`
 (default **120**), the script fails fast. Note: this is the documented
 upstream **Skaha headless-scheduling flake**

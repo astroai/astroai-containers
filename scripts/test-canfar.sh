@@ -12,6 +12,9 @@
 #   REGISTRY   default images.canfar.net
 #   OWNER      default astroai
 #   CANFAR_TEST_TIMEOUT  seconds to wait for session (default 1800; agent installs need time)
+#   CANFAR_TEST_QUICK    1 → canfar-verify.sh --quick (PATH + CADC CLIs only)
+#   CANFAR_TEST_AGENTS   1 → canfar-verify.sh --agents (lightweight agent
+#                           verb-surface probe, no tool installs)
 #
 # Harbor images are public — no registry credentials for normal pulls.
 # Optional: CANFAR_REGISTRY__* / REGISTRY_USER for maintainer headless smoke tests.
@@ -89,7 +92,9 @@ create_headless_session() {
     local cpu="${CANFAR_TEST_CPU:-1}"
     local memory="${CANFAR_TEST_MEMORY:-1}"
     local cmd=(bash /opt/astroai/bin/canfar-verify.sh)
-    if [[ "${CANFAR_TEST_QUICK:-0}" == "1" ]]; then
+    if [[ "${CANFAR_TEST_AGENTS:-0}" == "1" ]]; then
+        cmd=(bash /opt/astroai/bin/canfar-verify.sh --agents)
+    elif [[ "${CANFAR_TEST_QUICK:-0}" == "1" ]]; then
         cmd=(bash /opt/astroai/bin/canfar-verify.sh --quick)
     fi
     canfar create --name "${SESSION_NAME}" --cpu "${cpu}" --memory "${memory}" \

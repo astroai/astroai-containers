@@ -176,6 +176,7 @@ keys, or large binary artifacts unrelated to image build context.
 - [ ] Upstream [astroai-lab](https://github.com/astroai/astroai-lab) updated when CLI or path behavior changes
 - [ ] `dockerfiles/base/Dockerfile` still copies `docs/USAGE.md` correctly
 - [ ] `./scripts/test-local.sh` run when scripts or Dockerfiles change
+- [ ] Post-push release gate: `make test-canfar-agents TAG=…` (lightweight agent verb-surface probe on CANFAR; required after every image push — see OPERATORS.md)
 - [ ] Image layers stay lean — prefer documenting heavy deps in USAGE.md
 
 ## Publishing

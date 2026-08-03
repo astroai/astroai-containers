@@ -5,18 +5,31 @@ set -o pipefail
 # Usage:
 #   canfar-verify.sh              full check (login + non-login shells)
 #   canfar-verify.sh --quick        PATH + CADC CLIs only
+#   canfar-verify.sh --agents       lightweight agent verb-surface probe only
+#                                   (canfar-verify-agents.sh --setup: setup,
+#                                   verify, fix-config, plugins, models — no
+#                                   tool installs; fast, network-light)
 
 QUICK=0
+AGENTS=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --quick) QUICK=1; shift ;;
+        --agents) AGENTS=1; shift ;;
         -h|--help)
-            sed -n '2,6p' "$0"
+            sed -n '2,8p' "$0"
             exit 0
             ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
+# --quick and --agents are mutually exclusive: --quick skips everything
+# non-quick, --agents runs ONLY the agent verb-surface probe. Combining
+# them would silently produce an empty (false-green) run.
+if [[ "${QUICK}" -eq 1 && "${AGENTS}" -eq 1 ]]; then
+    echo "--quick and --agents are mutually exclusive" >&2
+    exit 1
+fi
 
 failures=0
 
@@ -52,8 +65,10 @@ echo "=========================="
 
 # ================================================================
 # Batch 1 — ~39 checks: PATH + all command -v lookups + env var
-# (replaces 39 individual login_shell calls)
+# (replaces 39 individual login_shell calls). Skipped in --agents
+# mode (lightweight probe) — it only exercises the agent verb surface.
 # ================================================================
+if [[ "${AGENTS}" -eq 0 ]]; then
 process_batch < <(batch_login <<'CHECK_BATCH'
 # PATH
 [[ ":${PATH}:" == *":/opt/astroai/venv/cadc/bin:"* ]] && echo "PASS:astroai-profile on PATH" || echo "FAIL:astroai-profile on PATH"
@@ -74,11 +89,14 @@ done
 echo "BATCH_END"
 CHECK_BATCH
 )
+fi
 
 # ================================================================
 # Batch 2 — 5 astroai-lab subcommands (each imports Python, so
-# grouping them avoids 4 extra shell + Python startups)
+# grouping them avoids 4 extra shell + Python startups). Skipped
+# in --agents mode (lightweight probe).
 # ================================================================
+if [[ "${AGENTS}" -eq 0 ]]; then
 process_batch < <(batch_login <<'CHECK_BATCH'
 astroai-lab status --json >/dev/null 2>&1 && echo "PASS:astroai-lab status" || echo "FAIL:astroai-lab status"
 astroai-lab env export --json | grep -q '"WORK"' && echo "PASS:astroai-lab env export" || echo "FAIL:astroai-lab env export"
@@ -88,8 +106,11 @@ astroai-lab agent install --list >/dev/null 2>&1 && echo "PASS:astroai-lab agent
 echo "BATCH_END"
 CHECK_BATCH
 )
+fi
 
-# Direct file-system checks (no login shell needed)
+# Direct file-system checks (no login shell needed). Skipped in
+# --agents mode (lightweight probe).
+if [[ "${AGENTS}" -eq 0 ]]; then
 check() {
     local label="$1"
     shift
@@ -104,16 +125,25 @@ check() {
 check "CADC venv writable" test -w /opt/astroai/venv/cadc
 check "upgrade-cadc-tools helper" test -x /opt/astroai/bin/upgrade-cadc-tools.sh
 check "peek helper" test -x /opt/astroai/bin/peek
+fi
 
 # ================================================================
 # Non-quick checks — batched into ONE login shell with conditional
-# logic inside (replaces ~17 individual login_shell calls)
+# logic inside (replaces ~17 individual login_shell calls). In
+# --agents mode these are skipped entirely (lightweight probe).
 # ================================================================
 if [[ "${QUICK}" -eq 0 ]]; then
-    # Interactive shell is different from login shell; keep separate
-    check "interactive shell: canfar" bash -ic 'command -v canfar >/dev/null' </dev/null
+    if [[ "${AGENTS}" -eq 1 ]]; then
+        # Lightweight post-push probe: agent verb surface only, no tool
+        # installs — fast enough to gate every image push automatically.
+        echo ""
+        echo "Running agent verb-surface verification (--agents, no installs)..."
+        /opt/astroai/bin/canfar-verify-agents.sh --setup || failures=$((failures + 1))
+    else
+        # Interactive shell is different from login shell; keep separate
+        check "interactive shell: canfar" bash -ic 'command -v canfar >/dev/null' </dev/null
 
-    process_batch < <(batch_login <<'CHECK_BATCH'
+        process_batch < <(batch_login <<'CHECK_BATCH'
 # cadcget / rg / file
 canfar --help >/dev/null 2>&1 && echo "PASS:canfar CLI" || echo "FAIL:canfar CLI"
 cadcget --help >/dev/null 2>&1 && echo "PASS:cadcget --help" || echo "FAIL:cadcget --help"
@@ -154,9 +184,10 @@ echo "BATCH_END"
 CHECK_BATCH
 )
 
-    echo ""
-    echo "Running agent setup & install verification..."
-    /opt/astroai/bin/canfar-verify-agents.sh || failures=$((failures + 1))
+        echo ""
+        echo "Running agent setup & install verification..."
+        /opt/astroai/bin/canfar-verify-agents.sh || failures=$((failures + 1))
+    fi
 fi
 
 echo ""

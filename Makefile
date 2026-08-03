@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-agent-local test-ray test-canfar test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
+.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-agent-local test-ray test-canfar test-canfar-agents test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
 
 SHELL := bash
 OWNER ?= astroai
@@ -26,6 +26,7 @@ help:
 	@echo "  make test-ray           Ray container + local cluster + UI tests"
 	@echo "  make test-ray SMOKE=1   fast smoke: skip cluster formation"
 	@echo "  make test-canfar        post-push headless verify on CANFAR"
+	@echo "  make test-canfar-agents post-push agent verb-surface probe (lightweight, no installs)"
 	@echo "  make test-canfar-session post-push contributed/notebook HTTP smoke"
 	@echo "  make test-canfar-ray    CANFAR: manager UI + 2-worker cluster lifecycle"
 	@echo "  make test-canfar-ray-gpu CANFAR: 1 GPU worker cluster (production)"
@@ -179,6 +180,10 @@ test-ray: build-ray build/base ## Ray image checks + local cluster join + UI
 
 test-canfar:
 	./scripts/test-canfar.sh $(or $(IMAGE),base) $(TAG)
+
+test-canfar-agents: ## post-push agent verb-surface probe on CANFAR (lightweight, no installs)
+	CANFAR_TEST_AGENTS=1 ./scripts/test-canfar.sh $(or $(IMAGE),base) $(TAG)
+	@echo "CANFAR agent verb-surface verification passed for $(or $(IMAGE),base):$(TAG)"
 
 test-canfar-session: ## contributed/notebook Running + connectURL HTTP smoke
 	chmod +x scripts/test-canfar-session.sh
