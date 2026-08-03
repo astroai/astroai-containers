@@ -82,7 +82,28 @@ push/ray-base:
 	@echo "ERROR: ray-base is build-only; push ray-manager and ray-worker." >&2
 	@exit 1
 
+# push/% sources from $(BUILD_TAG) — the same tag the image was BUILT with. A
+# release build (e.g. BUILD_TAG=26.08) MUST be pushed with the same BUILD_TAG,
+# otherwise the stale default :local image is silently re-tagged and pushed over
+# the release tag. The guard fails loudly when the source image is missing, and
+# refuses to push when the source is OLDER than the local :$(TAG) image (a
+# downgrade — the exact stale-:local incident).
 push/%:
+	@src="$(IMAGE_PREFIX)/$(notdir $@):$(BUILD_TAG)"; \
+	dst="$(IMAGE_PREFIX)/$(notdir $@):$(TAG)"; \
+	if ! docker image inspect "$$src" >/dev/null 2>&1; then \
+		echo "ERROR: $$src not found locally — build it first (make build/$(notdir $@) BUILD_TAG=$(BUILD_TAG))" >&2; \
+		exit 1; \
+	fi; \
+	if docker image inspect "$$dst" >/dev/null 2>&1; then \
+		src_ts="$$(docker image inspect --format '{{.Created}}' "$$src")"; \
+		dst_ts="$$(docker image inspect --format '{{.Created}}' "$$dst")"; \
+		if [[ "$$src_ts" < "$$dst_ts" ]]; then \
+			echo "ERROR: $$src ($(BUILD_TAG)) is OLDER than local $$dst — push would downgrade $(notdir $@):$(TAG). Rebuild with BUILD_TAG=$(TAG) and push with the same." >&2; \
+			exit 1; \
+		fi; \
+	fi; \
+	echo "Pushing $$src ($(BUILD_TAG)) as $(notdir $@):$(TAG) and :latest"
 	docker tag $(IMAGE_PREFIX)/$(notdir $@):$(BUILD_TAG) $(IMAGE_PREFIX)/$(notdir $@):$(TAG)
 	docker push $(IMAGE_PREFIX)/$(notdir $@):$(TAG)
 	docker tag $(IMAGE_PREFIX)/$(notdir $@):$(BUILD_TAG) $(IMAGE_PREFIX)/$(notdir $@):latest
