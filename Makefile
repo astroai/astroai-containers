@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray push-all push/% push-ray test-local test-agent-local test-ray test-canfar test-canfar-agents test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
+.PHONY: help build-all build/% build-ray build-improc push-all push/% push-ray push-improc test-local test-agent-local test-ray test-improc-local test-canfar test-canfar-agents test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
 
 SHELL := bash
 OWNER ?= astroai
@@ -18,10 +18,13 @@ help:
 	@echo "========================="
 	@echo "  make build-all          build session images (python → base → sessions)"
 	@echo "  make build-ray          build ray-manager + ray-worker (+ base/slim chain)"
+	@echo "  make build-improc       build improc + improc-webterm + improc-notebook (+ base)"
 	@echo "  make build/vscode       build one image (+ parents)"
 	@echo "  make push-all           push session images to Harbor"
 	@echo "  make push-ray           push Ray images to Harbor"
+	@echo "  make push-improc        push improc stack to Harbor"
 	@echo "  make test-local         verify session images locally"
+	@echo "  make test-improc-local  verify improc CLIs locally"
 	@echo "  make test-agent-local   agent command matrix + no ~/.local pollution (all session images)"
 	@echo "  make test-ray           Ray container + local cluster + UI tests"
 	@echo "  make test-ray SMOKE=1   fast smoke: skip cluster formation"
@@ -66,12 +69,17 @@ build-all: ## build session images
 build-ray: ## build Ray manager + worker (uses same base TAG)
 	TAG=$(BUILD_TAG) docker buildx bake ray-manager ray-worker
 
+build-improc: ## build improc + improc-webterm + improc-notebook (+ base)
+	TAG=$(BUILD_TAG) docker buildx bake improc improc-webterm improc-notebook
+
 build/%:
 	TAG=$(BUILD_TAG) docker buildx bake $(notdir $@)
 
 push-all: $(addprefix push/,$(SESSION_IMAGES))
 
 push-ray: $(addprefix push/,$(RAY_IMAGES))
+
+push-improc: push/improc push/improc-webterm push/improc-notebook ## push improc stack
 
 # Production Ray push: bake TAG into manager env (RAY_IMAGE_TAG) — use BUILD_TAG=$(TAG).
 #   make build-ray BUILD_TAG=26.06 TAG=26.06 && make push-ray TAG=26.06 BUILD_TAG=26.06
@@ -178,6 +186,9 @@ test-ray: build-ray build/base ## Ray image checks + local cluster join + UI
 	./scripts/test-ray-ui-local.sh $(if $(filter 1,$(SMOKE)),--smoke,)
 	./scripts/test-astroai-lab-loop.sh $(if $(filter 1,$(SMOKE)),--smoke,)
 
+test-improc-local: ## verify improc CLIs (build first: make build-improc)
+	chmod +x scripts/test-improc-local.sh
+	./scripts/test-improc-local.sh $(BUILD_TAG)
 test-canfar:
 	./scripts/test-canfar.sh $(or $(IMAGE),base) $(TAG)
 

@@ -46,6 +46,9 @@ flowchart TB
 | `openresearch` | OpenResearch (`orx`) autoresearch dashboard | Contributed |
 | `openworker` | OpenWorker browser UI + local agent server (no Tauri) | Contributed |
 | `base` | Headless parent (CI / batch) | — |
+| `improc` | Astronomy FITS/HDF5 image-processing CLIs | Headless |
+| `improc-webterm` | Same tools + browser terminal (ttyd/tmux) | Contributed |
+| `improc-notebook` | Same tools + JupyterLab (improc kernel) | Notebook |
 | `ray-manager` | Ray head + control panel + Dashboard ([RAY.md](docs/RAY.md)) | Contributed |
 | `ray-worker` | Ray worker CPU or GPU (manager-launched) | Headless |
 
@@ -68,8 +71,10 @@ Requires Docker with buildx. Full loop: [CONTRIBUTING.md](docs/CONTRIBUTING.md).
 ```bash
 make build-all              # session stack
 make build-ray              # ray-manager + ray-worker
+make build-improc           # astronomy image-processing CLIs (+ base)
 make build/vscode           # one image (+ parents)
 make test-local             # local smokes
+make test-improc-local      # improc CLI smoke
 make test-ray               # local Ray cluster + UI
 ```
 
@@ -82,6 +87,7 @@ See [OPERATORS.md](docs/OPERATORS.md). The `astroai` Harbor project is **public*
 make push/vscode TAG=26.07
 make push-all TAG=26.07
 make push-ray TAG=26.07
+make push-improc TAG=26.07
 ```
 
 Default `TAG` is current UTC `YY.MM` (for example `26.07`).
@@ -89,10 +95,10 @@ Default `TAG` is current UTC `YY.MM` (for example `26.07`).
 ## Layout
 
 ```
-dockerfiles/   python → base → sessions; python → ray-base → worker; base → ray-manager
+dockerfiles/   python → base → sessions | improc; python → ray-base → worker; base → ray-manager
 ray/           manager FastAPI app + worker helpers
 scripts/       startup-*.sh, test-*.sh, profile
-config/        astroai-lab.lock, ray-deps.lock, notebooks (synced from lab)
+config/        astroai-lab.lock, ray-deps.lock, improc-py.txt, notebooks (synced from lab)
 docs/          USAGE, RAY, OPERATORS, CONTRIBUTING
 examples/ray/  container-local Ray smokes
 ```
@@ -100,7 +106,7 @@ examples/ray/  container-local Ray smokes
 ## Design
 
 - **Same images for CPU and GPU** — choose the node in the portal; CUDA/ML stacks via pixi/uv in the project.
-- **Bake graph:** `python` → fat `base` (compilers + session tools) → interactive sessions; slim `ray-base` (from `python`) → `ray-worker`; fat `base` → `ray-manager` (scientists use its shell/UI).
+- **Bake graph:** `python` → fat `base` (compilers + session tools) → interactive sessions and `improc`; slim `ray-base` (from `python`) → `ray-worker`; fat `base` → `ray-manager` (scientists use its shell/UI).
 - **Fast session disks:** `WORK` (`/srcdir`) for code, `SCRATCH` (`/scratch`) for data and caches (session-private); `/arc/home` and `/arc/projects` are shared across sessions. Hourly `/srcdir` backup + `astroai-lab` persist to `/arc`.
 - **Skaha types:** Contributed listen on **5000**; Notebook on **8888**.
 - **Auth at the edge:** Session UIs trust CANFAR TLS + portal login. Use these images only behind an authenticating reverse proxy.

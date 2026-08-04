@@ -120,10 +120,42 @@ Compilers and editors are in interactive images; put CUDA/ML stacks in your pixi
 | `marimo` | Reactive `.py` notebooks; starter seeded once under `/srcdir/notebooks` |
 | `notebook` | JupyterLab `:8888`. Stock Skaha may run platform Jupyter CMD — AstroAI `startup-notebook.sh` only with a platform override ([OPERATORS.md](OPERATORS.md)) |
 | `openresearch` | Autoresearch UI (`orx`) on `:5000`; AstroAI hub at `/astroai-agents/` (Agents · CANFAR · Ray) |
-| `openworker` | OpenWorker browser UI + local agent server on `:5000` (no Tauri); AstroAI hub at `/astroai-agents/` |
+| `openworker` | OpenWorker browser UI + local agent server (no Tauri); AstroAI hub at `/astroai-agents/` |
 | `ray-manager` | Cluster UI + Ray head; see Ray section |
+| `improc` | Headless FITS/HDF5 image-processing CLIs — see [Image processing (`improc`)](#image-processing-improc) |
+| `improc-webterm` | Same tools + browser terminal (ttyd/tmux) |
+| `improc-notebook` | Same tools + JupyterLab (default kernel = science venv) |
 
 CADC clients (`cadcget`, `vls`, …) are on PATH from `/opt/astroai/venv/cadc`.
+
+---
+
+## Image processing (`improc`)
+
+| Image | Use |
+|-------|-----|
+| `improc` | Headless batch |
+| `improc-webterm` | Interactive CLI (Contributed, :5000) |
+| `improc-notebook` | JupyterLab (Notebook, :8888); kernel **Python 3 (improc)** has healpy/galsim/… |
+
+PATH includes `/opt/astroai/venv/improc/bin` and sourcextractor++.
+
+| Area | Tools |
+|------|--------|
+| Detection / catalog | `source-extractor` (`sextractor`), sourcextractor++, `scamp` (2.15 from sid), IRAF |
+| Cosmic rays / clean | `astroscrappy`, `lacosmic`, `ccdproc` helpers |
+| Contaminant masks | `maximask`, `maxitrack` (own TF venv — not mixed with science Python) |
+| DIA (difference imaging) | **`sfft`**, `zogyp` (modern; not HOTPANTS) |
+| Mask / weight | `weightwatcher`, `missfits`, gnuastro `astnoisechisel` / `astsegment` |
+| PSF | `psfex`, `piff`, gnuastro `astscript-psf-*`, `galfit`, `imfit` |
+| Mosaic / coadd | `swarp`, `montage`, `theli`, `reproject` |
+| Spherical / HEALPix | `healpy`, `healsparse`, `astropy-healpix`, `mocpy`, `hpgeom` |
+| Pretty pictures | `stiff`, `fitspng`, `fitscut`, `astconvertt`, ImageMagick |
+| FITS / HDF5 / tables | cfitsio utils, `fitsverify`, `topcat`/`stilts`, `pqrs`, `h5dump` |
+
+Science Python lives in `/opt/astroai/venv/improc` (on PATH). MaxiMask uses a
+**separate** `/opt/astroai/venv/maximask` so TensorFlow cannot conflict with
+GalSim/numba; only the `maximask` / `maxitrack` wrappers are on PATH.
 
 ---
 

@@ -34,10 +34,16 @@ flowchart LR
 | `openworker` | `…/astroai/openworker:<tag>` | Contributed | 5000 | Yes |
 | `ray-manager` | `…/astroai/ray-manager:<tag>` | Contributed | 5000 | Yes |
 | `ray-worker` | `…/astroai/ray-worker:<tag>` | Headless | — | No — manager launches |
+| `improc` | `…/astroai/improc:<tag>` | Headless | — | Optional (batch) |
+| `improc-webterm` | `…/astroai/improc-webterm:<tag>` | Contributed | 5000 | Yes |
+| `improc-notebook` | `…/astroai/improc-notebook:<tag>` | Notebook | 8888 | Yes |
 
 OCI label `io.canfar.skaha.session.type` marks `headless` / `contributed` / `notebook`.
 
 Register **`ray-manager` only** for Ray. Workers stay headless. See [RAY.md](RAY.md).
+Register **`improc-webterm`** (Contributed) and **`improc-notebook`** (Notebook);
+leave **`improc`** headless for batch. Build/push: `make build-improc` /
+`make push-improc`.
 
 Users authenticate once with `canfar login` (credentials under `/arc/home`,
 `~/.canfar/config.yaml`). Ray manager sessions reuse that home volume.
@@ -93,12 +99,12 @@ entrypoint, ask the science-platform team for a per-image override that sets
 
 ## Science Portal checklist
 
-1. Push `images.canfar.net/astroai/*:<tag>` (sessions + Ray).
-2. Register Contributed: `webterm`, `vscode`, `marimo`, `openresearch`, `openworker`, `ray-manager` → port **5000**.
-3. Register Notebook: `notebook` → port **8888**.
-4. Leave `base`, `ray-base`, and `ray-worker` off the interactive catalog.
+1. Push `images.canfar.net/astroai/*:<tag>` (sessions + Ray + improc stack).
+2. Register Contributed: `webterm`, `vscode`, `marimo`, `openresearch`, `openworker`, `ray-manager`, `improc-webterm` → port **5000**.
+3. Register Notebook: `notebook`, `improc-notebook` → port **8888**.
+4. Leave `base`, `ray-base`, `ray-worker`, and `improc` (headless) off the interactive catalog (or list `improc` under headless only).
 5. Document the published tag for users (`YY.MM`).
-6. Smoke: `make test-canfar-session IMAGE=webterm TAG=…`, `IMAGE=openresearch`, `IMAGE=openworker`, and `make test-canfar-ray TAG=…`.
+6. Smoke: `make test-canfar-session IMAGE=webterm TAG=…`, `IMAGE=openresearch`, `IMAGE=openworker`, `IMAGE=improc-webterm`, and `make test-canfar-ray TAG=…`.
 7. **Agent verbs:** `make test-canfar-agents TAG=…` (lightweight in-session probe of the full agent verb surface — required after every image push; see below).
 
 ## Local smoke

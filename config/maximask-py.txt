@@ -1,0 +1,3 @@
+# MaxiMask / MaxiTrack — isolated from /opt/astroai/venv/improc so TensorFlow
+# cannot fight GalSim / numba / scipy pins in the science stack.
+MaxiMask>=1.4.1

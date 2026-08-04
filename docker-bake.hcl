@@ -20,6 +20,10 @@ group "default" {
   targets = ["base", "webterm", "notebook", "vscode", "marimo", "openresearch", "openworker"]
 }
 
+group "improc" {
+  targets = ["improc", "improc-webterm", "improc-notebook"]
+}
+
 target "python" {
   context    = "./dockerfiles/python"
   dockerfile = "Dockerfile"
@@ -144,5 +148,52 @@ target "ray-manager" {
     REGISTRY = "${REGISTRY}"
     OWNER    = "${OWNER}"
     TAG      = "${TAG}"
+  }
+}
+
+# Headless astronomy image-processing CLIs (FITS/HDF5). Not in default group.
+target "improc" {
+  context    = "."
+  dockerfile = "dockerfiles/improc/Dockerfile"
+  contexts = {
+    "${REGISTRY}/${OWNER}/base:${TAG}" = "target:base"
+  }
+  tags = ["${REGISTRY}/${OWNER}/improc:${TAG}"]
+  args = {
+    REGISTRY = "${REGISTRY}"
+    OWNER    = "${OWNER}"
+    TAG      = "${TAG}"
+  }
+}
+
+# Interactive browser terminal on improc (reuses webterm Dockerfile, BASE_NAME=improc).
+target "improc-webterm" {
+  context    = "."
+  dockerfile = "dockerfiles/webterm/Dockerfile"
+  contexts = {
+    "${REGISTRY}/${OWNER}/improc:${TAG}" = "target:improc"
+  }
+  tags = ["${REGISTRY}/${OWNER}/improc-webterm:${TAG}"]
+  args = {
+    REGISTRY  = "${REGISTRY}"
+    OWNER     = "${OWNER}"
+    BASE_NAME = "improc"
+    TAG       = "${TAG}"
+  }
+}
+
+# JupyterLab on improc — default kernel is the science venv.
+target "improc-notebook" {
+  context    = "."
+  dockerfile = "dockerfiles/improc-notebook/Dockerfile"
+  contexts = {
+    "${REGISTRY}/${OWNER}/improc:${TAG}" = "target:improc"
+  }
+  tags = ["${REGISTRY}/${OWNER}/improc-notebook:${TAG}"]
+  args = {
+    REGISTRY  = "${REGISTRY}"
+    OWNER     = "${OWNER}"
+    BASE_NAME = "improc"
+    TAG       = "${TAG}"
   }
 }
