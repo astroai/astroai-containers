@@ -70,7 +70,110 @@ def _parse_json_stdout(stdout: str) -> object | None:
                 return json.loads(text[start : end + 1])
             except json.JSONDecodeError:
                 return None
+        start_l = text.find("[")
+        end_l = text.rfind("]")
+        if start_l >= 0 and end_l > start_l:
+            try:
+                return json.loads(text[start_l : end_l + 1])
+            except json.JSONDecodeError:
+                return None
         return None
+
+
+def _plugins_from_list_config(tag: str | None = None) -> tuple[int, list[dict], str]:
+    """Lean-verb stand-in for removed `agent addons` / catalog plugin rows."""
+    rc, out, err = _run_lab(["--json", "agent", "list", "config"], timeout=60)
+    data = _parse_json_stdout(out)
+    rows = data if isinstance(data, list) else []
+    if tag:
+        rows = [r for r in rows if isinstance(r, dict) and tag in (r.get("tags") or [])]
+    # Hub JS expects `installed`; lean list config emits `any_installed`.
+    for row in rows:
+        if isinstance(row, dict) and "installed" not in row:
+            row["installed"] = bool(row.get("any_installed"))
+    return rc, rows, err or out or ""
+
+
+def _catalog_items() -> tuple[int, list[dict], str]:
+    """Merge `agent list` + `list config` (replaces removed `agent catalog`)."""
+    rc_a, out_a, err_a = _run_lab(["--json", "agent", "list"], timeout=60)
+    agents = _parse_json_stdout(out_a)
+    items: list[dict] = []
+    if isinstance(agents, dict):
+        for a in agents.get("agents") or []:
+            if not isinstance(a, dict):
+                continue
+            aid = a.get("id") or a.get("agent") or "?"
+            items.append(
+                {
+                    "id": aid,
+                    "kind": "agent",
+                    "installed": bool(a.get("binary") or a.get("binary_ok")),
+                    "summary": a.get("summary") or "",
+                }
+            )
+    rc_p, plugins, err_p = _plugins_from_list_config()
+    for p in plugins:
+        items.append(
+            {
+                "id": p.get("id"),
+                "kind": p.get("kind") or "plugin",
+                "installed": bool(p.get("installed") or p.get("any_installed")),
+                "summary": p.get("summary") or "",
+            }
+        )
+    rc = 0 if rc_a in (0, 1) and rc_p in (0, 1) else max(rc_a, rc_p)
+    err = ""
+    if rc_a not in (0, 1):
+        err = err_a or out_a
+    elif rc_p not in (0, 1):
+        err = err_p
+    return rc, items, err
+
+
+def _install_plugins_by_tag(tag: str) -> tuple[int, dict]:
+    """Replace removed `agent add --tag` with per-id `plugins install`."""
+    rc_list, rows, err_list = _plugins_from_list_config(tag)
+    if rc_list not in (0, 1):
+        return rc_list, {
+            "ok": False,
+            "actions": [],
+            "summary": err_list or "list config failed",
+            "partial": False,
+        }
+    actions: list[dict] = []
+    worst = 0
+    for row in rows:
+        pid = str(row.get("id") or "")
+        if not pid:
+            continue
+        rc, out, err = _run_lab(["--yes", "--json", "agent", "plugins", "install", pid])
+        data = _parse_json_stdout(out)
+        if isinstance(data, dict) and isinstance(data.get("actions"), list):
+            for a in data["actions"]:
+                if isinstance(a, dict):
+                    actions.append(a)
+                else:
+                    actions.append({"id": pid, "status": "ok", "detail": str(a)})
+            if not data.get("ok", rc == 0):
+                worst = max(worst, rc or 1)
+        elif rc == 0:
+            actions.append({"id": pid, "status": "ok", "detail": ""})
+        else:
+            worst = max(worst, rc or 1)
+            actions.append(
+                {"id": pid, "status": "failed", "detail": (err or out or "failed")[:200]}
+            )
+    n_ok = sum(1 for a in actions if a.get("status") not in ("failed", "skipped"))
+    n_skip = sum(1 for a in actions if a.get("status") == "skipped")
+    n_fail = sum(1 for a in actions if a.get("status") == "failed")
+    return worst, {
+        "ok": worst == 0,
+        "partial": n_fail > 0 and n_ok > 0,
+        "actions": actions,
+        "cli_exit": worst,
+        "summary": f"lean plugins: {n_ok} installed, {n_skip} skipped, {n_fail} failed",
+    }
 
 
 def _log_tail(n: int = 40) -> str:
@@ -618,13 +721,16 @@ function formatEnsureDetail(data) {
 function renderAddons(d) {
   const rows = (d && d.addons) || [];
   if (!rows.length) {
-    return '<p class="sub">No lean addons listed (bundle missing or CLI error).'
+    return '<p class="sub">No lean plugins listed (registry empty or CLI error).'
       + (d && d.error ? ' ' + esc(d.error) : '') + '</p>';
   }
-  return '<table><tr><th>Addon</th><th>In</th><th>Summary</th></tr>' +
-    rows.map(a => `<tr><td><code class="inline">${esc(a.id)}</code></td>` +
-      `<td>${a.installed ? '<span class="ok">yes</span>' : '<span class="bad">no</span>'}</td>` +
-      `<td class="sub">${esc(a.summary||'')}</td></tr>`).join('') + '</table>';
+  return '<table><tr><th>Plugin</th><th>In</th><th>Summary</th></tr>' +
+    rows.map(a => {
+      const on = !!(a.installed || a.any_installed);
+      return `<tr><td><code class="inline">${esc(a.id)}</code></td>` +
+      `<td>${on ? '<span class="ok">yes</span>' : '<span class="bad">no</span>'}</td>` +
+      `<td class="sub">${esc(a.summary||'')}</td></tr>`;
+    }).join('') + '</table>';
 }
 function renderModels(d) {
   const presets = (d && d.presets) || {};
@@ -848,7 +954,8 @@ class WizardHandler(BaseHTTPRequestHandler):
             self._send(200, INDEX_HTML.encode("utf-8"), "text/html; charset=utf-8")
             return
         if path == "/api/report":
-            rc, out, err = _run_lab(["agent", "report"], timeout=120)
+            # Lean surface: `agent status --json` is the old `agent report`.
+            rc, out, err = _run_lab(["--json", "agent", "status"], timeout=120)
             data = _parse_json_stdout(out)
             if isinstance(data, dict):
                 data.setdefault("log_tail", _log_tail())
@@ -861,7 +968,7 @@ class WizardHandler(BaseHTTPRequestHandler):
                 500,
                 {
                     "ok": False,
-                    "error": err or out or "report failed",
+                    "error": err or out or "status failed",
                     "log_tail": _log_tail(),
                     "cli_exit": rc,
                 },
@@ -875,28 +982,15 @@ class WizardHandler(BaseHTTPRequestHandler):
             return
         if path == "/api/addons":
             tag = (_qs.get("tag") or ["lean"])[0]
-            args = ["--json", "agent", "addons"]
-            if tag:
-                args.extend(["--tag", tag])
-            rc, out, err = _run_lab(args, timeout=60)
-            data = _parse_json_stdout(out)
-            if isinstance(data, list):
-                self._json(200, {"ok": rc == 0, "addons": data, "tag": tag, "cli_exit": rc})
-                return
-            if isinstance(data, dict) and "addons" in data:
-                data.setdefault("ok", rc == 0)
-                data.setdefault("tag", tag)
-                data["cli_exit"] = rc
-                self._json(200, data)
-                return
+            rc, rows, err = _plugins_from_list_config(tag)
             self._json(
-                200 if rc == 0 else 500,
+                200 if rc in (0, 1) else 500,
                 {
-                    "ok": False,
-                    "addons": [],
+                    "ok": rc in (0, 1),
+                    "addons": rows,
                     "tag": tag,
-                    "error": err or out or "addons list failed",
                     "cli_exit": rc,
+                    **({} if rc in (0, 1) else {"error": err or "list config failed"}),
                 },
             )
             return
@@ -920,15 +1014,19 @@ class WizardHandler(BaseHTTPRequestHandler):
             )
             return
         if path == "/api/catalog":
-            rc, out, err = _run_lab(["--json", "agent", "catalog"], timeout=30)
-            data = _parse_json_stdout(out)
-            if isinstance(data, list):
-                self._json(200, {"ok": rc == 0, "items": data, "cli_exit": rc})
-                return
-            self._json(200 if rc == 0 else 500, {"ok": False, "items": [], "error": err or out})
+            rc, items, err = _catalog_items()
+            self._json(
+                200 if rc in (0, 1) else 500,
+                {
+                    "ok": rc in (0, 1),
+                    "items": items,
+                    "cli_exit": rc,
+                    **({} if rc in (0, 1) else {"error": err or "catalog failed"}),
+                },
+            )
             return
         if path == "/api/interact":
-            rc, out, err = _run_lab(["--json", "agent", "interact"], timeout=30)
+            rc, out, err = _run_lab(["--json", "agent", "status", "--ui"], timeout=30)
             data = _parse_json_stdout(out)
             if isinstance(data, dict):
                 self._json(200, data)
@@ -965,21 +1063,25 @@ class WizardHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/fix":
-                rc, out, err = _run_lab(["--json", "agent", "fix"], timeout=180)
+                rc, out, err = _run_lab(["--json", "agent", "repair"], timeout=180)
                 data = _parse_json_stdout(out) or {}
                 if isinstance(data, list):
                     data = {"ok": rc == 0, "actions": data}
+                if not isinstance(data, dict):
+                    data = {"ok": rc == 0}
                 data["ok"] = rc == 0
-                data["summary"] = "fix ok" if rc == 0 else (err or out or "fix failed")[:300]
+                data["summary"] = "repair ok" if rc == 0 else (err or out or "repair failed")[:300]
                 data["log_tail"] = _log_tail()
                 self._json(200, data)
                 return
 
             if path == "/api/clean":
-                rc, out, err = _run_lab(["--json", "agent", "clean"], timeout=60)
+                rc, out, err = _run_lab(["--json", "agent", "repair", "--clean"], timeout=60)
                 data = _parse_json_stdout(out) or {}
                 if isinstance(data, list):
                     data = {"ok": rc == 0, "actions": data}
+                if not isinstance(data, dict):
+                    data = {"ok": rc == 0}
                 data["ok"] = rc == 0
                 data["summary"] = "clean ok" if rc == 0 else (err or out or "clean failed")[:300]
                 data["log_tail"] = _log_tail()
@@ -1026,38 +1128,22 @@ class WizardHandler(BaseHTTPRequestHandler):
             if path == "/api/add":
                 tag = (qs.get("tag") or [None])[0]
                 name = (qs.get("name") or [None])[0]
-                args = ["--yes", "--json", "agent", "add"]
-                if tag:
-                    args.extend(["--tag", tag])
-                elif name:
-                    args.append(name)
-                else:
-                    args.extend(["--tag", "lean"])
-                rc, out, err = _run_lab(args)
-                data = _parse_json_stdout(out) or {}
-                if not isinstance(data, dict):
-                    data = {}
-                data["ok"] = rc == 0
-                data["partial"] = rc == 2
-                data["cli_exit"] = rc
-                actions = data.get("actions") or []
-                if actions:
-                    n_ok = sum(
-                        1
-                        for a in actions
-                        if isinstance(a, dict) and a.get("status") not in ("failed", "skipped")
+                if name and not tag:
+                    rc, out, err = _run_lab(
+                        ["--yes", "--json", "agent", "plugins", "install", name]
                     )
-                    n_skip = sum(
-                        1 for a in actions if isinstance(a, dict) and a.get("status") == "skipped"
-                    )
-                    n_fail = sum(
-                        1 for a in actions if isinstance(a, dict) and a.get("status") == "failed"
-                    )
+                    data = _parse_json_stdout(out) or {}
+                    if not isinstance(data, dict):
+                        data = {}
+                    data["ok"] = rc == 0
+                    data["cli_exit"] = rc
                     data["summary"] = (
-                        f"lean addons: {n_ok} installed, {n_skip} skipped, {n_fail} failed"
+                        f"plugin {name}" if rc == 0 else (err or out or "failed")[:300]
                     )
-                else:
-                    data["summary"] = "addons ok" if rc == 0 else (err or out or "failed")[:300]
+                    data["log_tail"] = _log_tail()
+                    self._json(200, data)
+                    return
+                rc, data = _install_plugins_by_tag(tag or "lean")
                 data["log_tail"] = _log_tail()
                 self._json(200, data)
                 return
