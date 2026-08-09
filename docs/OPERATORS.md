@@ -162,7 +162,7 @@ make test-canfar-agents TAG=26.07
 
 Runs `canfar-verify.sh --agents` in a headless `base` session, which invokes
 `canfar-verify-agents.sh --setup` — the full agent verb surface
-(`setup`, `verify`, `fix-config`, `plugins list`, `models`, registry verbs)
+(`setup`, `verify`, `repair`, `plugins list`, `models`, registry verbs)
 **without** the slow 16-tool install loop. This is the lightweight gate that
 verifies agents work out of the box on CANFAR after each release; run the
 full `make test-canfar IMAGE=base` (installs) plus `make test-canfar-ray`

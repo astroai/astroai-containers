@@ -118,16 +118,15 @@ echo "=================================="
 check "agent setup" login_shell 'astroai-lab --yes agent setup'
 check "agent verify" login_shell 'astroai-lab agent verify'
 check "agent verify --fix" login_shell 'astroai-lab agent verify --fix'
-# Phase 2/3 registry surface (replaces the deprecated `fix` / `clean` /
-# `interact` aliases — those still exist and emit a deprecation hint, but the
-# verify script now exercises the canonical verbs).
-check "agent fix-config" login_shell 'astroai-lab agent fix-config'
-check "agent fix-config --all" login_shell 'astroai-lab agent fix-config --all'
-check "agent fix-config --clean" login_shell 'astroai-lab agent fix-config --clean'
+# Lean agent surface (repair / list / list config / status --ui).
+check "agent repair" login_shell 'astroai-lab agent repair'
+check "agent repair --all" login_shell 'astroai-lab agent repair --all'
+check "agent repair --clean" login_shell 'astroai-lab agent repair --clean'
 # astroai-lab renders its tables via a rich console on stderr — pipe 2>&1 so
 # the greps see the rows on a plain pipe (discovered by remote CANFAR smoke).
-check "agent catalog" login_shell 'astroai-lab agent catalog 2>&1 | grep -q openresearch'
-check "agent status --endpoints" login_shell 'astroai-lab agent status --endpoints 2>&1 | grep -q Endpoints'
+check "agent list" login_shell 'astroai-lab agent list 2>&1 | grep -qE "kilo|Agent"'
+check "agent list config" login_shell 'astroai-lab agent list config 2>&1 | grep -q ponytail'
+check "agent status --ui" login_shell 'astroai-lab agent status --ui 2>&1 | grep -q Endpoints'
 # Plugin registry surface (Phase 3): list must render the shipped plugins
 # (canfar-ray skill + ray-manager-mcp) whether or not they are installed yet.
 check "agent plugins list" login_shell 'astroai-lab agent plugins list 2>&1 | grep -q canfar-ray'
@@ -196,14 +195,14 @@ for tool in "${AGENT_TOOLS[@]}"; do
 done
 
 # After real installs, the registry-driven verbs must operate on the now-
-# installed agents: `fix-config --all` scaffolds missing configs for every
+# installed agents: `repair --all` scaffolds missing configs for every
 # installed registry agent (kilo/goose/opencode/codex/cline), and
 # `agent config <id>` must show the resulting scaffold (parseable).
 echo ""
 echo "Phase 2/3 registry surface after installs"
 echo "------------------------------------------"
-check "agent fix-config --all (installed)" login_shell 'astroai-lab agent fix-config --all'
-# Coupled: if kilo's binary isn't detected by the registry check, fix-config
+check "agent repair --all (installed)" login_shell 'astroai-lab agent repair --all'
+# Coupled: if kilo's binary isn't detected by the registry check, repair
 # --all no-ops (exit 0) and config kilo would fail with "config not found" —
 # assert the scaffold first so the failure is attributable.
 check "kilo config present" login_shell 'test -f "${HOME}/.config/kilo/kilo.jsonc"'

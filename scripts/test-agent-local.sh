@@ -4,9 +4,9 @@
 # Proves, against each session image run like a CANFAR session (fresh MOUNTED
 # home, non-root user), that:
 #   1. every agent/plugin/models command works out of the box
-#      (list, catalog, install, verify, plugins list/install/remove,
-#       configure, addons, models, and the Phase 2 registry-driven verbs
-#       setup <agent> / config <agent> / fix-config <agent> / update <agent>);
+#      (list, list config, install, verify, plugins list/install/remove,
+#       configure, models, and the registry-driven verbs
+#       setup <agent> / config <agent> / repair <agent> / update <agent>);
 #   2. agent CLI installs NEVER land in the user home (~/.local) — the
 #      session bin dir is scratch-backed when SCRATCH is mounted, else the
 #      work-dir runtime root (work/.runtime-$USER/bin).
@@ -95,9 +95,8 @@ fi
 
 # 1. read commands work out of the box.
 astroai-lab agent list          >/dev/null || fail "agent list"
-astroai-lab agent catalog       >/dev/null || fail "agent catalog"
+astroai-lab agent list config   >/dev/null || fail "agent list config"
 astroai-lab agent plugins list  >/dev/null || fail "agent plugins list"
-astroai-lab agent addons        >/dev/null || fail "agent addons"
 astroai-lab agent models list   >/dev/null || fail "agent models list"
 
 # 2. install a curl-installer agent (honors XDG_BIN_DIR → session bin dir).
@@ -183,35 +182,35 @@ assert d["counts"]["removed"] == 0, d["counts"]
 assert d["counts"]["would_remove"] > 0, d["counts"]
 ' || fail "agent wipe --dry-run"
 
-# 9. Phase 2 fix-config verb: broken config repair + healthy no-op.
-#    Corrupt ~/.hermes/config.yaml with unparseable YAML → fix-config resets
+# 9. Phase 2 repair verb: broken config repair + healthy no-op.
+#    Corrupt ~/.hermes/config.yaml with unparseable YAML → repair resets
 #    it to a format-aware scaffold; a healthy config is reported and never
 #    clobbered (fix_registry_agent semantics).
 printf 'model: [unclosed\n' > "${HOME_DIR}/.hermes/config.yaml"
 # NOTE: the reset discards the plugin-written entries from the `agent update`
 # above (documented fix_registry_agent behavior) — nothing later needs them.
-astroai-lab --json agent fix-config hermes | python3 -c '
+astroai-lab --json agent repair hermes | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["ok"] and d["agent"] == "hermes"
 assert any("repaired broken yaml config" in a for a in d["actions"]), d["actions"]
-' || fail "fix-config hermes: broken yaml not repaired"
+' || fail "repair hermes: broken yaml not repaired"
 astroai-lab --json agent config hermes >/dev/null \
-    || fail "fix-config hermes: repaired config still unreadable"
+    || fail "repair hermes: repaired config still unreadable"
 
-# Healthy no-op: a marker value must survive fix-config untouched.
+# Healthy no-op: a marker value must survive repair untouched.
 astroai-lab agent config hermes marker=keep-me >/dev/null \
     || fail "agent config hermes marker=keep-me"
-astroai-lab --json agent fix-config hermes | python3 -c '
+astroai-lab --json agent repair hermes | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["ok"]
 assert any("config healthy" in a for a in d["actions"]), d["actions"]
-' || fail "fix-config hermes: healthy run not reported"
+' || fail "repair hermes: healthy run not reported"
 astroai-lab --json agent config hermes --key marker | python3 -c '
 import json, sys
 assert json.load(sys.stdin)["value"] == "keep-me"
-' || fail "fix-config hermes: healthy config clobbered"
+' || fail "repair hermes: healthy config clobbered"
 
 ok "no ~/.local pollution; all agent commands OK (bin dir ${BIN_DIR})"
 PROBE_EOF

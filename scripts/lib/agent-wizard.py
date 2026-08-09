@@ -170,7 +170,7 @@ astroai-lab agent status
 astroai-lab agent verify
 astroai-lab --yes agent setup
 astroai-lab agent install kilo
-astroai-lab agent addons --tag lean
+astroai-lab agent plugins list --kind skill
 astroai-lab agent models free
 
 # CANFAR (interactive login needs webterm)
