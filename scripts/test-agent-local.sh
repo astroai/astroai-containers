@@ -107,7 +107,13 @@ astroai-lab agent install kilo  >/dev/null || fail "agent install kilo"
 # 3. verify: binary checks pass on a fresh home (config checks may fire —
 #    that's by design on a fresh home; the command must not crash). --json is
 #    a root-callback flag, so it precedes the agent subcommand.
-astroai-lab --json agent list >/dev/null || fail "--json agent list"
+# Lean list: exit 1 when setup incomplete (ok:false) is intentional — JSON
+# must still emit with an "agents" array (see astroai-lab agent list contract).
+astroai-lab --json agent list | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+assert isinstance(d.get("agents"), list) and d["agents"], d
+' || fail "--json agent list"
 astroai-lab --json agent verify >/dev/null 2>&1 || true
 
 # 4. plugin install/remove round-trip (scoped to the installed agent).
@@ -160,7 +166,7 @@ chmod +x "${BIN_DIR}/hermes"
 astroai-lab --json agent list | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
-hermes = next(r for r in d["registry"] if r["id"] == "hermes")
+hermes = next(r for r in d["agents"] if r["id"] == "hermes")
 assert hermes["binary_ok"], "fake hermes not detected in session bin dir"
 ' || fail "update hermes: fake binary not on session bin dir"
 astroai-lab agent update hermes >/dev/null || fail "agent update hermes"
