@@ -34,6 +34,11 @@ if [[ "${RAY_AUTOSCALING_ENABLED:-0}" == "1" ]]; then
     if [[ ! -x "${wl_cli}" ]]; then
         echo "Warning: RAY_AUTOSCALING_ENABLED=1 but ${wl_cli} missing — skipping autoscaling config" >&2
     else
+        # Explicit idle-timeout knob (otherwise defaults to env or 5m).
+        idle_args=()
+        if [[ -n "${RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES:-}" ]]; then
+            idle_args=(--idle-timeout-minutes "${RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES}")
+        fi
         "${wl_cli}" autoscaler write-config \
             --path "${autoscaling_cfg}" \
             --cluster-name "${cluster_id}" \
@@ -45,7 +50,8 @@ if [[ "${RAY_AUTOSCALING_ENABLED:-0}" == "1" ]]; then
             --ray-head-port "${RAY_HEAD_PORT:-6379}" \
             --ray-version "${RAY_VERSION_EXPECTED:-}" \
             --heartbeat-path "${RAY_MANAGER_HEARTBEAT_PATH:-}" \
-            --spill-dir "${spill_root}"
+            --spill-dir "${spill_root}" \
+            "${idle_args[@]}"
         autoscaling_args=(--autoscaling-config="${autoscaling_cfg}")
         echo "Ray autoscaler enabled: ${autoscaling_cfg} (max ${RAY_AUTOSCALING_MAX_WORKERS:-8} workers)"
     fi

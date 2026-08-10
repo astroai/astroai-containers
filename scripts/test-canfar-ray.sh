@@ -14,6 +14,13 @@
 #   CANFAR_RAY_GPUS (default 0) — set to 1 for GPU worker test
 #   CANFAR_RAY_WORKER_COUNT (default 2, or 1 when CANFAR_RAY_GPUS=1)
 #   CANFAR_RAY_MIN_JOINED (default matches worker_count)
+#   CANFAR_RAY_AUTOSCALING=1 — prove Ray's native autoscaler: head starts with
+#     --autoscaling-config (via ~/.config/canfar/lab/ray-manager.env persisted
+#     on /arc/home by a headless bootstrap), a CPU-demanding Ray job forces
+#     ray-as-* workers up, then they idle-scale back down. Skaha rejects -e on
+#     contributed sessions, so the env file is the enablement channel.
+#   RAY_AUTOSCALING_MIN/MAX_WORKERS, CORES, RAM_GB, GPUS, IDLE_TIMEOUT_MINUTES
+#     (defaults: min 0, max 3, 2 CPU / 4 GiB / 0 GPU, idle 1m for fast proof)
 
 TAG="${1:-${TAG:-26.06}}"
 OWNER="${OWNER:-astroai}"
@@ -22,6 +29,13 @@ TIMEOUT="${CANFAR_TEST_TIMEOUT:-1800}"
 CANFAR_RAY_GPUS="${CANFAR_RAY_GPUS:-0}"
 CANFAR_RAY_WORKER_COUNT="${CANFAR_RAY_WORKER_COUNT:-$(( CANFAR_RAY_GPUS > 0 ? 1 : 2 ))}"
 CANFAR_RAY_MIN_JOINED="${CANFAR_RAY_MIN_JOINED:-${CANFAR_RAY_WORKER_COUNT}}"
+CANFAR_RAY_AUTOSCALING="${CANFAR_RAY_AUTOSCALING:-0}"
+RAY_AUTOSCALING_MIN_WORKERS="${RAY_AUTOSCALING_MIN_WORKERS:-0}"
+RAY_AUTOSCALING_MAX_WORKERS="${RAY_AUTOSCALING_MAX_WORKERS:-3}"
+RAY_AUTOSCALING_CORES="${RAY_AUTOSCALING_CORES:-2}"
+RAY_AUTOSCALING_RAM_GB="${RAY_AUTOSCALING_RAM_GB:-4}"
+RAY_AUTOSCALING_GPUS="${RAY_AUTOSCALING_GPUS:-0}"
+RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES="${RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES:-1}"
 FULL_IMAGE="${REGISTRY}/${OWNER}/ray-manager:${TAG}"
 WORKER_IMAGE="${REGISTRY}/${OWNER}/ray-worker:${TAG}"
 TAG_SAFE="$(printf '%s' "${TAG}" | tr '.:/+' '-' | tr -cd 'a-zA-Z0-9-')"
@@ -76,6 +90,71 @@ PY
     export CANFAR_REGISTRY__USERNAME="${_creds[0]}"
     export CANFAR_REGISTRY__SECRET="${_creds[1]}"
     export CANFAR_REGISTRY__URL="${CANFAR_REGISTRY__URL:-https://${REGISTRY}}"
+}
+
+bootstrap_ray_autoscaler_env() {
+    [[ "${CANFAR_RAY_AUTOSCALING}" == "1" ]] || return 0
+    local bootstrap_name="ray-ascfg-${TAG_SAFE}-$(date -u +%Y%m%d%H%M%S)"
+    local base_image="${REGISTRY}/${OWNER}/base:${TAG}"
+    local create_out="" bootstrap_id="" status=""
+
+    echo "Persisting ~/.config/canfar/lab/ray-manager.env to /arc/home (autoscaler enablement)..."
+    # CANFAR Skaha SPLITS the headless args string on whitespace, so inline
+    # `bash -c '<multi-word script>'` can never work (probed live: args arrive
+    # as separate argv tokens; $ {} in args also trip Skaha's interpolation).
+    # The established pattern (bootstrap-canfar-registry.sh) is a script file
+    # in the image + env vars via -e, which Skaha DOES pass to headless
+    # sessions. Keep values simple (no spaces/$) so `set -a; source` in
+    # startup-ray-manager.sh parses them.
+    local -a boot_env=(
+        -e "RAY_AUTOSCALING_ENABLED=1"
+        -e "RAY_AUTOSCALING_MIN_WORKERS=${RAY_AUTOSCALING_MIN_WORKERS}"
+        -e "RAY_AUTOSCALING_MAX_WORKERS=${RAY_AUTOSCALING_MAX_WORKERS}"
+        -e "RAY_AUTOSCALING_CORES=${RAY_AUTOSCALING_CORES}"
+        -e "RAY_AUTOSCALING_RAM_GB=${RAY_AUTOSCALING_RAM_GB}"
+        -e "RAY_AUTOSCALING_GPUS=${RAY_AUTOSCALING_GPUS}"
+        -e "RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES=${RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES}"
+    )
+    create_out="$(canfar create --name "${bootstrap_name}" headless "${base_image}" \
+        "${boot_env[@]}" \
+        -- bash /opt/astroai/bin/bootstrap-ray-manager-env.sh 2>&1)" || {
+        echo "${create_out}" >&2
+        return 1
+    }
+
+    bootstrap_id="$(printf '%s\n' "${create_out}" | sed -n 's/.*(ID:[[:space:]]*\([^)]*\)).*/\1/p' | awk '{print $1}')"
+    [[ -n "${bootstrap_id}" ]] || bootstrap_id="$(canfar_ps_field name "${bootstrap_name}" id)"
+    [[ -n "${bootstrap_id}" ]] || { echo "Could not parse autoscaler bootstrap session ID." >&2; return 1; }
+
+    local deadline=$((SECONDS + "${CANFAR_BOOTSTRAP_TIMEOUT:-120}"))
+    local pending_since="${SECONDS}"
+    while (( SECONDS < deadline )); do
+        status="$(canfar_ps_field id "${bootstrap_id}" status)"
+        case "${status}" in
+            Succeeded|Completed) break ;;
+            Failed|Error)
+                echo "Autoscaler bootstrap failed (${status})." >&2
+                canfar logs "${bootstrap_id}" 2>&1 | tail -20 >&2 || true
+                canfar delete --force "${bootstrap_id}" 2>/dev/null || true
+                return 1
+                ;;
+            Pending)
+                if (( SECONDS - pending_since > "${CANFAR_BOOTSTRAP_PENDING_MAX:-90}" )); then
+                    echo "Autoscaler bootstrap still Pending — skipping." >&2
+                    canfar delete --force "${bootstrap_id}" 2>/dev/null || true
+                    return 1
+                fi
+                ;;
+            *) pending_since="${SECONDS}" ;;
+        esac
+        sleep 5
+    done
+    canfar delete --force "${bootstrap_id}" 2>/dev/null || true
+    if [[ "${status}" != "Succeeded" && "${status}" != "Completed" ]]; then
+        echo "Autoscaler bootstrap timed out (status: ${status:-unknown})." >&2
+        return 1
+    fi
+    echo "ray-manager.env persisted (RAY_AUTOSCALING_ENABLED=1, min=${RAY_AUTOSCALING_MIN_WORKERS}, max=${RAY_AUTOSCALING_MAX_WORKERS}, idle=${RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES}m)."
 }
 
 bootstrap_canfar_registry_on_arc() {
@@ -332,7 +411,8 @@ for r in rows:
     status = str(r.get('status') or '')
     if status not in ('Running', 'Pending'):
         continue
-    if 'ray-w-' in name or 'ray-preflight-' in name or 'ray-retry-' in name:
+    if 'ray-w-' in name or 'ray-preflight-' in name or 'ray-retry-' in name \
+            or 'ray-as-' in name:
         sid = r.get('id')
         if sid:
             ids.append(sid)
@@ -361,6 +441,11 @@ elif [[ -z "${CANFAR_REGISTRY__USERNAME:-}" || -z "${CANFAR_REGISTRY__SECRET:-}"
     echo "Set CANFAR_REGISTRY__* or docker login ${REGISTRY}" >&2
 else
     echo "Warning: registry bootstrap skipped/failed — relying on existing /arc/home canfar config." >&2
+fi
+
+if ! bootstrap_ray_autoscaler_env; then
+    echo "Could not persist autoscaler env — aborting." >&2
+    exit 1
 fi
 
 if [[ -z "${MANAGER_URL}" ]]; then
@@ -500,7 +585,11 @@ print(json.dumps(d.get('preflight') or {}))
 fi
 
 echo ""
-if [[ "${CANFAR_RAY_GPUS}" != "0" ]]; then
+if [[ "${CANFAR_RAY_AUTOSCALING}" == "1" ]]; then
+    echo "Autoscaler proof mode (CANFAR_RAY_AUTOSCALING=1) — Ray's own autoscaler,"
+    echo "not the manager worker API, drives scaling. Submitting a CPU-demanding"
+    echo "Ray job and watching ray-as-* worker sessions scale up then idle down."
+elif [[ "${CANFAR_RAY_GPUS}" != "0" ]]; then
     echo "Launching GPU cluster (${CANFAR_RAY_WORKER_COUNT} worker(s), gpus=${CANFAR_RAY_GPUS})..."
 else
     echo "Launching cluster (${CANFAR_RAY_WORKER_COUNT} worker(s))..."
@@ -509,30 +598,190 @@ PREFLIGHT_REQUIRED=true
 if [[ "${CANFAR_RAY_SKIP_PREFLIGHT:-}" == "1" || "${PREFLIGHT_PENDING_HANG:-0}" == "1" ]]; then
     PREFLIGHT_REQUIRED=false
 fi
-CLUSTER_ACCEPT="$(api_curl -o /dev/null -w '%{http_code}' -X POST "${MANAGER_URL}/api/v1/cluster/create?async=1" \
-    -H 'Content-Type: application/json' \
-    -d "{\"name\":\"canfar-ray-test\",\"worker_count\":${CANFAR_RAY_WORKER_COUNT},\"cores\":1,\"ram_gb\":4,\"gpus\":${CANFAR_RAY_GPUS},\"min_joined\":${CANFAR_RAY_MIN_JOINED},\"partial_policy\":\"accept_partial\",\"require_preflight\":${PREFLIGHT_REQUIRED}}" 2>/dev/null || true)"
-CLUSTER_ACCEPT="${CLUSTER_ACCEPT:-000}"
-if [[ "${CLUSTER_ACCEPT}" != "202" ]]; then
-    echo "Cluster create async start failed (HTTP ${CLUSTER_ACCEPT})." >&2
+if [[ "${CANFAR_RAY_AUTOSCALING}" == "1" ]]; then
+    # ------------------------------------------------------------------
+    # Autoscaler proof: the head started with --autoscaling-config (env
+    # file persisted by bootstrap_ray_autoscaler_env and sourced by
+    # startup-ray-manager.sh). Submit a Ray job that requests more CPUs
+    # than the head schedules (head has 0 CPUs), so Ray's autoscaler must
+    # launch ray-as-* worker sessions on demand. Then wait for the idle
+    # timeout to scale them back down.
+    # ------------------------------------------------------------------
+    echo "Checking autoscaler enablement in manager log..."
+    MGR_LOGS="$(canfar logs "${SESSION_ID}" 2>&1 | grep -i 'autoscaler enabled' || true)"
+    if [[ -n "${MGR_LOGS}" ]]; then
+        echo "  ok  manager log shows: ${MGR_LOGS}"
+    else
+        echo "  FAIL manager log missing 'Ray autoscaler enabled'" >&2
+        FAILURES=$((FAILURES + 1))
+    fi
+
+    echo ""
+    echo "Submitting CPU-demanding Ray job via dashboard proxy..."
+    # The head schedules 0 CPUs, so a num_cpus=2 task can only run on an
+    # autoscaler-launched ray-worker (RAY_AUTOSCALING_CORES defaults to 2 so
+    # the task fits one worker node). Entrypoint is a bash heredoc so the
+    # decorator + newlines survive; json.dumps does the exact escaping (Ray
+    # runs job entrypoints via `bash -lc`).
+    # NOTE: plain assignment — top-level scope; `local` would abort under set -e.
+    job_script='cat <<'"'"'PYEOF'"'"' | python3
+import ray
+import time
+
+ray.init(address="auto")
+
+@ray.remote(num_cpus=2)
+def probe():
+    time.sleep(5)
+    return 42
+
+print("AUTOSCALED_RESULT", ray.get(probe.remote()))
+PYEOF'
+    # /readyz only proves the head GCS is up — the dashboard (and its Jobs
+    # API) binds a moment later. Wait for the proxy to report it ready, then
+    # retry the submit a few times so a transient 502 cannot fail the proof.
+    echo "Waiting for Ray dashboard (Jobs API) readiness..."
+    DASH_DEADLINE=$((SECONDS + 180))
+    while (( SECONDS < DASH_DEADLINE )); do
+        DASH_READY="$(api_curl "${MANAGER_URL}/api/v1/dashboard/status" 2>/dev/null || true)"
+        if printf '%s' "${DASH_READY}" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get('ready') else 1)" 2>/dev/null; then
+            echo "  ok  dashboard ready"
+            break
+        fi
+        sleep 5
+    done
+
+    JOB_RESP=""
+    for _try in 1 2 3; do
+        JOB_RESP="$(api_curl -X POST "${MANAGER_URL}/dashboard/api/jobs/" \
+            -H 'Content-Type: application/json' \
+            -d "${JOB_BODY}" 2>/dev/null || true)"
+        JOB_ID="$(printf '%s' "${JOB_RESP}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('submission_id','') or json.load(sys.stdin).get('job_id',''))" 2>/dev/null || true)"
+        [[ -n "${JOB_ID}" ]] && break
+        echo "  job submit attempt ${_try} failed (response: ${JOB_RESP:-empty}) — retrying..." >&2
+        sleep 5
+    done
+    if [[ -z "${JOB_ID}" ]]; then
+        echo "  FAIL job submit response: ${JOB_RESP}" >&2
+        FAILURES=$((FAILURES + 1))
+    else
+        echo "  ok  Ray job submitted: ${JOB_ID}"
+    fi
+
+    echo "Watching for autoscaler ray-as-* worker sessions..."
+    AS_SEEN=0
+    deadline=$((SECONDS + 600))
+    while (( SECONDS < deadline )); do
+        AS_JSON="$(canfar ps --json 2>/dev/null || true)"
+        AS_SEEN="$(printf '%s' "${AS_JSON}" | python3 -c "
+import json, sys
+raw = sys.stdin.read()
+for m in ('[', '{'):
+    i = raw.find(m)
+    if i >= 0:
+        raw = raw[i:]
+        break
+try:
+    rows = json.loads(raw)
+except Exception:
+    rows = []
+if isinstance(rows, dict):
+    rows = [rows]
+print(sum(1 for r in rows if str(r.get('name') or '').startswith('ray-as-') and str(r.get('status') or '') in ('Running', 'Pending')))
+" 2>/dev/null || echo 0)"
+        [[ "${AS_SEEN}" -gt 0 ]] && break
+        sleep 10
+    done
+    echo "  ray-as-* sessions observed: ${AS_SEEN}"
+    if [[ "${AS_SEEN}" -gt 0 ]]; then
+        echo "  ok  autoscaler launched ray-as-* worker(s) on demand"
+    else
+        echo "  FAIL no ray-as-* autoscaler workers appeared" >&2
+        FAILURES=$((FAILURES + 1))
+    fi
+
+    echo "Waiting for job completion..."
+    JOB_STATE=""
+    deadline=$((SECONDS + 600))
+    while (( SECONDS < deadline )); do
+        JOB_JSON="$(api_curl "${MANAGER_URL}/dashboard/api/jobs/${JOB_ID}" 2>/dev/null || true)"
+        JOB_STATE="$(printf '%s' "${JOB_JSON}" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || true)"
+        case "${JOB_STATE}" in
+            SUCCEEDED) break ;;
+            FAILED|STOPPED|ERRORED) break ;;
+            "") ;;
+        esac
+        sleep 10
+    done
+    echo "  job state: ${JOB_STATE:-timeout}"
+    if [[ "${JOB_STATE}" == "SUCCEEDED" ]]; then
+        echo "  ok  Ray job succeeded (ran on autoscaled worker)"
+    else
+        echo "  FAIL Ray job ${JOB_STATE:-timeout}; logs:" >&2
+        api_curl "${MANAGER_URL}/dashboard/api/jobs/${JOB_ID}/logs" 2>/dev/null | tail -20 >&2 || true
+        FAILURES=$((FAILURES + 1))
+    fi
+
+    echo "Waiting for idle scale-down (idle_timeout=${RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES}m)..."
+    AS_LEFT=1
+    # Session destroy on Skaha can take a while after Ray's monitor marks a
+    # node idle — budget idle timeout plus generous margin.
+    deadline=$((SECONDS + 120 + RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES * 180))
+    while (( SECONDS < deadline )); do
+        AS_JSON="$(canfar ps --json 2>/dev/null || true)"
+        AS_LEFT="$(printf '%s' "${AS_JSON}" | python3 -c "
+import json, sys
+raw = sys.stdin.read()
+for m in ('[', '{'):
+    i = raw.find(m)
+    if i >= 0:
+        raw = raw[i:]
+        break
+try:
+    rows = json.loads(raw)
+except Exception:
+    rows = []
+if isinstance(rows, dict):
+    rows = [rows]
+print(sum(1 for r in rows if str(r.get('name') or '').startswith('ray-as-') and str(r.get('status') or '') in ('Running', 'Pending')))
+" 2>/dev/null || echo 1)"
+        [[ "${AS_LEFT}" -eq 0 ]] && break
+        sleep 15
+    done
+    echo "  ray-as-* sessions remaining: ${AS_LEFT}"
+    if [[ "${AS_LEFT}" -eq 0 ]]; then
+        echo "  ok  autoscaler idle-scaled workers back down"
+    else
+        echo "  FAIL autoscaler did not idle-scale workers down within budget" >&2
+        FAILURES=$((FAILURES + 1))
+    fi
     CLUSTER_JSON="$(api_curl "${MANAGER_URL}/api/v1/status" 2>/dev/null || true)"
-    FAILURES=$((FAILURES + 1))
 else
-    echo "Cluster create accepted (202); polling status..." >&2
-    CLUSTER_JSON="$(wait_for_manager_operation "${TIMEOUT}" cluster-create || true)"
-fi
-echo "${CLUSTER_JSON}" | python3 -m json.tool || echo "${CLUSTER_JSON}"
-if ! printf '%s' "${CLUSTER_JSON}" | python3 -c "
+    CLUSTER_ACCEPT="$(api_curl -o /dev/null -w '%{http_code}' -X POST "${MANAGER_URL}/api/v1/cluster/create?async=1" \
+        -H 'Content-Type: application/json' \
+        -d "{\"name\":\"canfar-ray-test\",\"worker_count\":${CANFAR_RAY_WORKER_COUNT},\"cores\":1,\"ram_gb\":4,\"gpus\":${CANFAR_RAY_GPUS},\"min_joined\":${CANFAR_RAY_MIN_JOINED},\"partial_policy\":\"accept_partial\",\"require_preflight\":${PREFLIGHT_REQUIRED}}" 2>/dev/null || true)"
+    CLUSTER_ACCEPT="${CLUSTER_ACCEPT:-000}"
+    if [[ "${CLUSTER_ACCEPT}" != "202" ]]; then
+        echo "Cluster create async start failed (HTTP ${CLUSTER_ACCEPT})." >&2
+        CLUSTER_JSON="$(api_curl "${MANAGER_URL}/api/v1/status" 2>/dev/null || true)"
+        FAILURES=$((FAILURES + 1))
+    else
+        echo "Cluster create accepted (202); polling status..." >&2
+        CLUSTER_JSON="$(wait_for_manager_operation "${TIMEOUT}" cluster-create || true)"
+    fi
+    echo "${CLUSTER_JSON}" | python3 -m json.tool || echo "${CLUSTER_JSON}"
+    if ! printf '%s' "${CLUSTER_JSON}" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 need = int('${CANFAR_RAY_MIN_JOINED}')
 sys.exit(0 if d.get('success') and d.get('joined_workers', 0) >= need else 1)
 "; then
-    echo "Cluster did not reach healthy state (need ${CANFAR_RAY_MIN_JOINED} joined)." >&2
-    FAILURES=$((FAILURES + 1))
-    dump_persisted_worker_logs "${CLUSTER_JSON}"
-    dump_persisted_worker_logs "$(api_curl "${MANAGER_URL}/api/v1/status" 2>/dev/null || true)"
-    dump_canfar_cli_worker_logs "${CLUSTER_JSON}"
+        echo "Cluster did not reach healthy state (need ${CANFAR_RAY_MIN_JOINED} joined)." >&2
+        FAILURES=$((FAILURES + 1))
+        dump_persisted_worker_logs "${CLUSTER_JSON}"
+        dump_persisted_worker_logs "$(api_curl "${MANAGER_URL}/api/v1/status" 2>/dev/null || true)"
+        dump_canfar_cli_worker_logs "${CLUSTER_JSON}"
+    fi
 fi
 
 if [[ "${CANFAR_RAY_GPUS}" != "0" ]] && [[ "${FAILURES}" -eq 0 ]]; then
@@ -564,7 +813,9 @@ api_curl -X POST "${MANAGER_URL}/api/v1/workers/destroy-all" | python3 -m json.t
 echo ""
 echo ""
 if [[ "${FAILURES}" -eq 0 ]]; then
-    if [[ "${CANFAR_RAY_GPUS}" != "0" ]]; then
+    if [[ "${CANFAR_RAY_AUTOSCALING}" == "1" ]]; then
+        echo "CANFAR Ray autoscaler test passed (dynamic scale-up + idle scale-down)."
+    elif [[ "${CANFAR_RAY_GPUS}" != "0" ]]; then
         echo "CANFAR Ray GPU test passed."
     else
         echo "CANFAR Ray Milestone B test passed."

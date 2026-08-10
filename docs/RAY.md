@@ -182,6 +182,46 @@ Override `RAY_CLUSTER_ID` for a stable team path under `/arc/projects` if needed
 On manager start, terminal-phase leftovers are destroyed (startup GC); **Reconcile
 state** refreshes membership for an active cluster after restart.
 
+## Autoscaling (Ray-native, on demand)
+
+Ray's own autoscaler can launch/destroy `ray-worker` sessions on demand — no
+fixed worker count. The manager head starts with
+`ray start --head --autoscaling-config=<yaml>` when enabled; a CANFAR
+`NodeProvider` (in `astroai-workload`, `ray-as-*` sessions) does the scaling.
+
+Enable it per manager session via a file on `/arc/home` (Skaha rejects `-e`
+env on contributed sessions):
+
+```bash
+# from a webterm / vscode / openresearch session before launching the manager
+mkdir -p ~/.config/canfar/lab
+cat > ~/.config/canfar/lab/ray-manager.env <<EOF
+RAY_AUTOSCALING_ENABLED=1
+RAY_AUTOSCALING_MIN_WORKERS=0
+RAY_AUTOSCALING_MAX_WORKERS=8
+RAY_AUTOSCALING_CORES=1
+RAY_AUTOSCALING_RAM_GB=4
+RAY_AUTOSCALING_GPUS=0
+RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES=5
+EOF
+```
+
+`startup-ray-manager.sh` sources that file (if present) before launching the
+head, so `ray-head-start.sh` writes the autoscaling YAML
+(`astroai-workload autoscaler write-config`) and passes
+`--autoscaling-config` to `ray start --head`. The autoscaler then:
+
+- **scales up**: a job that demands more CPUs than are scheduled triggers
+  `ray-as-*` worker sessions (head schedules 0 CPUs by default)
+- **scales down**: idle workers are terminated after `idle_timeout_minutes`
+  (default 5; env `RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES`)
+
+Verify end-to-end on CANFAR (manager UI + dynamic scale-up + idle scale-down):
+
+```bash
+make test-canfar-ray-autoscale TAG=26.07
+```
+
 ## Manager API
 
 | Endpoint | Purpose |

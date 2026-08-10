@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray build-improc push-all push/% push-ray push-improc test-local test-agent-local test-ray test-improc-local test-canfar test-canfar-agents test-canfar-session test-canfar-ray test-canfar-ray-gpu clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
+.PHONY: help build-all build/% build-ray build-improc push-all push/% push-ray push-improc test-local test-agent-local test-ray test-improc-local test-canfar test-canfar-agents test-canfar-session test-canfar-ray test-canfar-ray-gpu test-canfar-ray-autoscale clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
 
 SHELL := bash
 OWNER ?= astroai
@@ -33,6 +33,7 @@ help:
 	@echo "  make test-canfar-session post-push contributed/notebook HTTP smoke"
 	@echo "  make test-canfar-ray    CANFAR: manager UI + 2-worker cluster lifecycle"
 	@echo "  make test-canfar-ray-gpu CANFAR: 1 GPU worker cluster (production)"
+	@echo "  make test-canfar-ray-autoscale CANFAR: Ray autoscaler scale-up/down proof"
 	@echo "  make clean              remove local $(IMAGE_PREFIX)/* images"
 	@echo "  make clean-all          clean + prune buildx cache"
 	@echo "  make lock-ray           regenerate config/ray-deps.lock"
@@ -208,6 +209,10 @@ test-canfar-ray-gpu: ## CANFAR 1-worker cluster with gpu=1
 	chmod +x scripts/test-canfar-ray.sh
 	CANFAR_RAY_GPUS=1 CANFAR_RAY_WORKER_COUNT=1 CANFAR_RAY_MIN_JOINED=1 \
 		./scripts/test-canfar-ray.sh $(TAG)
+
+test-canfar-ray-autoscale: ## CANFAR Ray autoscaler: bootstrap env + scale-up/down
+	chmod +x scripts/test-canfar-ray.sh scripts/bootstrap-ray-manager-env.sh
+	CANFAR_RAY_AUTOSCALING=1 ./scripts/test-canfar-ray.sh $(TAG)
 
 clean:
 	@imgs=($$(docker images --format '{{.Repository}}:{{.Tag}}' '$(IMAGE_PREFIX)/*' 2>/dev/null || true)); \
