@@ -8,6 +8,18 @@ if [[ -f /etc/profile.d/astroai.sh ]]; then
     source /etc/profile.d/astroai.sh
 fi
 
+# Per-session manager overrides (e.g. RAY_AUTOSCALING_ENABLED=1) live on the
+# user home because Skaha does not pass -e env to contributed sessions. The
+# astroai-workload autoscaler can then be enabled for a single manager session
+# by writing ~/.config/canfar/lab/ray-manager.env from a webterm (or by the
+# test harness bootstrap) before launching the manager.
+if [[ -f "${HOME}/.config/canfar/lab/ray-manager.env" ]]; then
+    set -a
+    # shellcheck disable=SC1091
+    source "${HOME}/.config/canfar/lab/ray-manager.env"
+    set +a
+fi
+
 export RAY_CLUSTER_ID="${RAY_CLUSTER_ID:-}"
 if [[ -z "${RAY_CLUSTER_ID}" ]]; then
     # Bind state to this manager session so /arc/home does not reuse another

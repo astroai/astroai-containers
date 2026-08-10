@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -73,6 +75,19 @@ class ClusterCreateBody(BaseModel):
     require_preflight: bool = True
 
 
+def _drain_head_output(stream: Any) -> None:
+    """Forward ray-head-start.sh output to our stdout.
+
+    Without a drainer, the Popen pipe fills (~64 KiB) and the child blocks; and
+    the head-start diagnostics (e.g. "Ray autoscaler enabled") never reach the
+    container stdout that `canfar logs` / operators read.
+    """
+    assert stream is not None
+    for line in iter(stream.readline, ""):
+        sys.stdout.write(f"[ray-head] {line}")
+        sys.stdout.flush()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
     global _ray_head_proc
@@ -84,6 +99,12 @@ async def lifespan(app: FastAPI):  # type: ignore[no-untyped-def]
             stderr=subprocess.STDOUT,
             text=True,
         )
+        threading.Thread(
+            target=_drain_head_output,
+            args=(_ray_head_proc.stdout,),
+            daemon=True,
+            name="ray-head-log-drain",
+        ).start()
     gc_terminal_cluster_workers(settings=_settings, canfar=_canfar, store=_store)
     yield
 
