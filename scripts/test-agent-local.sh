@@ -97,7 +97,6 @@ fi
 astroai-lab agent list          >/dev/null || fail "agent list"
 astroai-lab agent list config   >/dev/null || fail "agent list config"
 astroai-lab agent plugins list  >/dev/null || fail "agent plugins list"
-astroai-lab agent models list   >/dev/null || fail "agent models list"
 
 # 2. install a curl-installer agent (honors XDG_BIN_DIR → session bin dir).
 astroai-lab agent install kilo  >/dev/null || fail "agent install kilo"
@@ -122,10 +121,7 @@ if astroai-lab agent plugins list | grep -q canfar-ray; then
     astroai-lab agent plugins remove canfar-ray --agent kilo >/dev/null 2>&1 || true
 fi
 
-# 5. models presets are readable.
-astroai-lab agent models list | grep -qi coding || fail "agent models list has no coding presets"
-
-# 6. remove leaves no trace and never creates ~/.local.
+# 5. remove leaves no trace and never creates ~/.local.
 astroai-lab agent remove kilo >/dev/null || fail "agent remove kilo"
 [[ ! -e "${BIN_DIR}/kilo" ]] || fail "kilo still in ${BIN_DIR} after remove"
 [[ ! -d "${HOME_DIR}/.local/bin" ]] || fail "~/.local/bin was created"

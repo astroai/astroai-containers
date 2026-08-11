@@ -57,6 +57,7 @@ needs_gh_auth() {
 install_cmd_for() {
     case "$1" in
         ast-grep) echo sg ;;
+        cursor) echo agent ;;  # upstream Cursor Agent binary name
         *) echo "$1" ;;
     esac
 }
@@ -135,14 +136,7 @@ check "agent setup stamp" login_shell 'test -f "${HOME}/.astroai/lab/agent-setup
 check "cursor MCP" login_shell 'python3 -c "import json, pathlib; d=json.loads(pathlib.Path(\"${HOME}/.cursor/mcp.json\").read_text()); assert d.get(\"mcpServers\")"'
 check "astroai-lab-workflow skill" login_shell 'test -f "${HOME}/.cursor/skills/astroai-lab-workflow/SKILL.md"'
 check "kilo starter config" login_shell 'test -f "${HOME}/.config/kilo/kilo.jsonc"'
-check "free-models guide" login_shell 'test -f "${HOME}/.config/canfar/lab/free-models-guide.txt"'
 check "agent-env hook" login_shell 'test -f "${HOME}/.config/canfar/lab/agent-env.sh"'
-
-check "agent models list" login_shell 'astroai-lab agent models list | grep -q coding'
-check "agent models free" login_shell 'astroai-lab --yes agent models free'
-check "goose openrouter config" login_shell 'grep -q GOOSE_PROVIDER "${HOME}/.config/goose/config.yaml"'
-check "opencode model config" login_shell 'python3 -c "import json, pathlib; d=json.loads(pathlib.Path(\"${HOME}/.config/opencode/opencode.json\").read_text()); assert d.get(\"model\", \"\").startswith(\"openrouter/\")"'
-check "openrouter.env.example" login_shell 'test -f "${HOME}/.config/canfar/lab/openrouter.env.example"'
 
 check "agent install --list" login_shell 'astroai-lab agent install --list 2>&1 | grep -q kilo'
 
@@ -180,7 +174,7 @@ else
         freebuff
         pi
         codewhale
-        agent
+        cursor
         claude
         agy
         copilot

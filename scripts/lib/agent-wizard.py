@@ -274,7 +274,7 @@ astroai-lab agent verify
 astroai-lab --yes agent setup
 astroai-lab agent install kilo
 astroai-lab agent plugins list --kind skill
-astroai-lab agent models free
+astroai-lab agent config kilo
 
 # CANFAR (interactive login needs webterm)
 canfar auth show
