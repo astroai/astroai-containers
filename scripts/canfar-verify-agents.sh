@@ -116,6 +116,10 @@ check_install() {
 echo "Agent setup & install verification"
 echo "=================================="
 
+# CANFAR /arc/home is NFS: Node/Go agent --version probes often exceed the
+# default 3s local timeout. Raise for verify only; list/status stay fast.
+export ASTROAI_LAB_PROBE_VERSION_TIMEOUT="${ASTROAI_LAB_PROBE_VERSION_TIMEOUT:-30}"
+
 check "agent setup" login_shell 'astroai-lab --yes agent setup'
 check "agent verify" login_shell 'astroai-lab agent verify'
 check "agent verify --fix" login_shell 'astroai-lab agent verify --fix'
