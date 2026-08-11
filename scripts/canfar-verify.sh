@@ -7,7 +7,7 @@ set -o pipefail
 #   canfar-verify.sh --quick        PATH + CADC CLIs only
 #   canfar-verify.sh --agents       lightweight agent verb-surface probe only
 #                                   (canfar-verify-agents.sh --setup: setup,
-#                                   verify, repair, plugins, models — no
+#                                   verify, repair, plugins — no
 #                                   tool installs; fast, network-light)
 
 QUICK=0

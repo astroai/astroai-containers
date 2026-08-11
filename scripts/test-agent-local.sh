@@ -3,9 +3,9 @@
 #
 # Proves, against each session image run like a CANFAR session (fresh MOUNTED
 # home, non-root user), that:
-#   1. every agent/plugin/models command works out of the box
+#   1. every agent/plugin command works out of the box
 #      (list, list config, install, verify, plugins list/install/remove,
-#       configure, models, and the registry-driven verbs
+#       configure, and the registry-driven verbs
 #       setup <agent> / config <agent> / repair <agent> / update <agent>);
 #   2. agent CLI installs NEVER land in the user home (~/.local) — the
 #      session bin dir is scratch-backed when SCRATCH is mounted, else the

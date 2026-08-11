@@ -283,12 +283,6 @@ if [[ "${FAILURES}" -eq 0 && ( "${IMAGE}" == "openresearch" || "${IMAGE}" == "op
         echo "Hub /api/addons check failed." >&2
         FAILURES=$((FAILURES + 1))
     fi
-    models_code="$(curl -sk -o "${HUB_JSON}" -w '%{http_code}' --max-time 45 "${BASE}/astroai-agents/api/models" || true)"
-    echo "Hub /api/models HTTP ${models_code}"
-    if [[ "${models_code}" != "200" ]] || ! python3 -c "import json; d=json.load(open('${HUB_JSON}')); assert 'presets' in d" 2>/dev/null; then
-        echo "Hub /api/models check failed." >&2
-        FAILURES=$((FAILURES + 1))
-    fi
     rm -f "${HUB_HTML}" "${HUB_JSON}"
 fi
 

@@ -3,8 +3,8 @@ set -o pipefail
 # Agent setup + install smoke checks (run inside a CANFAR session).
 #
 # Usage:
-#   canfar-verify-agents.sh                 full agent setup, models, and install loop
-#   canfar-verify-agents.sh --setup         setup + verify + models only (no installs)
+#   canfar-verify-agents.sh                 full agent setup and install loop
+#   canfar-verify-agents.sh --setup         setup + verify only (no installs)
 #   canfar-verify-agents.sh --install-fast  install only goose/opencode/kilo (4 agents)
 
 SETUP_ONLY=0

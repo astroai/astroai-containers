@@ -552,15 +552,6 @@ INDEX_HTML = """<!DOCTYPE html>
         </div>
         <div id="addons-result" class="result">No install run yet.</div>
       </section>
-
-      <section class="panel">
-        <h2>Free models<span class="hint">Writes free-tier presets into agent configs (Kilo / OpenRouter). Needs keys for some agents.</span></h2>
-        <div id="models">Loading…</div>
-        <div class="actions" style="margin-top:.75rem;margin-bottom:0">
-          <button id="btn-models" class="secondary">Apply free models</button>
-        </div>
-        <div id="models-result" class="result">No apply run yet.</div>
-      </section>
     </div>
 
     <details class="more">
@@ -732,26 +723,6 @@ function renderAddons(d) {
       `<td class="sub">${esc(a.summary||'')}</td></tr>`;
     }).join('') + '</table>';
 }
-function renderModels(d) {
-  const presets = (d && d.presets) || {};
-  const names = Object.keys(presets);
-  if (!names.length) {
-    return '<p class="sub">No presets listed.'
-      + (d && d.error ? ' ' + esc(d.error) : '') + '</p>';
-  }
-  let html = '<table><tr><th>Preset</th><th>What it sets</th></tr>';
-  for (const name of names) {
-    const m = presets[name] || {};
-    html += `<tr><td><code class="inline">${esc(name)}</code></td>` +
-      `<td><strong>${esc(m.label||'')}</strong><br/><span class="sub">${esc(m.description||'')}</span>` +
-      (m.openrouter ? `<br/><span class="sub">OpenRouter: ${esc(m.openrouter)}</span>` : '') +
-      (m.kilo ? `<br/><span class="sub">Kilo: ${esc(m.kilo)}</span>` : '') +
-      `</td></tr>`;
-  }
-  html += '</table>';
-  html += '<p class="sub">Default apply uses preset <code class="inline">coding</code>. Set <code class="inline">OPENROUTER_API_KEY</code> for Goose/OpenCode/Codex free tiers; Kilo can sign in at kilo.ai.</p>';
-  return html;
-}
 function renderCatalog(d) {
   const rows = (d && d.items) || [];
   if (!rows.length) return '<p class="sub">No catalog items loaded.</p>';
@@ -773,14 +744,12 @@ function renderInteract(d) {
   return html;
 }
 async function refreshLists() {
-  const [add, mod, cat, inter] = await Promise.all([
+  const [add, cat, inter] = await Promise.all([
     api('api/addons?tag=lean'),
-    api('api/models'),
     api('api/catalog'),
     api('api/interact'),
   ]);
   document.getElementById('addons').innerHTML = renderAddons(add.data || {});
-  document.getElementById('models').innerHTML = renderModels(mod.data || {});
   document.getElementById('catalog').innerHTML = renderCatalog(cat.data || {});
   document.getElementById('interact').innerHTML = renderInteract(inter.data || {});
 }
@@ -897,7 +866,6 @@ document.getElementById('btn-verify').onclick = () => action('api/verify', 'Veri
 document.getElementById('btn-update').onclick = () => action('api/update', 'Update');
 document.getElementById('btn-kilo').onclick = () => action('api/install?tool=kilo', 'Install Kilo');
 document.getElementById('btn-lean').onclick = () => action('api/add?tag=lean', 'Install lean addons', 'addons-result');
-document.getElementById('btn-models').onclick = () => action('api/models-free', 'Apply free models', 'models-result');
 document.getElementById('btn-compute').onclick = () =>
   action('api/compute/ensure', 'Starting batch compute (can take several minutes)', 'compute-result');
 document.getElementById('btn-compute-refresh').onclick = () => refresh();
@@ -991,25 +959,6 @@ class WizardHandler(BaseHTTPRequestHandler):
                     "tag": tag,
                     "cli_exit": rc,
                     **({} if rc in (0, 1) else {"error": err or "list config failed"}),
-                },
-            )
-            return
-        if path == "/api/models":
-            rc, out, err = _run_lab(["--json", "agent", "models", "list"], timeout=30)
-            data = _parse_json_stdout(out)
-            if isinstance(data, dict):
-                self._json(
-                    200,
-                    {"ok": rc == 0, "presets": data, "cli_exit": rc, "error": err or None},
-                )
-                return
-            self._json(
-                200 if rc == 0 else 500,
-                {
-                    "ok": False,
-                    "presets": {},
-                    "error": err or out or "models list failed",
-                    "cli_exit": rc,
                 },
             )
             return
@@ -1145,23 +1094,6 @@ class WizardHandler(BaseHTTPRequestHandler):
                     return
                 rc, data = _install_plugins_by_tag(tag or "lean")
                 data["log_tail"] = _log_tail()
-                self._json(200, data)
-                return
-
-            if path == "/api/models-free":
-                rc, out, err = _run_lab(["--yes", "--json", "agent", "models", "free"])
-                data = _parse_json_stdout(out) or {}
-                if not isinstance(data, dict):
-                    data = {}
-                data["ok"] = rc == 0
-                data["cli_exit"] = rc
-                actions = data.get("actions") or []
-                if actions:
-                    data["summary"] = "; ".join(str(a) for a in actions[:6])
-                else:
-                    data["summary"] = (
-                        "models applied" if rc == 0 else (err or out or "failed")[:300]
-                    )
                 self._json(200, data)
                 return
 
