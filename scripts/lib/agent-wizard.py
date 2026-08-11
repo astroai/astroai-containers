@@ -779,7 +779,7 @@ async function refresh() {
     `<tr><td>${esc(a.agent)}</td><td>${yn(a.binary)}</td><td>${yn(a.config)}</td></tr>`).join('');
   document.getElementById('agents').innerHTML = rows
     ? `<table><tr><th>Agent</th><th>Binary</th><th>Config</th></tr>${rows}</table>`
-    : '<p class="sub">No agent report yet — run Core setup.</p>';
+    : '<p class="sub">No agent report yet — run Setup agents.</p>';
   const issues = data.issues || [];
   document.getElementById('issues').innerHTML = issues.length
     ? `<ul class="clean">${issues.map(i => `<li class="warn">${esc(i)}</li>`).join('')}</ul>`
