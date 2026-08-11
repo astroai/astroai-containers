@@ -492,49 +492,51 @@ INDEX_HTML = """<!DOCTYPE html>
         <a class="back" id="back-link" href="../">← Back to __BACK_LABEL__</a>
         <div class="tag">Agents · CANFAR · Batch compute</div>
         <h1>AstroAI</h1>
-        <p class="lede">Status and setup for coding agents on shared <code class="inline">/arc/home</code> — not a chat UI. Your __BACK_LABEL__ session keeps running. For experiments, start <strong>Batch compute</strong> below after API keys.</p>
+        <p class="lede">Setup coding agents and batch compute on shared <code class="inline">/arc/home</code> — not a chat UI. Your __BACK_LABEL__ session keeps running.</p>
       </div>
     </header>
 
     <div class="actions">
-      <button id="btn-setup">Core setup</button>
-      <button id="btn-fix">Auto-Fix</button>
-      <button id="btn-clean" class="secondary">Clean</button>
-      <button id="btn-verify" class="secondary">Verify</button>
-      <button id="btn-update" class="secondary">Update</button>
+      <button id="btn-setup">Setup agents</button>
+      <button id="btn-compute">Start batch compute</button>
       <button id="btn-refresh" class="secondary">Refresh</button>
     </div>
     <div id="msg"></div>
 
     <div class="grid">
       <section class="panel">
-        <h2>Agents<span class="hint">CLI install status on this home — binary on PATH and config present.</span></h2>
+        <h2>Agents<span class="hint">Install + verify coding CLIs on this home. Try Kilo for a quick start.</span></h2>
         <div id="setup-state">Loading…</div>
         <div id="agents" style="margin-top:.75rem">Loading…</div>
         <div id="issues" style="margin-top:.75rem"></div>
         <div class="actions" style="margin-top:.9rem;margin-bottom:0">
-          <button id="btn-kilo" class="secondary">Install Kilo CLI</button>
+          <button id="btn-kilo" class="secondary">Install Kilo</button>
+          <button id="btn-verify" class="secondary">Verify</button>
+          <button id="btn-fix" class="secondary">Auto-Fix</button>
         </div>
-        <p class="sub">Kilo is an optional coding agent (<code class="inline">kilo auth</code> after install). Use agents from webterm / the main UI — this page only installs and verifies.</p>
+        <p class="sub">Use agents from webterm / the main UI — this page installs and verifies. After Kilo: <code class="inline">kilo auth</code>.</p>
       </section>
 
       <section class="panel">
         <h2>Batch compute<span class="hint">One click starts a manager + workers and wires OpenResearch. You do not need to configure Ray.</span></h2>
         <div id="ray">Loading…</div>
         <div class="actions" style="margin-top:.75rem;margin-bottom:0">
-          <button id="btn-compute">Start batch compute</button>
           <button id="btn-compute-refresh" class="secondary">Refresh status</button>
         </div>
-        <div id="compute-result" class="result">Not started yet — set agent API keys, then click Start.</div>
+        <div id="compute-result" class="result">Not started yet — set agent API keys, then click Start batch compute above.</div>
       </section>
 
       <section class="panel">
-        <h2>CANFAR sessions<span class="hint">Auth + your open sessions (quota). Batch workers are started by Batch compute, not listed here as Jobs.</span></h2>
+        <h2>CANFAR<span class="hint">Auth + open sessions (quota). Run <code class="inline">canfar login</code> once in webterm if needed (same /arc/home).</span></h2>
         <div id="canfar">Loading…</div>
       </section>
+    </div>
 
+    <details class="more">
+      <summary>Advanced — addons, catalog, resources, clean/update</summary>
+      <div class="grid" style="margin-top:1rem">
       <section class="panel">
-        <h2>AI Tools &amp; Container Catalog<span class="hint">Curated directory of AI coding agents, skills, rules, MCPs, and container UIs.</span></h2>
+        <h2>AI Tools &amp; Container Catalog<span class="hint">Agents, skills, rules, MCPs, and container UIs.</span></h2>
         <div id="catalog">Loading…</div>
       </section>
 
@@ -545,14 +547,19 @@ INDEX_HTML = """<!DOCTYPE html>
       </section>
 
       <section class="panel">
-        <h2>Lean addons<span class="hint">Curated skills/rules (not agents). List loads below; Install applies the lean tag.</span></h2>
+        <h2>Lean addons<span class="hint">Curated skills/rules. Install applies the lean tag.</span></h2>
         <div id="addons">Loading…</div>
         <div class="actions" style="margin-top:.75rem;margin-bottom:0">
           <button id="btn-lean" class="secondary">Install lean addons</button>
         </div>
         <div id="addons-result" class="result">No install run yet.</div>
       </section>
-    </div>
+      </div>
+      <div class="actions" style="margin-top:1rem">
+        <button id="btn-clean" class="secondary">Clean state</button>
+        <button id="btn-update" class="secondary">Update</button>
+      </div>
+    </details>
 
     <details class="more">
       <summary>Shell cheat sheet &amp; setup log</summary>
@@ -859,7 +866,7 @@ async function action(path, label, resultId) {
   await refresh();
 }
 document.getElementById('btn-refresh').onclick = () => refresh();
-document.getElementById('btn-setup').onclick = () => action('api/setup', 'Core setup');
+document.getElementById('btn-setup').onclick = () => action('api/setup', 'Setup agents');
 document.getElementById('btn-fix').onclick = () => action('api/fix', 'Auto-Fix');
 document.getElementById('btn-clean').onclick = () => action('api/clean', 'Clean state');
 document.getElementById('btn-verify').onclick = () => action('api/verify', 'Verify');
