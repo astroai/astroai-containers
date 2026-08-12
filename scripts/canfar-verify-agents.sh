@@ -51,12 +51,11 @@ gh_authed() {
 }
 
 needs_gh_auth() {
-    case "$1" in codex|ast-grep) return 0 ;; *) return 1 ;; esac
+    case "$1" in codex) return 0 ;; *) return 1 ;; esac
 }
 
 install_cmd_for() {
     case "$1" in
-        ast-grep) echo sg ;;
         cursor) echo agent ;;  # upstream Cursor Agent binary name
         *) echo "$1" ;;
     esac
@@ -125,10 +124,8 @@ export ASTROAI_LAB_PROBE_VERSION="${ASTROAI_LAB_PROBE_VERSION:-0}"
 check "agent setup" login_shell 'astroai-lab --yes agent setup'
 check "agent verify" login_shell 'astroai-lab agent verify'
 check "agent verify --fix" login_shell 'astroai-lab agent verify --fix'
-# Lean agent surface (repair / list / list config / status --ui).
-check "agent repair" login_shell 'astroai-lab agent repair'
-check "agent repair --all" login_shell 'astroai-lab agent repair --all'
-check "agent repair --clean" login_shell 'astroai-lab agent repair --clean'
+check "agent verify --fix --all" login_shell 'astroai-lab agent verify --fix --all'
+check "agent verify --clean" login_shell 'astroai-lab agent verify --clean'
 # astroai-lab renders its tables via a rich console on stderr — pipe 2>&1 so
 # the greps see the rows on a plain pipe (discovered by remote CANFAR smoke).
 check "agent list" login_shell 'astroai-lab agent list 2>&1 | grep -qE "kilo|Agent"'
@@ -185,8 +182,6 @@ else
         agy
         copilot
         codex
-        ast-grep
-        hyperfine
     )
 fi
 
@@ -195,15 +190,15 @@ for tool in "${AGENT_TOOLS[@]}"; do
 done
 
 # After real installs, the registry-driven verbs must operate on the now-
-# installed agents: `repair --all` scaffolds missing configs for every
+# installed agents: `verify --fix --all` scaffolds missing configs for every
 # installed registry agent (kilo/goose/opencode/codex/cline), and
 # `agent config <id>` must show the resulting scaffold (parseable).
 echo ""
 echo "Phase 2/3 registry surface after installs"
 echo "------------------------------------------"
-check "agent repair --all (installed)" login_shell 'astroai-lab agent repair --all'
-# Coupled: if kilo's binary isn't detected by the registry check, repair
-# --all no-ops (exit 0) and config kilo would fail with "config not found" —
+check "agent verify --fix --all (installed)" login_shell 'astroai-lab agent verify --fix --all'
+# Coupled: if kilo's binary isn't detected by the registry check, verify
+# --fix --all no-ops (exit 0) and config kilo would fail with "config not found" —
 # assert the scaffold first so the failure is attributable.
 check "kilo config present" login_shell 'test -f "${HOME}/.config/kilo/kilo.jsonc"'
 check "agent config kilo" login_shell 'astroai-lab agent config kilo >/dev/null 2>&1'

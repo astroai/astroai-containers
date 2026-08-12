@@ -1019,20 +1019,20 @@ class WizardHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/fix":
-                rc, out, err = _run_lab(["--json", "agent", "repair"], timeout=180)
+                rc, out, err = _run_lab(["--json", "agent", "verify", "--fix"], timeout=180)
                 data = _parse_json_stdout(out) or {}
                 if isinstance(data, list):
                     data = {"ok": rc == 0, "actions": data}
                 if not isinstance(data, dict):
                     data = {"ok": rc == 0}
                 data["ok"] = rc == 0
-                data["summary"] = "repair ok" if rc == 0 else (err or out or "repair failed")[:300]
+                data["summary"] = "verify --fix ok" if rc == 0 else (err or out or "verify --fix failed")[:300]
                 data["log_tail"] = _log_tail()
                 self._json(200, data)
                 return
 
             if path == "/api/clean":
-                rc, out, err = _run_lab(["--json", "agent", "repair", "--clean"], timeout=60)
+                rc, out, err = _run_lab(["--json", "agent", "verify", "--clean"], timeout=60)
                 data = _parse_json_stdout(out) or {}
                 if isinstance(data, list):
                     data = {"ok": rc == 0, "actions": data}

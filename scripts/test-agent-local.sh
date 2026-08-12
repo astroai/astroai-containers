@@ -184,35 +184,35 @@ assert d["counts"]["removed"] == 0, d["counts"]
 assert d["counts"]["would_remove"] > 0, d["counts"]
 ' || fail "agent wipe --dry-run"
 
-# 9. Phase 2 repair verb: broken config repair + healthy no-op.
+# 9. Phase 2 verify --fix: broken config repair + healthy no-op.
 #    Corrupt ~/.hermes/config.yaml with unparseable YAML → repair resets
 #    it to a format-aware scaffold; a healthy config is reported and never
 #    clobbered (fix_registry_agent semantics).
 printf 'model: [unclosed\n' > "${HOME_DIR}/.hermes/config.yaml"
 # NOTE: the reset discards the plugin-written entries from the `agent update`
 # above (documented fix_registry_agent behavior) — nothing later needs them.
-astroai-lab --json agent repair hermes | python3 -c '
+astroai-lab --json agent verify --fix hermes | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["ok"] and d["agent"] == "hermes"
 assert any("repaired broken yaml config" in a for a in d["actions"]), d["actions"]
-' || fail "repair hermes: broken yaml not repaired"
+' || fail "verify --fix hermes: broken yaml not repaired"
 astroai-lab --json agent config hermes >/dev/null \
-    || fail "repair hermes: repaired config still unreadable"
+    || fail "verify --fix hermes: repaired config still unreadable"
 
 # Healthy no-op: a marker value must survive repair untouched.
 astroai-lab agent config hermes marker=keep-me >/dev/null \
     || fail "agent config hermes marker=keep-me"
-astroai-lab --json agent repair hermes | python3 -c '
+astroai-lab --json agent verify --fix hermes | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["ok"]
 assert any("config healthy" in a for a in d["actions"]), d["actions"]
-' || fail "repair hermes: healthy run not reported"
+' || fail "verify --fix hermes: healthy run not reported"
 astroai-lab --json agent config hermes --key marker | python3 -c '
 import json, sys
 assert json.load(sys.stdin)["value"] == "keep-me"
-' || fail "repair hermes: healthy config clobbered"
+' || fail "verify --fix hermes: healthy config clobbered"
 
 ok "no ~/.local pollution; all agent commands OK (bin dir ${BIN_DIR})"
 PROBE_EOF
