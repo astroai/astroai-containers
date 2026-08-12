@@ -28,7 +28,7 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
    - append `/astroai-agents/` (e.g. `…/session/contrib/<id>/astroai-agents/`).
 3. In the hub (one screen):
    - **Start batch compute** — ensures ray-manager + workers and wires OpenResearch (when on openresearch)
-   - **Setup agents** / **Install Kilo** — optional CLI setup on shared `/arc/home`
+   - **Setup agents** — optional config seed on shared `/arc/home` (`astroai-lab agent install …` for CLIs)
    - Status shows CANFAR auth, manager Running/Pending, wire state, Jobs URL
    - **← Back** returns to the main UI
 4. Run experiments in OpenResearch — default compute is already CANFAR batch. Put shared I/O on `/arc` (`/scratch` is per-pod only).

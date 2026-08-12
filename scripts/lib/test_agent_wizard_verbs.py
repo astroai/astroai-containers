@@ -135,7 +135,8 @@ def test_index_html_is_lean() -> None:
     html = wiz.INDEX_HTML
     assert "Start batch compute" in html
     assert "Setup agents" in html
-    assert "Install Kilo" in html
+    assert "Install Kilo" not in html
+    assert "kilo" not in html.lower()
     assert "Advanced" not in html
     assert "cheat sheet" not in html.lower()
     assert "Install lean addons" not in html

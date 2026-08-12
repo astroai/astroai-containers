@@ -7,7 +7,7 @@ Failures here must never affect the main UI process.
 Surface (deliberately small):
   1. Status — CANFAR auth, ray-manager, OpenResearch wire
   2. Start batch compute — idempotent ensure + wire
-  3. Setup agents / Install Kilo — thin CLI wraps
+  3. Setup agents — thin CLI wrap for config seed
 Everything else belongs in webterm / `astroai-lab` / ray-manager.
 """
 
@@ -585,7 +585,6 @@ INDEX_HTML = """<!DOCTYPE html>
     <div class="actions">
       <button id="btn-compute">Start batch compute</button>
       <button id="btn-setup" class="secondary">Setup agents</button>
-      <button id="btn-kilo" class="secondary">Install Kilo</button>
     </div>
     <div id="msg"></div>
     <p class="foot">
@@ -623,7 +622,7 @@ function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function setBusy(on) {
-  for (const id of ['btn-compute','btn-setup','btn-kilo']) {
+  for (const id of ['btn-compute','btn-setup']) {
     const b = document.getElementById(id);
     if (b) b.disabled = !!on;
   }
@@ -695,8 +694,6 @@ document.getElementById('btn-compute').onclick = () =>
   runAction('Starting batch compute', 'api/compute/ensure', { method: 'POST' });
 document.getElementById('btn-setup').onclick = () =>
   runAction('Setup agents', 'api/setup', { method: 'POST' });
-document.getElementById('btn-kilo').onclick = () =>
-  runAction('Install Kilo', 'api/install?tool=kilo', { method: 'POST' });
 refresh();
 </script>
 </body>
@@ -807,7 +804,10 @@ class WizardHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/install":
-                tool = (qs.get("tool") or ["kilo"])[0]
+                tool = (qs.get("tool") or [None])[0]
+                if not tool:
+                    self._json(400, {"ok": False, "error": "missing tool= query param"})
+                    return
                 rc, out, err = _run_lab(["--json", "agent", "install", tool])
                 data = _parse_json_stdout(out) or {}
                 if not isinstance(data, dict):
