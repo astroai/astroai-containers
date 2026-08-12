@@ -1,13 +1,20 @@
-"""AstroAI hub sidecar — agents, CANFAR sessions, and Ray status.
+"""AstroAI hub sidecar — lean status + one-click batch compute.
 
 Listens on 127.0.0.1:ASTROAI_AGENT_WIZARD_PORT (default 4792).
 Proxied as /astroai-agents/ by the session path-rewrite proxy.
 Failures here must never affect the main UI process.
+
+Surface (deliberately small):
+  1. Status — CANFAR auth, ray-manager, OpenResearch wire
+  2. Start batch compute — idempotent ensure + wire
+  3. Setup agents — thin CLI wrap for config seed
+Everything else belongs in webterm / `astroai-lab` / ray-manager.
 """
 
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import json
 import os
 import shutil
@@ -16,20 +23,24 @@ import sys
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 PORT = int(os.environ.get("ASTROAI_AGENT_WIZARD_PORT", "4792"))
 CLI_TIMEOUT = int(os.environ.get("ASTROAI_AGENT_WIZARD_CLI_TIMEOUT", "600"))
-# Hub platform probes must stay snappy — full `astroai-lab status` can hang on
-# VOSpace/GMS; prefer a short canfar probe instead. astroai-lab no longer
-# manages Ray — ray state is derived from `canfar ps` sessions here.
 PLATFORM_CANFAR_TIMEOUT = int(os.environ.get("ASTROAI_HUB_CANFAR_TIMEOUT", "12"))
-# One-click ensure can create a manager + workers — allow a long wall clock.
 COMPUTE_ENSURE_TIMEOUT = int(os.environ.get("ASTROAI_HUB_COMPUTE_ENSURE_TIMEOUT", "1200"))
 RAY_MANAGER_IMAGE = os.environ.get(
     "RAY_MANAGER_IMAGE", "images.canfar.net/astroai/ray-manager:latest"
 )
 HOME = Path.home()
+SESSION_KIND = (os.environ.get("ASTROAI_SESSION_KIND") or "").strip().lower()
+BACK_UI_LABEL = {
+    "openresearch": "OpenResearch",
+    "openworker": "OpenWorker",
+}.get(SESSION_KIND, "main UI")
+WIRE_OPENRESEARCH = SESSION_KIND == "openresearch"
 
 
 def _run_cmd(cmd: list[str], *, timeout: int) -> tuple[int, str, str]:
@@ -66,28 +77,329 @@ def _parse_json_stdout(stdout: str) -> object | None:
         start = text.find("{")
         end = text.rfind("}")
         if start >= 0 and end > start:
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 return json.loads(text[start : end + 1])
-            except json.JSONDecodeError:
-                return None
         start_l = text.find("[")
         end_l = text.rfind("]")
         if start_l >= 0 and end_l > start_l:
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 return json.loads(text[start_l : end_l + 1])
-            except json.JSONDecodeError:
-                return None
         return None
 
 
+def _load_wire() -> ModuleType:
+    """Load sibling orx-wire-compute.py (hyphenated filename)."""
+    path = Path(__file__).resolve().parent / "orx-wire-compute.py"
+    spec = importlib.util.spec_from_file_location("orx_wire_compute", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _log_tail(n: int = 40) -> str:
+    path = HOME / ".astroai" / "lab" / "agent-setup.log"
+    if not path.is_file():
+        return ""
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return ""
+    return "\n".join(lines[-n:])
+
+
+def _canfar_auth_line() -> tuple[bool, str]:
+    if shutil.which("canfar") is None:
+        return False, "canfar CLI not on PATH"
+    rc, out, err = _run_cmd(["canfar", "auth", "show"], timeout=PLATFORM_CANFAR_TIMEOUT)
+    line = ((out or err or "").strip().splitlines() or [""])[0].strip()
+    if rc == 124:
+        return False, f"canfar auth show timed out after {PLATFORM_CANFAR_TIMEOUT}s"
+    if rc != 0 and not line:
+        return False, "Not authenticated — run canfar login in webterm"
+    bad = not line or any(
+        tok in line.lower() for tok in ("not authenticated", "timed out", "failed", "error")
+    )
+    return (not bad), (line or "unknown")
+
+
+def _orx_wire_state(wire: ModuleType) -> dict[str, Any]:
+    """Read OpenResearch ray.json / settings.json when present."""
+    cfg = wire._orx_config_dir()
+    address = ""
+    backend = ""
+    ray_path = cfg / "ray.json"
+    settings_path = cfg / "settings.json"
+    if ray_path.is_file():
+        with contextlib.suppress(OSError, json.JSONDecodeError):
+            data = json.loads(ray_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                address = str(data.get("address") or "").rstrip("/")
+    if settings_path.is_file():
+        with contextlib.suppress(OSError, json.JSONDecodeError):
+            data = json.loads(settings_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                backend = str(data.get("defaultBackend") or "")
+    return {"address": address, "default_backend": backend, "wired": bool(address)}
+
+
+def _ray_status() -> dict[str, Any]:
+    """Manager + Jobs URL + optional OpenResearch wire (JSON-backed)."""
+    try:
+        wire = _load_wire()
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "manager_running": False,
+            "manager_pending": False,
+            "compute_ready": False,
+            "hint": f"wire helpers unavailable: {exc}",
+        }
+
+    managers = wire.find_manager_sessions()
+    running = [m for m in managers if wire._session_status(m) == "Running"]
+    pending = [m for m in managers if wire._session_status(m) == "Pending"]
+    connect = wire._session_connect_url(running[0]) if running else ""
+    jobs = (os.environ.get("ASTROAI_RAY_JOBS_ADDRESS") or "").strip().rstrip("/")
+    if not jobs and connect:
+        jobs = wire.jobs_url_from_connect(connect).rstrip("/")
+
+    orx = _orx_wire_state(wire) if WIRE_OPENRESEARCH else {"wired": False, "address": "", "default_backend": ""}
+    if WIRE_OPENRESEARCH and orx["address"] and not jobs:
+        jobs = orx["address"]
+    wired = bool(WIRE_OPENRESEARCH and orx["wired"] and jobs)
+
+    if running and wired:
+        hint = "Batch compute ready — go back and run experiments."
+    elif running and WIRE_OPENRESEARCH and not wired:
+        hint = "Manager is Running — click Start batch compute to wire OpenResearch."
+    elif running:
+        hint = "Manager is Running."
+    elif pending:
+        hint = "Manager session is Pending — click Start batch compute to wait and finish."
+    else:
+        hint = "No ray-manager yet — click Start batch compute."
+
+    return {
+        "manager_running": bool(running),
+        "manager_pending": bool(pending) and not running,
+        "connect_url": connect or None,
+        "ray_address": jobs or None,
+        "orx_wired": wired,
+        "orx_default_backend": orx.get("default_backend") or None,
+        "wire_supported": WIRE_OPENRESEARCH,
+        "compute_ready": bool(running) and (wired if WIRE_OPENRESEARCH else True),
+        "hint": hint,
+    }
+
+
+def _platform_payload() -> dict[str, Any]:
+    auth_ok, auth_line = _canfar_auth_line()
+    ray = _ray_status()
+    return {
+        "ok": bool(ray.get("manager_running")),
+        "session_kind": SESSION_KIND,
+        "image_tag": os.environ.get("RAY_IMAGE_TAG")
+        or os.environ.get("BUILD_TAG")
+        or "26.07",
+        "canfar": {
+            "available": shutil.which("canfar") is not None,
+            "auth_ok": auth_ok,
+            "auth": auth_line,
+            "sessions": [],  # lean UI: no raw ps dump
+        },
+        "ray": ray,
+    }
+
+
+def _agent_summary() -> dict[str, Any]:
+    """One-line agent status for the lean page (not a full table)."""
+    rc, out, err = _run_lab(["--json", "agent", "status"], timeout=90)
+    data = _parse_json_stdout(out)
+    if not isinstance(data, dict):
+        return {
+            "ok": False,
+            "summary": (err or out or "agent status failed")[:200],
+            "installed": 0,
+            "total": 0,
+        }
+    agents = data.get("agents") or data.get("tools") or []
+    if not isinstance(agents, list):
+        agents = []
+    installed = 0
+    for row in agents:
+        if not isinstance(row, dict):
+            continue
+        if row.get("binary") or row.get("binary_ok") or row.get("installed"):
+            installed += 1
+    total = len(agents)
+    setup = data.get("setup") or {}
+    stamp = ""
+    if isinstance(setup, dict):
+        stamp = str(setup.get("stamp") or setup.get("last_run") or "")
+    issues = data.get("issues") or []
+    return {
+        "ok": rc in (0, 1),
+        "installed": installed,
+        "total": total,
+        "stamp": stamp,
+        "issues": issues[:5] if isinstance(issues, list) else [],
+        "summary": f"{installed}/{total} agent CLIs on PATH"
+        + (f" · last setup {stamp}" if stamp else ""),
+        "cli_exit": rc,
+    }
+
+
+def _create_manager_if_needed(wire: ModuleType) -> tuple[bool, str, list[str]]:
+    """Idempotent ray-manager session create. Returns (ok, detail, steps)."""
+    steps: list[str] = []
+    managers = wire.find_manager_sessions()
+    if any(wire._session_status(m) in {"Running", "Pending"} for m in managers):
+        steps.append("manager-exists")
+        return True, "ray-manager session already present", steps
+
+    rc, out, err = _run_cmd(
+        [
+            "canfar",
+            "create",
+            "--name",
+            "raymgr",
+            "--cpu",
+            "2",
+            "--memory",
+            "8",
+            "contributed",
+            RAY_MANAGER_IMAGE,
+        ],
+        timeout=COMPUTE_ENSURE_TIMEOUT,
+    )
+    text = f"{err or ''}\n{out or ''}".lower()
+    if rc == 0:
+        steps.append("create")
+        return True, "ray-manager session created", steps
+    # Name collision / already exists → treat as ok and continue ensure.
+    if any(tok in text for tok in ("already", "conflict", "exists", "duplicate")):
+        steps.append("create-exists")
+        return True, "ray-manager name already exists — continuing", steps
+    return False, (err or out or "canfar create failed")[:800], steps
+
+
+def _compute_ensure() -> dict[str, Any]:
+    """Ensure manager + workers, then wire OpenResearch when applicable."""
+    try:
+        wire = _load_wire()
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "summary": f"wire helpers unavailable: {exc}", "steps": []}
+
+    ok, detail, steps = _create_manager_if_needed(wire)
+    if not ok:
+        return {
+            "ok": False,
+            "summary": "could not create ray-manager",
+            "user_message": detail,
+            "error": detail,
+            "steps": steps,
+        }
+
+    jobs = ""
+    workers: dict[str, Any] = {}
+    connect = ""
+    if shutil.which("astroai-workload"):
+        ensure_rc, ensure_out, ensure_err = _run_cmd(
+            [
+                "astroai-workload",
+                "cluster",
+                "ensure",
+                "--json",
+                "--workers",
+                "2",
+            ],
+            timeout=COMPUTE_ENSURE_TIMEOUT,
+        )
+        steps.append("cluster-ensure")
+        payload = _parse_json_stdout(ensure_out) if ensure_rc == 0 else None
+        if isinstance(payload, dict):
+            jobs = str(payload.get("jobs_address") or "").rstrip("/")
+            connect = str(payload.get("manager_url") or payload.get("connect_url") or "")
+            workers = {
+                "joined_workers": payload.get("joined_workers"),
+                "cluster_phase": payload.get("cluster_phase"),
+            }
+        elif ensure_rc != 0:
+            return {
+                "ok": False,
+                "summary": "manager present but cluster ensure failed",
+                "user_message": (
+                    f"astroai-workload cluster ensure failed: "
+                    f"{(ensure_err or ensure_out or 'unknown')[:600]}"
+                ),
+                "error": (ensure_err or ensure_out or "")[:800],
+                "steps": steps,
+            }
+
+    if not jobs:
+        managers = wire.find_manager_sessions()
+        running = [
+            m
+            for m in managers
+            if wire._session_status(m) == "Running" and wire._session_connect_url(m)
+        ]
+        if running:
+            connect = wire._session_connect_url(running[0])
+            jobs = wire.jobs_url_from_connect(connect).rstrip("/")
+            steps.append("discover-jobs")
+
+    wired = None
+    if WIRE_OPENRESEARCH and jobs:
+        try:
+            wired = wire.wire_orx(jobs_address=jobs, make_default=True)
+            steps.append("wire-orx")
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "ok": False,
+                "summary": "cluster up but OpenResearch wire failed",
+                "user_message": str(exc)[:600],
+                "jobs_address": jobs,
+                "connect_url": connect or None,
+                "steps": steps,
+                "error": str(exc),
+            }
+
+    ready = bool(jobs) and (not WIRE_OPENRESEARCH or bool(wired))
+    if ready:
+        msg = "Batch compute ready."
+        if WIRE_OPENRESEARCH:
+            msg += " OpenResearch is wired — go back and run."
+        elif connect:
+            msg += f" Manager: {connect}"
+    elif jobs:
+        msg = f"Jobs URL: {jobs} (wire skipped for this session kind)."
+    else:
+        msg = detail + " — waiting for manager connect URL; click again when Running."
+
+    return {
+        "ok": ready or bool(jobs),
+        "summary": "batch compute ready" if ready else "partial",
+        "user_message": msg,
+        "jobs_address": jobs or None,
+        "connect_url": connect or None,
+        "workers": workers,
+        "wired": wired,
+        "steps": steps,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Legacy helpers kept for smoke/unit tests (not shown in the lean UI)
+# ---------------------------------------------------------------------------
+
+
 def _plugins_from_list_config(tag: str | None = None) -> tuple[int, list[dict], str]:
-    """Lean-verb stand-in for removed `agent addons` / catalog plugin rows."""
     rc, out, err = _run_lab(["--json", "agent", "list", "config"], timeout=60)
     data = _parse_json_stdout(out)
     rows = data if isinstance(data, list) else []
     if tag:
         rows = [r for r in rows if isinstance(r, dict) and tag in (r.get("tags") or [])]
-    # Hub JS expects `installed`; lean list config emits `any_installed`.
     for row in rows:
         if isinstance(row, dict) and "installed" not in row:
             row["installed"] = bool(row.get("any_installed"))
@@ -95,7 +407,6 @@ def _plugins_from_list_config(tag: str | None = None) -> tuple[int, list[dict], 
 
 
 def _catalog_items() -> tuple[int, list[dict], str]:
-    """Merge `agent list` + `list config` (replaces removed `agent catalog`)."""
     rc_a, out_a, err_a = _run_lab(["--json", "agent", "list"], timeout=60)
     agents = _parse_json_stdout(out_a)
     items: list[dict] = []
@@ -132,7 +443,6 @@ def _catalog_items() -> tuple[int, list[dict], str]:
 
 
 def _install_plugins_by_tag(tag: str) -> tuple[int, dict]:
-    """Replace removed `agent add --tag` with per-id `plugins install`."""
     rc_list, rows, err_list = _plugins_from_list_config(tag)
     if rc_list not in (0, 1):
         return rc_list, {
@@ -176,123 +486,6 @@ def _install_plugins_by_tag(tag: str) -> tuple[int, dict]:
     }
 
 
-def _log_tail(n: int = 40) -> str:
-    path = HOME / ".astroai" / "lab" / "agent-setup.log"
-    if not path.is_file():
-        return ""
-    try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    except OSError:
-        return ""
-    return "\n".join(lines[-n:])
-
-
-def _platform_payload() -> dict:
-    """CANFAR + Ray panels via short parallel probes (not full lab status)."""
-    tag = os.environ.get("RAY_IMAGE_TAG") or os.environ.get("BUILD_TAG") or "26.07"
-    out: dict = {
-        "ok": True,
-        "session_kind": os.environ.get("ASTROAI_SESSION_KIND") or "",
-        "image_tag": tag,
-        "canfar": {"auth": None, "sessions": [], "available": False},
-        "ray": {},
-    }
-
-    def _canfar() -> dict:
-        if shutil.which("canfar") is None:
-            return {
-                "available": False,
-                "auth": None,
-                "sessions": [],
-                "error": "canfar CLI not on PATH",
-            }
-        rc_a, out_a, err_a = _run_cmd(
-            ["canfar", "auth", "show"], timeout=PLATFORM_CANFAR_TIMEOUT
-        )
-        auth = (out_a or err_a or "").strip() or None
-        if rc_a == 124:
-            auth = f"canfar auth show timed out after {PLATFORM_CANFAR_TIMEOUT}s"
-        elif rc_a != 0 and not auth:
-            auth = "Not authenticated"
-        rc_p, out_p, err_p = _run_cmd(["canfar", "ps"], timeout=PLATFORM_CANFAR_TIMEOUT)
-        sessions: list[str] = []
-        ps_err = None
-        if rc_p == 0:
-            sessions = [ln for ln in (out_p or "").splitlines() if ln.strip()]
-        elif rc_p == 124:
-            ps_err = f"canfar ps timed out after {PLATFORM_CANFAR_TIMEOUT}s"
-        else:
-            ps_err = (err_p or out_p or "canfar ps failed")[:300]
-        payload: dict = {"available": True, "auth": auth, "sessions": sessions}
-        if ps_err:
-            payload["error"] = ps_err
-        return payload
-
-    out["canfar"] = _canfar()
-    out["ray"] = _ray_from_sessions(out["canfar"].get("sessions") or [])
-    if not out["ray"].get("manager_running"):
-        out["ok"] = False
-    if out["canfar"].get("error") and not out["canfar"].get("sessions"):
-        out["canfar_soft_fail"] = True
-    return out
-
-
-def _ray_from_sessions(sessions: list[str]) -> dict:
-    """Derive ray-manager state from `canfar ps` lines (astroai-lab no longer manages Ray)."""
-    ray_lines = [ln for ln in sessions if "ray" in ln.lower()]
-    running = [ln for ln in ray_lines if "running" in ln.lower()]
-    pending = [ln for ln in ray_lines if "pending" in ln.lower()]
-    jobs = os.environ.get("ASTROAI_RAY_JOBS_ADDRESS", "").strip()
-    if running:
-        out: dict = {
-            "manager_running": True,
-            "compute_ready": True,
-            "hint": "ray-manager session detected — open its connect URL from `canfar ps`.",
-        }
-        if jobs:
-            out["ray_address"] = jobs
-            out["orx_wired"] = True
-        return out
-    if pending:
-        return {
-            "manager_pending": True,
-            "compute_ready": False,
-            "hint": "ray-manager session is Pending — wait for it to start.",
-        }
-    return {
-        "manager_running": False,
-        "compute_ready": False,
-        "hint": "No ray-manager session — use Start batch compute",
-        "launch_command": f"canfar create --name raymgr --cpu 2 --memory 8 contributed {RAY_MANAGER_IMAGE}",
-    }
-
-
-CHEATSHEET = """\
-# Agents (same /arc home)
-astroai-lab agent status
-astroai-lab agent verify
-astroai-lab --yes agent setup
-astroai-lab agent install kilo
-astroai-lab agent plugins list --kind skill
-astroai-lab agent config kilo
-
-# CANFAR (interactive login needs webterm)
-canfar auth show
-canfar ps
-canfar login
-
-# Batch compute (manager + workers via the portal / ray-launch)
-canfar create --name raymgr --cpu 2 --memory 8 contributed images.canfar.net/astroai/ray-manager:latest
-canfar ps
-# Put shared batch I/O on /arc — /scratch is per-pod only
-"""
-
-SESSION_KIND = (os.environ.get("ASTROAI_SESSION_KIND") or "").strip().lower()
-BACK_UI_LABEL = {
-    "openresearch": "OpenResearch",
-    "openworker": "OpenWorker",
-}.get(SESSION_KIND, "main UI")
-
 INDEX_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -301,21 +494,20 @@ INDEX_HTML = """<!DOCTYPE html>
 <title>AstroAI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&family=Sora:wght@500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet"/>
 <style>
   :root {
-    --bg: #0a1014;
-    --bg2: #122018;
-    --ink: #e8f0ea;
-    --muted: #8aa094;
-    --line: #24332a;
-    --teal: #2ec4b6;
-    --teal-dim: #1a8f84;
+    --bg0: #07110e;
+    --bg1: #0d1c16;
+    --ink: #e7f2ea;
+    --muted: #8a9e92;
+    --line: #1e3228;
+    --teal: #2bb8a8;
+    --teal-ink: #03201c;
     --sky: #9ec9ff;
     --ok: #5dde9a;
     --warn: #e6b84d;
     --err: #ff6b7a;
-    --panel: rgba(16, 28, 22, 0.72);
   }
   * { box-sizing: border-box; }
   body {
@@ -324,265 +516,89 @@ INDEX_HTML = """<!DOCTYPE html>
     color: var(--ink);
     font-family: "Source Sans 3", "Segoe UI", sans-serif;
     background:
-      radial-gradient(900px 480px at 8% -8%, rgba(46,196,182,.18), transparent 55%),
-      radial-gradient(700px 420px at 92% 0%, rgba(158,201,255,.10), transparent 50%),
-      linear-gradient(165deg, var(--bg2), var(--bg) 42%, #070c0f);
-    padding: clamp(1rem, 3vw, 2.25rem);
+      radial-gradient(ellipse 80% 50% at 12% -10%, rgba(43,184,168,.22), transparent 55%),
+      radial-gradient(ellipse 60% 40% at 88% 0%, rgba(158,201,255,.08), transparent 50%),
+      linear-gradient(165deg, var(--bg1), var(--bg0));
+    padding: clamp(1.25rem, 4vw, 3rem);
   }
-  .wrap { max-width: 72rem; margin: 0 auto; }
-  .top {
-    display: flex; flex-wrap: wrap; align-items: flex-start;
-    justify-content: space-between; gap: 1rem 1.5rem;
-    margin-bottom: 1.25rem;
-    animation: rise .45s ease both;
-  }
+  .wrap { max-width: 34rem; margin: 0 auto; }
   .back {
-    display: inline-flex; align-items: center; gap: .4rem;
-    color: var(--sky); text-decoration: none; font-weight: 600;
-    font-size: .95rem; border-bottom: 1px solid transparent;
-    transition: border-color .2s ease, color .2s ease;
+    display: inline-block; color: var(--sky); text-decoration: none;
+    font-weight: 600; font-size: .95rem; margin-bottom: 1.5rem;
   }
-  .back:hover { border-color: var(--sky); color: #cfe4ff; }
-  .brand h1 {
-    font-family: Sora, "Source Sans 3", sans-serif;
-    font-size: clamp(2rem, 4.5vw, 2.75rem);
+  .back:hover { text-decoration: underline; }
+  h1 {
+    font-family: Fraunces, Georgia, serif;
+    font-size: clamp(2.4rem, 7vw, 3.1rem);
     font-weight: 700; letter-spacing: -.03em;
-    margin: .15rem 0 .35rem; line-height: 1.05;
-  }
-  .brand .tag {
-    display: inline-block; color: var(--teal);
-    font-family: Sora, sans-serif; font-weight: 600;
-    font-size: .78rem; letter-spacing: .12em; text-transform: uppercase;
+    margin: 0 0 .4rem; line-height: 1.05;
   }
   .lede {
-    color: var(--muted); max-width: 36rem; margin: 0;
+    color: var(--muted); margin: 0 0 1.75rem;
     font-size: 1.05rem; line-height: 1.45;
   }
-  .actions {
-    display: flex; flex-wrap: wrap; gap: .55rem;
-    margin: 0 0 1rem; animation: rise .5s .05s ease both;
+  .status {
+    border-top: 1px solid var(--line);
+    padding: 1rem 0 1.25rem;
+    margin-bottom: .25rem;
   }
-  button, .btn {
-    font: 600 .92rem/1 Sora, "Source Sans 3", sans-serif;
-    border: 0; border-radius: 8px; padding: .65rem 1rem;
-    cursor: pointer; color: #04221f; background: var(--teal);
-    transition: transform .15s ease, filter .15s ease, background .15s ease;
+  .row {
+    display: grid; grid-template-columns: 7.5rem 1fr;
+    gap: .5rem 1rem; padding: .35rem 0;
+    font-size: .98rem; align-items: baseline;
   }
-  button:hover, .btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
-  button.secondary, .btn.secondary {
+  .row .k { color: var(--muted); font-size: .82rem; letter-spacing: .06em; text-transform: uppercase; }
+  .ok { color: var(--ok); } .bad { color: var(--err); } .warn { color: var(--warn); }
+  .actions { display: flex; flex-wrap: wrap; gap: .55rem; margin: 1rem 0 .75rem; }
+  button {
+    font: 600 .92rem/1 "Source Sans 3", sans-serif;
+    border: 0; border-radius: 6px; padding: .7rem 1.1rem;
+    cursor: pointer; color: var(--teal-ink); background: var(--teal);
+  }
+  button.secondary {
     background: transparent; color: var(--ink);
     border: 1px solid var(--line);
   }
-  button:disabled { opacity: .5; cursor: wait; transform: none; filter: none; }
-  #msg {
-    min-height: 1.25rem; margin: 0 0 1rem; color: var(--muted);
-    font-size: .95rem; animation: rise .5s .08s ease both;
-  }
+  button:hover { filter: brightness(1.06); }
+  button:disabled { opacity: .5; cursor: wait; filter: none; }
+  #msg { min-height: 1.3rem; color: var(--muted); font-size: .95rem; margin-bottom: .5rem; white-space: pre-wrap; }
   #msg.ok { color: var(--ok); } #msg.warn { color: var(--warn); } #msg.bad { color: var(--err); }
-  .grid {
-    display: grid; gap: 1.25rem;
-    grid-template-columns: repeat(12, 1fr);
-    animation: rise .55s .1s ease both;
+  .foot {
+    margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: .88rem; line-height: 1.45;
   }
-  section.panel {
-    grid-column: span 6;
-    padding: 1.1rem 1.15rem 1.2rem;
-    border-top: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(255,255,255,.02), transparent 40%);
-  }
-  section.panel.wide { grid-column: span 12; }
-  @media (max-width: 860px) {
-    section.panel, section.panel.wide { grid-column: span 12; }
-  }
-  h2 {
-    font-family: Sora, sans-serif;
-    font-size: .72rem; font-weight: 600; margin: 0 0 .85rem;
-    color: var(--muted); letter-spacing: .14em; text-transform: uppercase;
-  }
-  h2 .hint {
-    display: block; margin-top: .35rem; letter-spacing: 0; text-transform: none;
-    font-family: "Source Sans 3", sans-serif; font-weight: 400; font-size: .88rem;
-    color: var(--muted); line-height: 1.35; max-width: 40rem;
-  }
-  p { margin: .35rem 0; }
-  .sub { color: var(--muted); font-size: .9rem; }
-  table { width: 100%; border-collapse: collapse; font-size: .92rem; }
-  th, td { text-align: left; padding: .4rem .2rem; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--muted); font-weight: 600; font-size: .8rem; }
-  .ok { color: var(--ok); } .bad { color: var(--err); } .warn { color: var(--warn); }
-  pre, code, .mono {
+  code {
     font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .84em; background: rgba(0,0,0,.28);
+    border: 1px solid var(--line); border-radius: 4px; padding: .05rem .3rem;
   }
-  pre {
-    background: rgba(0,0,0,.28); border: 1px solid var(--line); border-radius: 8px;
-    padding: .75rem; overflow: auto; max-height: 220px; font-size: .76rem;
-    color: #c8d8cc; white-space: pre-wrap; margin: .5rem 0;
-  }
-  code.inline {
-    background: rgba(0,0,0,.28); border: 1px solid var(--line);
-    border-radius: 5px; padding: .12rem .35rem; font-size: .82rem;
-  }
-  ul.clean { margin: .4rem 0; padding-left: 1.1rem; }
-  ul.clean li { margin: .25rem 0; }
-  .status-pill {
-    display: inline-flex; align-items: center; gap: .4rem;
-    font-family: Sora, sans-serif; font-weight: 600; font-size: .78rem;
-    letter-spacing: .04em; text-transform: uppercase;
-    padding: .28rem .55rem; border-radius: 999px;
-    border: 1px solid var(--line); color: var(--muted); margin: 0 0 .65rem;
-  }
-  .status-pill.ready { color: var(--ok); border-color: rgba(93,222,154,.45); background: rgba(93,222,154,.08); }
-  .status-pill.partial { color: var(--warn); border-color: rgba(230,184,77,.4); background: rgba(230,184,77,.08); }
-  .status-pill.idle { color: var(--muted); }
-  .status-pill .dot {
-    width: .45rem; height: .45rem; border-radius: 50%; background: currentColor;
-    box-shadow: 0 0 0 0 currentColor; animation: pulse 1.6s ease infinite;
-  }
-  .status-pill.idle .dot { animation: none; opacity: .5; }
-  .steps {
-    margin: .65rem 0 0; padding: 0; list-style: none;
-    counter-reset: none;
-  }
-  .steps li {
-    position: relative; padding: .2rem 0 .2rem 1.15rem; color: var(--muted); font-size: .88rem;
-  }
-  .steps li::before {
-    content: ""; position: absolute; left: .15rem; top: .55rem;
-    width: .45rem; height: .45rem; border-radius: 50%; background: var(--line);
-  }
-  .steps li.done { color: var(--ink); }
-  .steps li.done::before { background: var(--ok); }
-  .steps li.active { color: var(--teal); }
-  .steps li.active::before { background: var(--teal); box-shadow: 0 0 0 3px rgba(46,196,182,.2); }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(46,196,182,.45); }
-    70% { box-shadow: 0 0 0 6px rgba(46,196,182,0); }
-    100% { box-shadow: 0 0 0 0 rgba(46,196,182,0); }
-  }
-  .result {
-    margin-top: .75rem; padding: .65rem .75rem; border-radius: 8px;
-    border: 1px dashed var(--line); color: var(--muted); font-size: .9rem;
-    white-space: pre-wrap;
-  }
-  .result.has { color: var(--ink); border-style: solid; border-color: rgba(46,196,182,.35); }
-  .result.ok { border-color: rgba(93,222,154,.4); }
-  .result.warn { border-color: rgba(230,184,77,.4); }
-  .result.busy {
-    border-style: solid; border-color: rgba(46,196,182,.45); color: var(--ink);
-  }
-  details.more {
-    margin-top: 1.25rem; border-top: 1px solid var(--line); padding-top: 1rem;
-    animation: rise .6s .12s ease both;
-  }
-  details.more summary {
-    cursor: pointer; font-family: Sora, sans-serif; font-weight: 600;
-    color: var(--muted); letter-spacing: .04em;
-  }
-  a { color: var(--sky); }
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: none; }
-  }
+  a.mgr { color: var(--sky); }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <header class="top">
-      <div class="brand">
-        <a class="back" id="back-link" href="../">← Back to __BACK_LABEL__</a>
-        <div class="tag">Agents · CANFAR · Batch compute</div>
-        <h1>AstroAI</h1>
-        <p class="lede">Setup coding agents and batch compute on shared <code class="inline">/arc/home</code> — not a chat UI. Your __BACK_LABEL__ session keeps running.</p>
-      </div>
-    </header>
+    <a class="back" id="back-link" href="../">← Back to __BACK_LABEL__</a>
+    <h1>AstroAI</h1>
+    <p class="lede">Start batch compute for this session. Agents stay on shared <code>/arc/home</code>.</p>
 
+    <div class="status" id="status">Loading…</div>
     <div class="actions">
-      <button id="btn-setup">Setup agents</button>
       <button id="btn-compute">Start batch compute</button>
-      <button id="btn-refresh" class="secondary">Refresh</button>
+      <button id="btn-setup" class="secondary">Setup agents</button>
     </div>
     <div id="msg"></div>
-
-    <div class="grid">
-      <section class="panel">
-        <h2>Agents<span class="hint">Install + verify coding CLIs on this home. Try Kilo for a quick start.</span></h2>
-        <div id="setup-state">Loading…</div>
-        <div id="agents" style="margin-top:.75rem">Loading…</div>
-        <div id="issues" style="margin-top:.75rem"></div>
-        <div class="actions" style="margin-top:.9rem;margin-bottom:0">
-          <button id="btn-kilo" class="secondary">Install Kilo</button>
-          <button id="btn-verify" class="secondary">Verify</button>
-          <button id="btn-fix" class="secondary">Auto-Fix</button>
-        </div>
-        <p class="sub">Use agents from webterm / the main UI — this page installs and verifies. After Kilo: <code class="inline">kilo auth</code>.</p>
-      </section>
-
-      <section class="panel">
-        <h2>Batch compute<span class="hint">One click starts a manager + workers and wires OpenResearch. You do not need to configure Ray.</span></h2>
-        <div id="ray">Loading…</div>
-        <div class="actions" style="margin-top:.75rem;margin-bottom:0">
-          <button id="btn-compute-refresh" class="secondary">Refresh status</button>
-        </div>
-        <div id="compute-result" class="result">Not started yet — set agent API keys, then click Start batch compute above.</div>
-      </section>
-
-      <section class="panel">
-        <h2>CANFAR<span class="hint">Auth + open sessions (quota). Run <code class="inline">canfar login</code> once in webterm if needed (same /arc/home).</span></h2>
-        <div id="canfar">Loading…</div>
-      </section>
-    </div>
-
-    <details class="more">
-      <summary>Advanced — addons, catalog, resources, clean/update</summary>
-      <div class="grid" style="margin-top:1rem">
-      <section class="panel">
-        <h2>AI Tools &amp; Container Catalog<span class="hint">Agents, skills, rules, MCPs, and container UIs.</span></h2>
-        <div id="catalog">Loading…</div>
-      </section>
-
-      <section class="panel">
-        <h2>Session resources &amp; Endpoints<span class="hint">This pod only — home quota and active container services.</span></h2>
-        <div id="resources">Loading…</div>
-        <div id="interact" style="margin-top:.75rem">Loading endpoints…</div>
-      </section>
-
-      <section class="panel">
-        <h2>Lean addons<span class="hint">Curated skills/rules. Install applies the lean tag.</span></h2>
-        <div id="addons">Loading…</div>
-        <div class="actions" style="margin-top:.75rem;margin-bottom:0">
-          <button id="btn-lean" class="secondary">Install lean addons</button>
-        </div>
-        <div id="addons-result" class="result">No install run yet.</div>
-      </section>
-      </div>
-      <div class="actions" style="margin-top:1rem">
-        <button id="btn-clean" class="secondary">Clean state</button>
-        <button id="btn-update" class="secondary">Update</button>
-      </div>
-    </details>
-
-    <details class="more">
-      <summary>Shell cheat sheet &amp; setup log</summary>
-      <pre id="cheat">__CHEATSHEET__</pre>
-      <p class="sub"><code class="inline">canfar login</code> is interactive — run it once in webterm (same home).</p>
-      <h2 style="margin-top:1rem">Agent setup log</h2>
-      <pre id="log"></pre>
-    </details>
+    <p class="foot">
+      Need <code>canfar login</code>? Open <strong>webterm</strong> (same home), then come back.<br/>
+      Power users: <code>astroai-lab agent …</code> · <code>astroai-workload …</code>
+    </p>
   </div>
 <script>
 const BACK_LABEL = __BACK_LABEL_JSON__;
-let computeEnsureBusy = false;
-let computeEnsureLabel = '';
-let computeEnsureStarted = 0;
-const base = (document.querySelector('base') && document.querySelector('base').href) ||
-  (location.pathname.replace(/\\/?$/, '/') );
+const base = (location.pathname.replace(/\\/?$/, '/') );
 function mainUiHref() {
   const p = location.pathname;
   const i = p.indexOf('/astroai-agents');
-  if (i >= 0) {
-    const root = p.slice(0, i);
-    return (root || '') + '/';
-  }
+  if (i >= 0) return (p.slice(0, i) || '') + '/';
   return '../';
 }
 (function initBack() {
@@ -602,298 +618,89 @@ function setMsg(t, cls) {
   el.textContent = t || '';
   el.className = cls || '';
 }
-function setResult(id, text, ok) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = text || '';
-  el.className = 'result' + (text ? ' has' : '');
-  if (ok === true) el.classList.add('ok');
-  if (ok === false) el.classList.add('warn');
-}
-function yn(v) { return v ? '<span class="ok">yes</span>' : '<span class="bad">no</span>'; }
-function fmtPct(v) { return (v===null||v===undefined) ? '—' : (Math.round(v*10)/10) + '%'; }
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-function renderResources(r) {
-  if (!r || !Object.keys(r).length) return '<p class="sub">No resource snapshot yet — try Refresh after setup.</p>';
-  const home = r.home || {};
-  const scratch = r.scratch || {};
-  const gpus = r.gpu || [];
-  let html = `<p>CPU ~${fmtPct(r.cpu_pct)} · RAM ${fmtPct(r.mem_pct)}` +
-    (r.cgroup_mem_pct!=null ? ` · cgroup ${fmtPct(r.cgroup_mem_pct)}` : '') + `</p>`;
-  html += `<p>Home ${fmtPct(home.pct)} <span class="sub">(${home.source||'?'})</span>` +
-    ` · Scratch ${fmtPct(scratch.pct)}</p>`;
-  if (gpus.length) {
-    html += '<p>GPU: ' + gpus.map(g => `${esc(g.name||'gpu')} ${fmtPct(g.util_pct)}`).join(', ') + '</p>';
+function setBusy(on) {
+  for (const id of ['btn-compute','btn-setup']) {
+    const b = document.getElementById(id);
+    if (b) b.disabled = !!on;
   }
-  for (const n of (r.notes||[])) html += `<p class="sub">${esc(n)}</p>`;
-  return html;
 }
-function renderCanfar(c) {
-  if (!c) return '<p class="warn">CANFAR probe unavailable.</p>';
-  let html = '<p class="sub">Batch compute needs a one-time <code class="inline">canfar login</code> in webterm (same home).</p>';
-  if (c.error && !(c.sessions||[]).length) {
-    html += `<p class="warn">${esc(c.error)}</p>`;
-  }
-  const authLine = ((c.auth||'').split('\\n')[0] || '').trim();
-  const authBad = !authLine || /not authenticated|timed out|failed|error/i.test(authLine);
-  html += `<p>Auth: <code class="inline">${esc(authLine || '(unknown)')}</code>` +
-    (authBad ? ' <span class="warn">— login required before Start</span>' : ' <span class="ok">ok</span>') +
-    `</p>`;
-  const sessions = c.sessions || [];
-  if (!sessions.length) {
-    html += '<p class="sub">No session list yet. If auth looks empty, open <strong>webterm</strong> (same home) and run <code class="inline">canfar login</code> once, then Refresh.</p>';
-  } else {
-    html += '<pre>' + esc(sessions.slice(0, 40).join('\\n')) + '</pre>';
-  }
-  return html;
-}
-function renderRay(r) {
-  if (!r) return '<span class="warn">unavailable</span>';
-  const wired = !!(r.orx_wired || r.ray_address);
-  // Only a Running canfar manager counts — stale heartbeat/persisted URL do not.
+function renderStatus(p, agents) {
+  const c = (p && p.canfar) || {};
+  const r = (p && p.ray) || {};
+  const authOk = !!c.auth_ok;
   const mgr = !!r.manager_running;
   const pending = !!r.manager_pending;
-  const stale = !mgr && !pending && !!(r.heartbeat_present || r.persisted_connect_url);
-  let pill = '<div class="status-pill idle"><span class="dot"></span>Not started</div>';
-  let html = '';
-  if (wired) {
-    pill = '<div class="status-pill ready"><span class="dot"></span>Ready for OpenResearch</div>';
-    html += '<p class="ok">OpenResearch is wired to batch compute.</p>';
-    html += '<p class="sub">Default compute is batch — go back and run experiments (no <code class="inline">--backend</code> needed).</p>';
-  } else if (pending) {
-    pill = '<div class="status-pill partial"><span class="dot"></span>Manager starting</div>';
-    html += '<p class="warn">Manager session is Pending — click <strong>Start batch compute</strong> to wait and finish wiring.</p>';
-  } else if (mgr) {
-    pill = '<div class="status-pill partial"><span class="dot"></span>Manager up · not wired</div>';
-    html += '<p class="warn">Manager is Running, but OpenResearch is not wired yet — click <strong>Start batch compute</strong>.</p>';
-  } else if (stale) {
-    pill = '<div class="status-pill idle"><span class="dot"></span>Stale leftovers</div>';
-    html += '<p class="warn">Old manager files on this home, but no Running session — click <strong>Start batch compute</strong>.</p>';
-  } else {
-    html += '<p class="warn">No batch-compute cluster yet — click <strong>Start batch compute</strong>.</p>';
+  let mgrLabel = '<span class="bad">none</span>';
+  if (mgr) mgrLabel = '<span class="ok">Running</span>';
+  else if (pending) mgrLabel = '<span class="warn">Pending</span>';
+
+  let wireRow = '';
+  if (r.wire_supported) {
+    const wired = !!r.orx_wired;
+    wireRow = `<div class="row"><span class="k">OpenResearch</span><span>${wired ? '<span class="ok">wired</span>' : '<span class="warn">not wired</span>'}</span></div>`;
   }
-  html = pill + html;
+
+  let extra = '';
   if (r.connect_url && mgr) {
-    html += `<p class="sub">Manager panel: <a href="${esc(r.connect_url)}" target="_blank" rel="noopener">open</a></p>`;
+    extra += `<div class="row"><span class="k">Manager</span><span><a class="mgr" href="${esc(r.connect_url)}" target="_blank" rel="noopener">open panel</a></span></div>`;
   }
   if (r.ray_address) {
-    html += `<p class="sub">Jobs URL: <code class="inline">${esc(r.ray_address)}</code></p>`;
-  } else if (r.jobs_address_discoverable && mgr) {
-    html += `<p class="sub">Discoverable Jobs URL (not wired): <code class="inline">${esc(r.jobs_address_discoverable)}</code></p>`;
+    extra += `<div class="row"><span class="k">Jobs URL</span><span><code>${esc(r.ray_address)}</code></span></div>`;
   }
-  if (r.orx_default_backend && r.orx_default_backend !== 'ray' && wired) {
-    html += `<p class="warn">OpenResearch defaultBackend is <code class="inline">${esc(r.orx_default_backend)}</code> — Start will switch it to batch.</p>`;
-  }
-  if (r.hint) html += `<p class="sub">${esc(r.hint)}</p>`;
-  html += `<p class="sub">${esc(r.scratch_note || '/scratch is per-pod — share Jobs data on /arc.')}</p>`;
-  html += '<ol class="steps">'
-    + `<li class="${wired||mgr?'done':''}">Agent API keys in OpenResearch / agents above</li>`
-    + `<li class="${wired?'done':(mgr||pending?'active':'')}">Start batch compute (manager + workers)</li>`
-    + `<li class="${wired?'done':''}">Back to OpenResearch → run</li>`
-    + '</ol>';
-  // Update primary button label for next click
+
+  const agentLine = (agents && agents.summary) ? esc(agents.summary) : '—';
+  const hint = r.hint ? `<div class="row"><span class="k">Note</span><span>${esc(r.hint)}</span></div>` : '';
+
+  document.getElementById('status').innerHTML =
+    `<div class="row"><span class="k">CANFAR</span><span>${authOk ? '<span class="ok">authenticated</span>' : '<span class="warn">login needed</span>'} · <code>${esc(c.auth||'')}</code></span></div>` +
+    `<div class="row"><span class="k">Manager</span><span>${mgrLabel}</span></div>` +
+    wireRow + extra +
+    `<div class="row"><span class="k">Agents</span><span>${agentLine}</span></div>` +
+    hint;
+
   const btn = document.getElementById('btn-compute');
   if (btn && !btn.disabled) {
-    if (wired) btn.textContent = 'Refresh batch compute';
-    else if (mgr || pending) btn.textContent = 'Finish wiring batch compute';
+    if (r.compute_ready) btn.textContent = 'Refresh batch compute';
+    else if (mgr || pending) btn.textContent = 'Finish batch compute';
     else btn.textContent = 'Start batch compute';
   }
-  return html;
-}
-function formatEnsureDetail(data) {
-  if (!data || typeof data !== 'object') return '';
-  const lines = [];
-  if (data.user_message) lines.push(data.user_message);
-  const steps = data.steps || [];
-  if (steps.length) lines.push('Steps: ' + steps.join(' → '));
-  if (data.jobs_address) lines.push('Jobs: ' + data.jobs_address);
-  const w = data.workers || {};
-  if (w.already_ready) lines.push('Workers: already joined');
-  else if (w.joined_workers != null) lines.push('Workers joined: ' + w.joined_workers);
-  if (w.preflight_fallback) lines.push('Note: network preflight failed — manager wired anyway; workers may stay Pending.');
-  if (data.error) lines.push('Error: ' + data.error);
-  return lines.join('\\n');
-}
-function renderAddons(d) {
-  const rows = (d && d.addons) || [];
-  if (!rows.length) {
-    return '<p class="sub">No lean plugins listed (registry empty or CLI error).'
-      + (d && d.error ? ' ' + esc(d.error) : '') + '</p>';
-  }
-  return '<table><tr><th>Plugin</th><th>In</th><th>Summary</th></tr>' +
-    rows.map(a => {
-      const on = !!(a.installed || a.any_installed);
-      return `<tr><td><code class="inline">${esc(a.id)}</code></td>` +
-      `<td>${on ? '<span class="ok">yes</span>' : '<span class="bad">no</span>'}</td>` +
-      `<td class="sub">${esc(a.summary||'')}</td></tr>`;
-    }).join('') + '</table>';
-}
-function renderCatalog(d) {
-  const rows = (d && d.items) || [];
-  if (!rows.length) return '<p class="sub">No catalog items loaded.</p>';
-  return '<table><tr><th>Item</th><th>Kind</th><th>Status</th><th>Summary</th></tr>' +
-    rows.slice(0, 15).map(i => `<tr><td><code class="inline">${esc(i.id)}</code></td>` +
-      `<td>${esc(i.kind)}</td>` +
-      `<td>${i.installed ? '<span class="ok">installed</span>' : '<span class="sub">available</span>'}</td>` +
-      `<td class="sub">${esc(i.summary||'')}</td></tr>`).join('') + '</table>';
-}
-function renderInteract(d) {
-  const eps = (d && d.endpoints) || [];
-  if (!eps.length) return '<p class="sub">No endpoints detected.</p>';
-  let html = '<ul class="clean">';
-  for (const ep of eps) {
-    const mark = ep.active ? '<span class="ok">✓ ONLINE</span>' : '<span class="sub">— OFFLINE</span>';
-    html += `<li>[${mark}] <strong>${esc(ep.name)}</strong> (${esc(ep.url_hint)})<br/><span class="sub">${esc(ep.description)}</span></li>`;
-  }
-  html += '</ul>';
-  return html;
-}
-async function refreshLists() {
-  const [add, cat, inter] = await Promise.all([
-    api('api/addons?tag=lean'),
-    api('api/catalog'),
-    api('api/interact'),
-  ]);
-  document.getElementById('addons').innerHTML = renderAddons(add.data || {});
-  document.getElementById('catalog').innerHTML = renderCatalog(cat.data || {});
-  document.getElementById('interact').innerHTML = renderInteract(inter.data || {});
 }
 async function refresh() {
-  if (!computeEnsureBusy) setMsg('Loading…');
-  document.getElementById('canfar').innerHTML = '<span class="sub">Loading CANFAR…</span>';
-  // Keep batch panel visible during ensure so progress isn't replaced with "Loading…"
-  if (!computeEnsureBusy) {
-    document.getElementById('ray').innerHTML = '<span class="sub">Loading batch compute…</span>';
-  }
-  const rep = await api('api/report');
-  const data = rep.data || {};
-  const setup = (data.setup || {});
-  document.getElementById('resources').innerHTML = renderResources(data.resources || {});
-  document.getElementById('setup-state').innerHTML =
-    `<p>OK: ${yn(!!data.ok)} · needs retry: ${yn(!!setup.needs_retry)}</p>` +
-    `<p>Stamp: <code class="inline">${esc(setup.stamp || '(never)')}</code></p>` +
-    (setup.failed ? `<p class="warn">Failed: ${esc(setup.failed)}</p>` : '');
-  const rows = (data.agents || []).map(a =>
-    `<tr><td>${esc(a.agent)}</td><td>${yn(a.binary)}</td><td>${yn(a.config)}</td></tr>`).join('');
-  document.getElementById('agents').innerHTML = rows
-    ? `<table><tr><th>Agent</th><th>Binary</th><th>Config</th></tr>${rows}</table>`
-    : '<p class="sub">No agent report yet — run Setup agents.</p>';
-  const issues = data.issues || [];
-  document.getElementById('issues').innerHTML = issues.length
-    ? `<ul class="clean">${issues.map(i => `<li class="warn">${esc(i)}</li>`).join('')}</ul>`
-    : '<span class="ok">No verify issues</span>';
-  document.getElementById('log').textContent = data.log_tail || '(empty)';
-  await refreshLists();
-  if (!computeEnsureBusy) setMsg('Refreshing CANFAR / batch compute…');
-  const plat = await api('api/platform');
-  document.getElementById('canfar').innerHTML = renderCanfar((plat.data||{}).canfar);
-  document.getElementById('ray').innerHTML = renderRay((plat.data||{}).ray);
-  if (computeEnsureBusy) {
-    const s = Math.round((Date.now() - computeEnsureStarted) / 1000);
-    setMsg((computeEnsureLabel || 'Starting batch compute') + '… ' + s + 's', '');
-  } else {
-    setMsg('');
-  }
+  const [plat, agents] = await Promise.all([
+    api('api/platform'),
+    api('api/agents'),
+  ]);
+  renderStatus(plat.data || {}, agents.data || {});
 }
-async function action(path, label, resultId) {
-  // Keep Refresh enabled during long ensure so status can still update.
-  const keepAlive = new Set(['btn-refresh', 'btn-compute-refresh']);
-  document.querySelectorAll('button').forEach(b => {
-    if (!keepAlive.has(b.id)) b.disabled = true;
-  });
-  const started = Date.now();
-  let tick = null;
-  const isCompute = path.indexOf('compute/ensure') >= 0;
-  if (isCompute) {
-    computeEnsureBusy = true;
-    computeEnsureLabel = label;
-    computeEnsureStarted = started;
-    setResult('compute-result',
-      'Starting…\\nThis can take several minutes (manager session + workers).\\nKeep this tab open; Refresh status stays available.',
-      null);
-    document.getElementById('compute-result').classList.add('busy');
-    tick = setInterval(() => {
-      const s = Math.round((Date.now() - started) / 1000);
-      setMsg(label + '… ' + s + 's', '');
-      const el = document.getElementById('compute-result');
-      if (el) el.textContent =
-        'Still working (' + s + 's)…\\nManager create / network check / workers can each take a few minutes.\\nRefresh status to watch progress.';
-    }, 1000);
-  } else {
-    setMsg(label + '…');
-  }
+async function runAction(label, path, opts) {
+  setBusy(true);
+  setMsg(label + '…');
   try {
-    const ctrl = new AbortController();
-    // Match server COMPUTE_ENSURE_TIMEOUT (~20m) with a little headroom.
-    const ms = isCompute ? 1260000 : 600000;
-    const to = setTimeout(() => ctrl.abort(), ms);
-    const { data } = await api(path, { method: 'POST', signal: ctrl.signal });
-    clearTimeout(to);
-    const summary = data.summary || data.error || data.user_message || '';
-    setMsg((data.ok ? 'OK: ' : 'Done with issues: ') + summary, data.ok ? 'ok' : 'warn');
-    if (resultId) {
-      let detail;
-      if (Array.isArray(data.actions)) {
-        detail = data.actions.map(a => typeof a === 'string' ? a :
-          `${a.id||''}: ${a.status||''}${a.detail ? ' — '+a.detail : ''}`).join('\\n');
-      } else if (isCompute) {
-        detail = formatEnsureDetail(data) || summary;
-      } else {
-        detail = data.user_message || summary;
-      }
-      setResult(resultId, detail || summary || '(no detail)', !!data.ok);
-    }
+    const { data } = await api(path, opts || { method: 'POST' });
+    const ok = !!(data && data.ok);
+    const text = (data && (data.user_message || data.summary || data.error)) || (ok ? 'ok' : 'failed');
+    setMsg(text, ok ? 'ok' : 'bad');
+    await refresh();
   } catch (e) {
-    const aborted = e && (e.name === 'AbortError' || String(e).indexOf('abort') >= 0);
-    const msg = aborted
-      ? 'Timed out waiting for batch compute. Check webterm: canfar ps — the manager may still finish starting in the background.'
-      : String(e);
-    setMsg(msg, 'bad');
-    if (resultId) setResult(resultId, msg, false);
+    setMsg(String(e), 'bad');
   } finally {
-    if (tick) clearInterval(tick);
-    if (isCompute) {
-      computeEnsureBusy = false;
-      computeEnsureLabel = '';
-      computeEnsureStarted = 0;
-    }
-    const cr = document.getElementById('compute-result');
-    if (cr) cr.classList.remove('busy');
+    setBusy(false);
   }
-  document.querySelectorAll('button').forEach(b => b.disabled = false);
-  await refresh();
 }
-document.getElementById('btn-refresh').onclick = () => refresh();
-document.getElementById('btn-setup').onclick = () => action('api/setup', 'Setup agents');
-document.getElementById('btn-fix').onclick = () => action('api/fix', 'Auto-Fix');
-document.getElementById('btn-clean').onclick = () => action('api/clean', 'Clean state');
-document.getElementById('btn-verify').onclick = () => action('api/verify', 'Verify');
-document.getElementById('btn-update').onclick = () => action('api/update', 'Update');
-document.getElementById('btn-kilo').onclick = () => action('api/install?tool=kilo', 'Install Kilo');
-document.getElementById('btn-lean').onclick = () => action('api/add?tag=lean', 'Install lean addons', 'addons-result');
 document.getElementById('btn-compute').onclick = () =>
-  action('api/compute/ensure', 'Starting batch compute (can take several minutes)', 'compute-result');
-document.getElementById('btn-compute-refresh').onclick = () => refresh();
+  runAction('Starting batch compute', 'api/compute/ensure', { method: 'POST' });
+document.getElementById('btn-setup').onclick = () =>
+  runAction('Setup agents', 'api/setup', { method: 'POST' });
 refresh();
-setInterval(refresh, 45000);
 </script>
 </body>
 </html>
 """.replace("__BACK_LABEL__", BACK_UI_LABEL).replace(
     "__BACK_LABEL_JSON__", json.dumps(BACK_UI_LABEL)
-).replace("__CHEATSHEET__", CHEATSHEET.replace("<", "&lt;"))
-
-
-FALLBACK_HTML = """<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><title>AstroAI</title></head>
-<body style="font-family:sans-serif;padding:2rem;background:#111;color:#eee">
-<h1>AstroAI hub unavailable</h1>
-<p>Use webterm (same /arc home) and run:</p>
-<pre style="background:#222;padding:1rem">""" + CHEATSHEET + """</pre>
-</body></html>
-"""
+)
 
 
 class WizardHandler(BaseHTTPRequestHandler):
@@ -924,30 +731,9 @@ class WizardHandler(BaseHTTPRequestHandler):
         return path, parse_qs(parsed.query)
 
     def do_GET(self) -> None:
-        path, _qs = self._path()
+        path, qs = self._path()
         if path in ("/", "/index.html"):
             self._send(200, INDEX_HTML.encode("utf-8"), "text/html; charset=utf-8")
-            return
-        if path == "/api/report":
-            # Lean surface: `agent status --json` is the old `agent report`.
-            rc, out, err = _run_lab(["--json", "agent", "status"], timeout=120)
-            data = _parse_json_stdout(out)
-            if isinstance(data, dict):
-                data.setdefault("log_tail", _log_tail())
-                data["cli_exit"] = rc
-                if err and not data.get("ok"):
-                    data.setdefault("cli_stderr", err[-2000:])
-                self._json(200 if rc in (0, 1) else 500, data)
-                return
-            self._json(
-                500,
-                {
-                    "ok": False,
-                    "error": err or out or "status failed",
-                    "log_tail": _log_tail(),
-                    "cli_exit": rc,
-                },
-            )
             return
         if path == "/api/platform":
             try:
@@ -955,8 +741,28 @@ class WizardHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001
                 self._json(500, {"ok": False, "error": str(exc)})
             return
+        if path == "/api/agents":
+            try:
+                self._json(200, _agent_summary())
+            except Exception as exc:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(exc)})
+            return
+        # Smoke-test / back-compat endpoints (not used by the lean page).
+        if path == "/api/report":
+            rc, out, err = _run_lab(["--json", "agent", "status"], timeout=120)
+            data = _parse_json_stdout(out)
+            if isinstance(data, dict):
+                data.setdefault("log_tail", _log_tail())
+                data["cli_exit"] = rc
+                self._json(200 if rc in (0, 1) else 500, data)
+                return
+            self._json(
+                500,
+                {"ok": False, "error": err or out or "status failed", "cli_exit": rc},
+            )
+            return
         if path == "/api/addons":
-            tag = (_qs.get("tag") or ["lean"])[0]
+            tag = (qs.get("tag") or ["lean"])[0]
             rc, rows, err = _plugins_from_list_config(tag)
             self._json(
                 200 if rc in (0, 1) else 500,
@@ -968,26 +774,6 @@ class WizardHandler(BaseHTTPRequestHandler):
                     **({} if rc in (0, 1) else {"error": err or "list config failed"}),
                 },
             )
-            return
-        if path == "/api/catalog":
-            rc, items, err = _catalog_items()
-            self._json(
-                200 if rc in (0, 1) else 500,
-                {
-                    "ok": rc in (0, 1),
-                    "items": items,
-                    "cli_exit": rc,
-                    **({} if rc in (0, 1) else {"error": err or "catalog failed"}),
-                },
-            )
-            return
-        if path == "/api/interact":
-            rc, out, err = _run_lab(["--json", "agent", "status", "--ui"], timeout=30)
-            data = _parse_json_stdout(out)
-            if isinstance(data, dict):
-                self._json(200, data)
-                return
-            self._json(200 if rc == 0 else 500, {"ok": False, "endpoints": [], "error": err or out})
             return
         if path == "/healthz":
             self._json(200, {"ok": True})
@@ -1014,7 +800,36 @@ class WizardHandler(BaseHTTPRequestHandler):
                     if rc == 0
                     else ("partial setup" if rc == 2 else (err or out or "setup failed")[:300])
                 )
-                data["log_tail"] = _log_tail()
+                self._json(200, data)
+                return
+
+            if path == "/api/install":
+                tool = (qs.get("tool") or [None])[0]
+                if not tool:
+                    self._json(400, {"ok": False, "error": "missing tool= query param"})
+                    return
+                rc, out, err = _run_lab(["--json", "agent", "install", tool])
+                data = _parse_json_stdout(out) or {}
+                if not isinstance(data, dict):
+                    data = {}
+                data["ok"] = rc == 0
+                data["cli_exit"] = rc
+                data["summary"] = f"install {tool}" if rc == 0 else (err or out or "failed")[:300]
+                self._json(200, data)
+                return
+
+            if path == "/api/compute/ensure":
+                self._json(200, _compute_ensure())
+                return
+
+            # Kept for scripts; not exposed in lean UI.
+            if path == "/api/verify":
+                rc, out, err = _run_lab(["--json", "agent", "verify"], timeout=180)
+                data = _parse_json_stdout(out) or {}
+                if not isinstance(data, dict):
+                    data = {}
+                data["ok"] = rc == 0
+                data["summary"] = "verify ok" if rc == 0 else (err or out or "verify failed")[:300]
                 self._json(200, data)
                 return
 
@@ -1026,58 +841,9 @@ class WizardHandler(BaseHTTPRequestHandler):
                 if not isinstance(data, dict):
                     data = {"ok": rc == 0}
                 data["ok"] = rc == 0
-                data["summary"] = "verify --fix ok" if rc == 0 else (err or out or "verify --fix failed")[:300]
-                data["log_tail"] = _log_tail()
-                self._json(200, data)
-                return
-
-            if path == "/api/clean":
-                rc, out, err = _run_lab(["--json", "agent", "verify", "--clean"], timeout=60)
-                data = _parse_json_stdout(out) or {}
-                if isinstance(data, list):
-                    data = {"ok": rc == 0, "actions": data}
-                if not isinstance(data, dict):
-                    data = {"ok": rc == 0}
-                data["ok"] = rc == 0
-                data["summary"] = "clean ok" if rc == 0 else (err or out or "clean failed")[:300]
-                data["log_tail"] = _log_tail()
-                self._json(200, data)
-                return
-
-            if path == "/api/verify":
-                rc, out, err = _run_lab(["--json", "agent", "verify"], timeout=180)
-                data = _parse_json_stdout(out) or {}
-                if not isinstance(data, dict):
-                    data = {}
-                data["ok"] = rc == 0
-                data["cli_exit"] = rc
-                data["summary"] = "verify ok" if rc == 0 else (err or out or "verify failed")[:300]
-                data["log_tail"] = _log_tail()
-                self._json(200, data)
-                return
-
-            if path == "/api/update":
-                rc, out, err = _run_lab(["--yes", "--json", "agent", "update"], timeout=600)
-                data = _parse_json_stdout(out) or {}
-                if not isinstance(data, dict):
-                    data = {}
-                data["ok"] = rc == 0
-                data["cli_exit"] = rc
-                data["summary"] = "update ok" if rc == 0 else (err or out or "update failed")[:300]
-                data["log_tail"] = _log_tail()
-                self._json(200, data)
-                return
-
-            if path == "/api/install":
-                tool = (qs.get("tool") or ["kilo"])[0]
-                rc, out, err = _run_lab(["--json", "agent", "install", tool])
-                data = _parse_json_stdout(out) or {}
-                if not isinstance(data, dict):
-                    data = {}
-                data["ok"] = rc == 0
-                data["cli_exit"] = rc
-                data["summary"] = f"install {tool}" if rc == 0 else (err or out or "failed")[:300]
-                data["log_tail"] = _log_tail()
+                data["summary"] = (
+                    "verify --fix ok" if rc == 0 else (err or out or "verify --fix failed")[:300]
+                )
                 self._json(200, data)
                 return
 
@@ -1092,91 +858,12 @@ class WizardHandler(BaseHTTPRequestHandler):
                     if not isinstance(data, dict):
                         data = {}
                     data["ok"] = rc == 0
-                    data["cli_exit"] = rc
                     data["summary"] = (
                         f"plugin {name}" if rc == 0 else (err or out or "failed")[:300]
                     )
-                    data["log_tail"] = _log_tail()
                     self._json(200, data)
                     return
                 rc, data = _install_plugins_by_tag(tag or "lean")
-                data["log_tail"] = _log_tail()
-                self._json(200, data)
-                return
-
-            if path == "/api/compute/ensure":
-                # Long-running: create manager + workers + wire orx. Cluster
-                # resolution/readiness/workers all delegate to astroai-workload
-                # (single code path); astroai-lab no longer manages Ray.
-                rc, out, err = _run_cmd(
-                    [
-                        "canfar",
-                        "create",
-                        "--name",
-                        "raymgr",
-                        "--cpu",
-                        "2",
-                        "--memory",
-                        "8",
-                        "contributed",
-                        RAY_MANAGER_IMAGE,
-                    ],
-                    timeout=COMPUTE_ENSURE_TIMEOUT,
-                )
-                ok = rc == 0
-                if ok and shutil.which("astroai-workload"):
-                    ensure_rc, ensure_out, ensure_err = _run_cmd(
-                        [
-                            "astroai-workload",
-                            "cluster",
-                            "ensure",
-                            "--json",
-                            "--workers",
-                            "2",
-                        ],
-                        timeout=COMPUTE_ENSURE_TIMEOUT,
-                    )
-                    if ensure_rc == 0:
-                        payload = _parse_json_stdout(ensure_out) or {}
-                        data = {
-                            "ok": True,
-                            "cli_exit": ensure_rc,
-                            "summary": (
-                                f"cluster {payload.get('cluster_phase', 'running')} — "
-                                f"{payload.get('joined_workers', 0)} worker(s) joined"
-                            ),
-                            "user_message": (
-                                "Ray cluster ready. Jobs/Dashboard: "
-                                f"{payload.get('jobs_address', '')}"
-                            ),
-                            "jobs_address": payload.get("jobs_address"),
-                        }
-                        self._json(200, data)
-                        return
-                    data = {
-                        "ok": False,
-                        "cli_exit": ensure_rc,
-                        "summary": "manager created but worker ensure failed",
-                        "user_message": (
-                            "ray-manager session created; astroai-workload cluster ensure "
-                            f"failed: {(ensure_err or ensure_out or 'unknown')[:800]}. "
-                            "Open its connect URL from `canfar ps` and start workers "
-                            "from the manager dashboard."
-                        ),
-                    }
-                    self._json(200, data)
-                    return
-                data = {
-                    "ok": ok,
-                    "cli_exit": rc,
-                    "summary": "ray-manager session created" if ok else (err or out or "launch failed")[:300],
-                    "user_message": (
-                        "ray-manager session created. Open its connect URL from `canfar ps`, "
-                        "then start workers from the manager dashboard."
-                        if ok
-                        else (err or out or "launch failed")[:800]
-                    ),
-                }
                 self._json(200, data)
                 return
 
@@ -1188,7 +875,6 @@ class WizardHandler(BaseHTTPRequestHandler):
                     "ok": False,
                     "error": str(exc),
                     "trace": traceback.format_exc()[-1500:],
-                    "log_tail": _log_tail(),
                 },
             )
 

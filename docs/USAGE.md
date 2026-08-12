@@ -20,25 +20,25 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
 4. Persist to `/arc/home` or `/arc/projects` before the session ends (`astroai-lab save` / `git push`).
 5. Env snapshots live in `~/.astroai/lab/saves/` on `/arc/home` — resume them in the next session with `astroai-lab resume NAME`.
 
-### Home base: Agents · CANFAR · Batch compute (openresearch / openworker)
+### Home base: AstroAI hub (openresearch / openworker)
 
 1. Launch **`openresearch`** or **`openworker`** with tag `26.07` / `latest`.
 2. Open the connect URL, then either:
-   - click the blue **AstroAI** button (top-right), or
+   - click the blue **AstroAI** chip (top-right), or
    - append `/astroai-agents/` (e.g. `…/session/contrib/<id>/astroai-agents/`).
-3. In the hub:
-   - **Agents** — install an agent and set API keys (main setup)
-   - **Start batch compute** — creates a manager + workers and wires OpenResearch (Ray is under the hood)
-   - **CANFAR sessions** — auth check; `canfar login` once in **webterm** if needed
-   - **← Back to OpenResearch / OpenWorker** returns to the main UI
+3. In the hub (one screen):
+   - **Start batch compute** — ensures ray-manager + workers and wires OpenResearch (when on openresearch)
+   - **Setup agents** — optional config seed on shared `/arc/home` (`astroai-lab agent install …` for CLIs)
+   - Status shows CANFAR auth, manager Running/Pending, wire state, Jobs URL
+   - **← Back** returns to the main UI
 4. Run experiments in OpenResearch — default compute is already CANFAR batch. Put shared I/O on `/arc` (`/scratch` is per-pod only).
-5. On other images: `astroai-lab agent setup` · `astroai-lab status` · `canfar ps`.
+5. Power users: `astroai-lab agent …` in webterm; cluster ops on ray-manager.
 
 ```bash
 canfar login   # once, from webterm — persists under /arc/home
 canfar create --name orx contributed images.canfar.net/astroai/openresearch:26.07
 canfar open <session-id>
-# Hub: …/astroai-agents/ → Agents + Start batch compute
+# Hub: …/astroai-agents/ → Start batch compute
 ```
 
 ---
@@ -54,7 +54,7 @@ canfar open <session-id>
 
 `/scratch` is fast and private to **this** session. Use `/arc/projects/…` (or home) when another session needs the same files live; move with `canfar data` (platform archive I/O).
 
-**Home quota %:** CANFAR homes use CephFS directory quotas (`ceph.quota.max_bytes`). `astroai-lab status` prefers those xattrs; `ceph.dir.rbytes` can lag a few seconds after large writes — that is Ceph MDS accounting, not a frozen UI cache. Refresh with `astroai-lab status` (or the Agents / Resources panel).
+**Home quota %:** CANFAR homes use CephFS directory quotas (`ceph.quota.max_bytes`). `astroai-lab status` prefers those xattrs; `ceph.dir.rbytes` can lag a few seconds after large writes — that is Ceph MDS accounting, not a frozen UI cache. Refresh with `astroai-lab status`.
 
 ```bash
 astroai-lab status
@@ -86,8 +86,8 @@ Dashboard: `connectURL/dashboard/`. Full detail: [RAY.md](RAY.md). Prefer manage
 
 `openresearch` defaults compute to CANFAR batch (Ray Jobs under the hood). Preferred path:
 
-1. AstroAI hub → **Start batch compute** — creates manager + workers and wires Settings.
-2. Set agent API keys in the hub / agent configs.
+1. AstroAI hub → **Start batch compute** — ensures manager + workers and wires Settings.
+2. Set agent API keys in agent configs / OpenResearch settings (not in the hub).
 3. Run experiments in OpenResearch (no `--backend` needed once defaulted).
 
 Manual fallback: Settings → Compute → Ray with the manager Jobs URL (`connectURL/dashboard`). Cluster lifecycle stays on the hub / ray-manager — not a CANFAR card in upstream OpenResearch.
@@ -103,7 +103,7 @@ astroai-lab init mylab          # or clone owner/repo
 astroai-lab save / resume --yes
 astroai-lab agent setup         # once (UI sessions auto-run in background; webterm opt-in)
 astroai-lab agent install claude
-# Or open /astroai-agents/ in openresearch / openworker for the Agents wizard
+# Or open /astroai-agents/ in openresearch / openworker for Start batch compute
 astroai-lab kernel ensure       # notebook
 ```
 
@@ -119,8 +119,8 @@ Compilers and editors are in interactive images; put CUDA/ML stacks in your pixi
 | `vscode` | OpenVSCode on `:5000` |
 | `marimo` | Reactive `.py` notebooks; starter seeded once under `/srcdir/notebooks` |
 | `notebook` | JupyterLab `:8888`. Stock Skaha may run platform Jupyter CMD — AstroAI `startup-notebook.sh` only with a platform override ([OPERATORS.md](OPERATORS.md)) |
-| `openresearch` | Autoresearch UI (`orx`) on `:5000`; AstroAI hub at `/astroai-agents/` (Agents · CANFAR · Ray) |
-| `openworker` | OpenWorker browser UI + local agent server (no Tauri); AstroAI hub at `/astroai-agents/` |
+| `openresearch` | Autoresearch UI (`orx`) on `:5000`; lean AstroAI hub at `/astroai-agents/` (batch compute + agent setup) |
+| `openworker` | OpenWorker browser UI + local agent server (no Tauri); lean AstroAI hub at `/astroai-agents/` |
 | `ray-manager` | Cluster UI + Ray head; see Ray section |
 | `improc` | Headless FITS/HDF5 image-processing CLIs — see [Image processing (`improc`)](#image-processing-improc) |
 | `improc-webterm` | Same tools + browser terminal (ttyd/tmux) |
