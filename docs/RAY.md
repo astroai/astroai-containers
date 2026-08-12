@@ -23,7 +23,7 @@ flowchart TB
 |------|-----|
 | Stock **Ray Dashboard** at `connectURL/dashboard/` | Jobs, actors, nodes, logs |
 | Manager control panel at `/` | Auth, preflight, create/stop cluster |
-| AstroAI hub → **Start batch compute** | One-click manager + workers + orx wiring |
+| AstroAI hub → **Start batch compute** | Ensures manager + workers + orx wiring (idempotent) |
 | **`astroai-workload run`** (on PATH in ray-manager) | Scripted Jobs submit / status / logs |
 | One `ray-worker` image | Request `gpus=N` per worker; CPU and GPU share the image |
 
