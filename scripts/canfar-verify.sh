@@ -102,7 +102,6 @@ astroai-lab status --json >/dev/null 2>&1 && echo "PASS:astroai-lab status" || e
 astroai-lab env export --json | grep -q '"WORK"' && echo "PASS:astroai-lab env export" || echo "FAIL:astroai-lab env export"
 astroai-lab saves --json >/dev/null 2>&1 && echo "PASS:astroai-lab saves" || echo "FAIL:astroai-lab saves"
 astroai-lab agent list >/dev/null 2>&1 && echo "PASS:astroai-lab agent list" || echo "FAIL:astroai-lab agent list"
-astroai-lab agent install --list >/dev/null 2>&1 && echo "PASS:astroai-lab agent bundle" || echo "FAIL:astroai-lab agent bundle"
 echo "BATCH_END"
 CHECK_BATCH
 )

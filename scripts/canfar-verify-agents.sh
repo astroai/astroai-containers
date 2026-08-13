@@ -129,8 +129,8 @@ check "agent verify --clean" login_shell 'astroai-lab agent verify --clean'
 # astroai-lab renders its tables via a rich console on stderr — pipe 2>&1 so
 # the greps see the rows on a plain pipe (discovered by remote CANFAR smoke).
 check "agent list" login_shell 'astroai-lab agent list 2>&1 | grep -qE "kilo|Agent"'
-check "agent list config" login_shell 'astroai-lab agent list config 2>&1 | grep -q ponytail'
-check "agent status --ui" login_shell 'astroai-lab agent status --ui 2>&1 | grep -q Endpoints'
+check "agent plugins list" login_shell 'astroai-lab agent plugins list 2>&1 | grep -q ponytail'
+check "agent list --ui" login_shell 'astroai-lab agent list --ui 2>&1 | grep -q Endpoints'
 # Plugin registry surface (Phase 3): list must render the shipped plugins
 # (canfar-ray skill + ray-manager-mcp) whether or not they are installed yet.
 check "agent plugins list" login_shell 'astroai-lab agent plugins list 2>&1 | grep -q canfar-ray'
@@ -139,9 +139,9 @@ check "agent setup stamp" login_shell 'test -f "${HOME}/.astroai/lab/agent-setup
 check "cursor MCP" login_shell 'python3 -c "import json, pathlib; d=json.loads(pathlib.Path(\"${HOME}/.cursor/mcp.json\").read_text()); assert d.get(\"mcpServers\")"'
 check "astroai-lab-workflow skill" login_shell 'test -f "${HOME}/.cursor/skills/astroai-lab-workflow/SKILL.md"'
 check "kilo starter config" login_shell 'test -f "${HOME}/.config/kilo/kilo.jsonc"'
-check "agent-env hook" login_shell 'test -f "${HOME}/.config/canfar/lab/agent-env.sh"'
+check "agent-env hook" login_shell 'test -f "${HOME}/.astroai/lab/agent-env.sh"'
 
-check "agent install --list" login_shell 'astroai-lab agent install --list 2>&1 | grep -q kilo'
+check "agent install kilo" login_shell 'astroai-lab agent list 2>&1 | grep -q kilo'
 
 if [[ "${SETUP_ONLY}" -eq 1 ]]; then
     echo ""

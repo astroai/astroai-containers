@@ -214,12 +214,12 @@ def _platform_payload() -> dict[str, Any]:
 
 def _agent_summary() -> dict[str, Any]:
     """One-line agent status for the lean page (not a full table)."""
-    rc, out, err = _run_lab(["--json", "agent", "status"], timeout=90)
+    rc, out, err = _run_lab(["--json", "agent", "list"], timeout=90)
     data = _parse_json_stdout(out)
     if not isinstance(data, dict):
         return {
             "ok": False,
-            "summary": (err or out or "agent status failed")[:200],
+            "summary": (err or out or "agent list failed")[:200],
             "installed": 0,
             "total": 0,
         }
@@ -395,7 +395,7 @@ def _compute_ensure() -> dict[str, Any]:
 
 
 def _plugins_from_list_config(tag: str | None = None) -> tuple[int, list[dict], str]:
-    rc, out, err = _run_lab(["--json", "agent", "list", "config"], timeout=60)
+    rc, out, err = _run_lab(["--json", "agent", "plugins", "list"], timeout=60)
     data = _parse_json_stdout(out)
     rows = data if isinstance(data, list) else []
     if tag:
@@ -448,7 +448,7 @@ def _install_plugins_by_tag(tag: str) -> tuple[int, dict]:
         return rc_list, {
             "ok": False,
             "actions": [],
-            "summary": err_list or "list config failed",
+            "summary": err_list or "plugins list failed",
             "partial": False,
         }
     actions: list[dict] = []
@@ -749,7 +749,7 @@ class WizardHandler(BaseHTTPRequestHandler):
             return
         # Smoke-test / back-compat endpoints (not used by the lean page).
         if path == "/api/report":
-            rc, out, err = _run_lab(["--json", "agent", "status"], timeout=120)
+            rc, out, err = _run_lab(["--json", "agent", "list"], timeout=120)
             data = _parse_json_stdout(out)
             if isinstance(data, dict):
                 data.setdefault("log_tail", _log_tail())
@@ -758,7 +758,7 @@ class WizardHandler(BaseHTTPRequestHandler):
                 return
             self._json(
                 500,
-                {"ok": False, "error": err or out or "status failed", "cli_exit": rc},
+                {"ok": False, "error": err or out or "agent list failed", "cli_exit": rc},
             )
             return
         if path == "/api/addons":
@@ -771,7 +771,7 @@ class WizardHandler(BaseHTTPRequestHandler):
                     "addons": rows,
                     "tag": tag,
                     "cli_exit": rc,
-                    **({} if rc in (0, 1) else {"error": err or "list config failed"}),
+                    **({} if rc in (0, 1) else {"error": err or "plugins list failed"}),
                 },
             )
             return

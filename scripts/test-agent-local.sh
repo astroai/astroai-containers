@@ -4,9 +4,9 @@
 # Proves, against each session image run like a CANFAR session (fresh MOUNTED
 # home, non-root user), that:
 #   1. every agent/plugin command works out of the box
-#      (list, list config, install, verify, plugins list/install/remove,
-#       configure, and the registry-driven verbs
-#       setup <agent> / config <agent> / repair <agent> / update <agent>);
+#      (list, install, verify, plugins list/install/remove,
+#       and the registry-driven verbs
+#       setup <agent> / config <agent> / verify --fix <agent> / update <agent>);
 #   2. agent CLI installs NEVER land in the user home (~/.local) — the
 #      session bin dir is scratch-backed when SCRATCH is mounted, else the
 #      work-dir runtime root (work/.runtime-$USER/bin).
@@ -95,7 +95,6 @@ fi
 
 # 1. read commands work out of the box.
 astroai-lab agent list          >/dev/null || fail "agent list"
-astroai-lab agent list config   >/dev/null || fail "agent list config"
 astroai-lab agent plugins list  >/dev/null || fail "agent plugins list"
 
 # 2. install a curl-installer agent (honors XDG_BIN_DIR → session bin dir).

@@ -137,7 +137,7 @@ def _forward(handler: BaseHTTPRequestHandler, host: str, port: int, path: str) -
             fallback = (
                 b"<!DOCTYPE html><html><body style='font-family:sans-serif;padding:2rem'>"
                 b"<h1>Agents unavailable</h1>"
-                b"<p>Use webterm and run <code>astroai-lab agent status</code>.</p>"
+                b"<p>Use webterm and run <code>astroai-lab agent list --ui</code>.</p>"
                 b"</body></html>"
             )
             handler.send_response(503)
