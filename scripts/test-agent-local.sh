@@ -38,6 +38,11 @@ OWNER="${OWNER:-astroai}"
 REGISTRY="${REGISTRY:-images.canfar.net}"
 TAG="${TAG:-local}"
 FAILURES=0
+# Host mktemp homes/src/scratch can be large (kilo CLI extract). Prefer a
+# roomy disk when /tmp is the small root volume.
+if [[ -d /mnt/tmp ]] && [[ -w /mnt/tmp ]]; then
+    export TMPDIR="${TMPDIR:-/mnt/tmp}"
+fi
 
 OVERLAY_ARGS=()
 if [[ -n "${ASTROAI_LAB_SRC:-}" ]]; then
@@ -94,8 +99,9 @@ else
 fi
 
 # 1. read commands work out of the box.
-astroai-lab agent list          >/dev/null || fail "agent list"
-astroai-lab agent plugins list  >/dev/null || fail "agent plugins list"
+# Rich Console writes tables to stderr; drop both streams so a pass stays quiet.
+astroai-lab agent list          >/dev/null 2>&1 || fail "agent list"
+astroai-lab agent plugins list  >/dev/null 2>&1 || fail "agent plugins list"
 
 # 2. install a curl-installer agent (honors XDG_BIN_DIR → session bin dir).
 astroai-lab agent install kilo  >/dev/null || fail "agent install kilo"
@@ -115,7 +121,7 @@ assert isinstance(d.get("agents"), list) and d["agents"], d
 astroai-lab --json agent verify >/dev/null 2>&1 || true
 
 # 4. plugin install/remove round-trip (scoped to the installed agent).
-if astroai-lab agent plugins list | grep -q canfar-ray; then
+if astroai-lab agent plugins list 2>/dev/null | grep -q canfar-ray; then
     astroai-lab agent plugins install canfar-ray --agent kilo >/dev/null 2>&1 || true
     astroai-lab agent plugins remove canfar-ray --agent kilo >/dev/null 2>&1 || true
 fi
