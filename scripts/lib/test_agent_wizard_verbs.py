@@ -1,4 +1,4 @@
-"""Assert lean hub maps to lean astroai-lab verbs + honest compute ensure."""
+"""Assert hub maps to astroai-lab verbs + honest compute ensure."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ def test_addons_and_catalog_use_list_config() -> None:
 
     def fake(args: list[str], *, timeout: int | None = None) -> tuple[int, str, str]:
         calls.append(args)
-        if "config" in args:
+        if "plugins" in args and args[-1] == "list":
             return (
                 0,
                 '[{"id":"ponytail","kind":"skill","tags":["lean"],'
@@ -62,7 +62,7 @@ def test_install_by_tag_loops_plugins_install() -> None:
 
     def fake(args: list[str], *, timeout: int | None = None) -> tuple[int, str, str]:
         calls.append(args)
-        if "list" in args and "config" in args:
+        if "plugins" in args and args[-1] == "list":
             return (
                 0,
                 '[{"id":"ponytail","kind":"skill","tags":["lean"],"any_installed":false},'
@@ -131,10 +131,18 @@ def test_compute_ensure_idempotent_and_wires() -> None:
     assert "create" not in data["steps"]
 
 
-def test_index_html_is_lean() -> None:
+def test_index_html_agent_table() -> None:
     html = wiz.INDEX_HTML
     assert "Start batch compute" in html
-    assert "Setup agents" in html
+    assert "Setup agents" not in html
+    assert "btn-setup" not in html
+    assert "<th>Agent</th>" in html
+    assert "<th>Bin</th>" in html
+    assert "<th>Cfg</th>" in html
+    assert "<th>Where</th>" in html
+    assert "<th>Ver</th>" in html
+    assert "api/setup?agent=" in html
+    assert "api/install?tool=" in html
     assert "Install Kilo" not in html
     assert "kilo" not in html.lower()
     assert "Advanced" not in html
@@ -143,9 +151,67 @@ def test_index_html_is_lean() -> None:
     assert "api/catalog" not in html
 
 
+def test_agent_report_returns_full_list() -> None:
+    payload = {
+        "ok": True,
+        "agents": [
+            {
+                "id": "kilo",
+                "agent": "kilo",
+                "binary_ok": True,
+                "config_ok": False,
+                "binary_source": "managed",
+                "version": "1.2.3",
+            }
+        ],
+        "setup": {"stamp": "2026-08-14"},
+        "issues": [],
+    }
+
+    def fake(args: list[str], *, timeout: int | None = None) -> tuple[int, str, str]:
+        assert args[-1] == "list"
+        return 0, json.dumps(payload), ""
+
+    with patch.object(wiz, "_run_lab", side_effect=fake), patch.object(
+        wiz, "_log_tail", return_value=""
+    ):
+        code, data = wiz._agent_report()
+    assert code == 200
+    assert data["agents"][0]["id"] == "kilo"
+    assert data["cli_exit"] == 0
+
+
+def test_setup_is_scoped_to_agent_id() -> None:
+    calls: list[list[str]] = []
+
+    def fake(args: list[str], *, timeout: int | None = None) -> tuple[int, str, str]:
+        calls.append(args)
+        return 0, '{"ok":true,"actions":["created config"],"errors":[]}', ""
+
+    with patch.object(wiz, "_run_lab", side_effect=fake):
+        data = wiz._setup_payload("kilo")
+    assert data["ok"] is True
+    assert data["summary"] == "setup kilo ok"
+    assert any(c[-2:] == ["setup", "kilo"] for c in calls)
+    assert not any(c[-1] == "setup" for c in calls)
+    _assert_lean(calls)
+
+
+def test_safe_agent_id_rejects_junk() -> None:
+    assert wiz._safe_agent_id("kilo") == "kilo"
+    assert wiz._safe_agent_id("open-claw") == "open-claw"
+    assert wiz._safe_agent_id("kilo;rm") is None
+    assert wiz._safe_agent_id("../etc") is None
+    assert wiz._safe_agent_id("") is None
+    assert wiz._safe_agent_id(None) is None
+
+
 if __name__ == "__main__":
     test_addons_and_catalog_use_list_config()
     test_install_by_tag_loops_plugins_install()
     test_compute_ensure_idempotent_and_wires()
-    test_index_html_is_lean()
+    test_index_html_agent_table()
+    test_agent_report_returns_full_list()
+    test_setup_is_scoped_to_agent_id()
+    test_safe_agent_id_rejects_junk()
     print("ok")

@@ -1,14 +1,13 @@
-"""AstroAI hub sidecar — lean status + one-click batch compute.
+"""AstroAI hub sidecar — batch compute + agent table.
 
 Listens on 127.0.0.1:ASTROAI_AGENT_WIZARD_PORT (default 4792).
 Proxied as /astroai-agents/ by the session path-rewrite proxy.
 Failures here must never affect the main UI process.
 
-Surface (deliberately small):
+Surface:
   1. Status — CANFAR auth, ray-manager, OpenResearch wire
   2. Start batch compute — idempotent ensure + wire
-  3. Setup agents — thin CLI wrap for config seed
-Everything else belongs in webterm / `astroai-lab` / ray-manager.
+  3. Agent table — same columns as `astroai-lab agent list`, plus Install / Setup
 """
 
 from __future__ import annotations
@@ -212,42 +211,58 @@ def _platform_payload() -> dict[str, Any]:
     }
 
 
-def _agent_summary() -> dict[str, Any]:
-    """One-line agent status for the lean page (not a full table)."""
-    rc, out, err = _run_lab(["--json", "agent", "list"], timeout=90)
+def _agent_report() -> tuple[int, dict[str, Any]]:
+    """Full `agent list --json` payload (same shape as /api/report)."""
+    rc, out, err = _run_lab(["--json", "agent", "list"], timeout=120)
     data = _parse_json_stdout(out)
-    if not isinstance(data, dict):
-        return {
-            "ok": False,
-            "summary": (err or out or "agent list failed")[:200],
-            "installed": 0,
-            "total": 0,
-        }
-    agents = data.get("agents") or data.get("tools") or []
-    if not isinstance(agents, list):
-        agents = []
-    installed = 0
-    for row in agents:
-        if not isinstance(row, dict):
-            continue
-        if row.get("binary") or row.get("binary_ok") or row.get("installed"):
-            installed += 1
-    total = len(agents)
-    setup = data.get("setup") or {}
-    stamp = ""
-    if isinstance(setup, dict):
-        stamp = str(setup.get("stamp") or setup.get("last_run") or "")
-    issues = data.get("issues") or []
-    return {
-        "ok": rc in (0, 1),
-        "installed": installed,
-        "total": total,
-        "stamp": stamp,
-        "issues": issues[:5] if isinstance(issues, list) else [],
-        "summary": f"{installed}/{total} agent CLIs on PATH"
-        + (f" · last setup {stamp}" if stamp else ""),
+    if isinstance(data, dict):
+        data.setdefault("log_tail", _log_tail())
+        data["cli_exit"] = rc
+        return (200 if rc in (0, 1) else 500), data
+    return 500, {
+        "ok": False,
+        "error": err or out or "agent list failed",
         "cli_exit": rc,
+        "agents": [],
+        "issues": [],
     }
+
+
+def _safe_agent_id(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    s = raw.strip()
+    if not s or len(s) > 64:
+        return None
+    if not all(c.isalnum() or c in "._-" for c in s):
+        return None
+    return s
+
+
+def _setup_payload(agent: str) -> dict[str, Any]:
+    """`astroai-lab agent setup <id>` — config/skills/default plugins, not the CLI."""
+    rc, out, err = _run_lab(["--yes", "--json", "agent", "setup", agent])
+    data = _parse_json_stdout(out) or {}
+    if not isinstance(data, dict):
+        data = {}
+    data["ok"] = rc == 0
+    data["partial"] = rc == 2
+    data["cli_exit"] = rc
+    if rc == 0:
+        actions = data.get("actions") or []
+        detail = ""
+        if isinstance(actions, list) and actions:
+            detail = " · " + "; ".join(str(a) for a in actions[:4])
+        data["summary"] = f"setup {agent} ok"
+        data["user_message"] = f"setup {agent} ok{detail}"
+    elif rc == 2:
+        data["summary"] = f"partial setup {agent}"
+        data["user_message"] = data["summary"]
+    else:
+        msg = (err or out or "setup failed")[:300]
+        data["summary"] = msg
+        data["user_message"] = msg
+    return data
 
 
 def _create_manager_if_needed(wire: ModuleType) -> tuple[bool, str, list[str]]:
@@ -521,7 +536,7 @@ INDEX_HTML = """<!DOCTYPE html>
       linear-gradient(165deg, var(--bg1), var(--bg0));
     padding: clamp(1.25rem, 4vw, 3rem);
   }
-  .wrap { max-width: 34rem; margin: 0 auto; }
+  .wrap { max-width: 56rem; margin: 0 auto; }
   .back {
     display: inline-block; color: var(--sky); text-decoration: none;
     font-weight: 600; font-size: .95rem; margin-bottom: 1.5rem;
@@ -536,6 +551,15 @@ INDEX_HTML = """<!DOCTYPE html>
   .lede {
     color: var(--muted); margin: 0 0 1.75rem;
     font-size: 1.05rem; line-height: 1.45;
+  }
+  h2 {
+    font-family: "Source Sans 3", sans-serif;
+    font-size: 1.15rem; font-weight: 600;
+    margin: 1.75rem 0 .35rem;
+  }
+  .lede-sm {
+    color: var(--muted); margin: 0 0 .75rem;
+    font-size: .95rem; line-height: 1.4;
   }
   .status {
     border-top: 1px solid var(--line);
@@ -573,20 +597,47 @@ INDEX_HTML = """<!DOCTYPE html>
     border: 1px solid var(--line); border-radius: 4px; padding: .05rem .3rem;
   }
   a.mgr { color: var(--sky); }
+  table.agent-list {
+    width: 100%; border-collapse: collapse;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .84rem;
+  }
+  table.agent-list th {
+    text-align: left; color: var(--muted);
+    font-size: .72rem; letter-spacing: .06em;
+    text-transform: uppercase; font-weight: 500;
+    padding: .5rem .45rem; border-bottom: 1px solid var(--line);
+  }
+  table.agent-list td {
+    padding: .42rem .45rem; border-bottom: 1px solid var(--line);
+    vertical-align: middle; white-space: nowrap;
+  }
+  table.agent-list td.acts { text-align: right; }
+  table.agent-list tr.on td:first-child { font-weight: 600; }
+  table.agent-list .mark.ok { color: var(--ok); }
+  table.agent-list .mark { color: var(--muted); }
+  table.agent-list button.row-act {
+    padding: .32rem .65rem; font-size: .78rem; margin-left: .3rem;
+  }
+  .stamp { color: var(--muted); font-size: .82rem; margin: .65rem 0 0; }
+  .issues { color: var(--warn); font-size: .88rem; margin: .5rem 0 0; }
 </style>
 </head>
 <body>
   <div class="wrap">
     <a class="back" id="back-link" href="../">← Back to __BACK_LABEL__</a>
     <h1>AstroAI</h1>
-    <p class="lede">Start batch compute for this session. Agents stay on shared <code>/arc/home</code>.</p>
+    <p class="lede">Start batch compute for this session. Agent CLIs and configs live on shared <code>/arc/home</code>.</p>
 
     <div class="status" id="status">Loading…</div>
     <div class="actions">
       <button id="btn-compute">Start batch compute</button>
-      <button id="btn-setup" class="secondary">Setup agents</button>
     </div>
     <div id="msg"></div>
+
+    <h2>Agents</h2>
+    <p class="lede-sm">Same columns as <code>astroai-lab agent list</code>. Install puts the CLI on PATH; Setup writes that agent's config, skills, and default plugins.</p>
+    <div id="agent-table">Loading…</div>
     <p class="foot">
       Need <code>canfar login</code>? Open <strong>webterm</strong> (same home), then come back.<br/>
       Power users: <code>astroai-lab agent …</code> · <code>astroai-workload …</code>
@@ -619,15 +670,26 @@ function setMsg(t, cls) {
   el.className = cls || '';
 }
 function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function setBusy(on) {
-  for (const id of ['btn-compute','btn-setup']) {
-    const b = document.getElementById(id);
-    if (b) b.disabled = !!on;
-  }
+  const compute = document.getElementById('btn-compute');
+  if (compute) compute.disabled = !!on;
+  document.querySelectorAll('button.row-act').forEach(b => { b.disabled = !!on; });
 }
-function renderStatus(p, agents) {
+function whereLabel(row) {
+  const binaryOk = !!(row.binary_ok || row.binary);
+  if (!binaryOk) return '-';
+  const srcRaw = row.binary_source || (row.managed ? 'managed' : '-');
+  if (row.home_install && !row.managed) return 'home';
+  if (srcRaw === 'managed') return 'scratch';
+  if (srcRaw === 'other') return 'image';
+  return srcRaw || '-';
+}
+function mark(ok) {
+  return ok ? '<span class="mark ok">✓</span>' : '<span class="mark">-</span>';
+}
+function renderStatus(p) {
   const c = (p && p.canfar) || {};
   const r = (p && p.ray) || {};
   const authOk = !!c.auth_ok;
@@ -651,15 +713,12 @@ function renderStatus(p, agents) {
     extra += `<div class="row"><span class="k">Jobs URL</span><span><code>${esc(r.ray_address)}</code></span></div>`;
   }
 
-  const agentLine = (agents && agents.summary) ? esc(agents.summary) : '—';
   const hint = r.hint ? `<div class="row"><span class="k">Note</span><span>${esc(r.hint)}</span></div>` : '';
 
   document.getElementById('status').innerHTML =
     `<div class="row"><span class="k">CANFAR</span><span>${authOk ? '<span class="ok">authenticated</span>' : '<span class="warn">login needed</span>'} · <code>${esc(c.auth||'')}</code></span></div>` +
     `<div class="row"><span class="k">Manager</span><span>${mgrLabel}</span></div>` +
-    wireRow + extra +
-    `<div class="row"><span class="k">Agents</span><span>${agentLine}</span></div>` +
-    hint;
+    wireRow + extra + hint;
 
   const btn = document.getElementById('btn-compute');
   if (btn && !btn.disabled) {
@@ -668,12 +727,56 @@ function renderStatus(p, agents) {
     else btn.textContent = 'Start batch compute';
   }
 }
+function renderAgents(data) {
+  const el = document.getElementById('agent-table');
+  const agents = (data && data.agents) || [];
+  if (!data || data.error && !agents.length) {
+    el.innerHTML = `<p class="issues">${esc(data && (data.error || data.summary) || 'agent list failed')}</p>`;
+    return;
+  }
+  if (!agents.length) {
+    el.innerHTML = '<p class="lede-sm">No agents in the registry.</p>';
+    return;
+  }
+  let rows = '';
+  for (const row of agents) {
+    if (!row || typeof row !== 'object') continue;
+    const id = String(row.id || row.agent || '?');
+    const binaryOk = !!(row.binary_ok || row.binary);
+    const declared = row.config_declared !== false;
+    const configOk = !!(row.config_ok || row.config);
+    const cfg = declared && configOk;
+    const name = (id === 'cursor' && binaryOk) ? 'cursor→agent' : id;
+    const ver = String(row.version || '-').slice(0, 12);
+    const install = binaryOk ? '' : `<button class="row-act" data-act="install" data-id="${esc(id)}">Install</button>`;
+    const setup = `<button class="row-act secondary" data-act="setup" data-id="${esc(id)}">Setup</button>`;
+    rows += `<tr class="${binaryOk ? 'on' : ''}">` +
+      `<td>${esc(name)}</td>` +
+      `<td>${mark(binaryOk)}</td>` +
+      `<td>${mark(cfg)}</td>` +
+      `<td>${esc(whereLabel(row))}</td>` +
+      `<td>${esc(ver)}</td>` +
+      `<td class="acts">${install}${setup}</td>` +
+      `</tr>`;
+  }
+  const setup = (data && data.setup) || {};
+  const stamp = setup.stamp || setup.last_run || '';
+  const issues = Array.isArray(data.issues) ? data.issues.slice(0, 5) : [];
+  el.innerHTML =
+    `<table class="agent-list">` +
+    `<thead><tr><th>Agent</th><th>Bin</th><th>Cfg</th><th>Where</th><th>Ver</th><th></th></tr></thead>` +
+    `<tbody>${rows}</tbody></table>` +
+    (stamp ? `<p class="stamp">Last setup: ${esc(String(stamp))}</p>` : '') +
+    (issues.length ? `<p class="issues">${issues.map(esc).join('<br/>')}</p>` : '') +
+    `<p class="stamp">Cfg: settings on $HOME · Where: scratch=$SCRATCH home=$HOME image=PATH</p>`;
+}
 async function refresh() {
   const [plat, agents] = await Promise.all([
     api('api/platform'),
     api('api/agents'),
   ]);
-  renderStatus(plat.data || {}, agents.data || {});
+  renderStatus(plat.data || {});
+  renderAgents(agents.data || {});
 }
 async function runAction(label, path, opts) {
   setBusy(true);
@@ -682,7 +785,8 @@ async function runAction(label, path, opts) {
     const { data } = await api(path, opts || { method: 'POST' });
     const ok = !!(data && data.ok);
     const text = (data && (data.user_message || data.summary || data.error)) || (ok ? 'ok' : 'failed');
-    setMsg(text, ok ? 'ok' : 'bad');
+    const cls = ok ? 'ok' : (data && data.partial ? 'warn' : 'bad');
+    setMsg(text, cls);
     await refresh();
   } catch (e) {
     setMsg(String(e), 'bad');
@@ -692,8 +796,19 @@ async function runAction(label, path, opts) {
 }
 document.getElementById('btn-compute').onclick = () =>
   runAction('Starting batch compute', 'api/compute/ensure', { method: 'POST' });
-document.getElementById('btn-setup').onclick = () =>
-  runAction('Setup agents', 'api/setup', { method: 'POST' });
+document.getElementById('agent-table').addEventListener('click', (ev) => {
+  const node = ev.target && ev.target.nodeType === 1 ? ev.target : (ev.target && ev.target.parentElement);
+  const btn = node && node.closest ? node.closest('button[data-act]') : null;
+  if (!btn || btn.disabled) return;
+  const id = btn.getAttribute('data-id');
+  const act = btn.getAttribute('data-act');
+  if (!id || !act) return;
+  if (act === 'install') {
+    runAction('Install ' + id, 'api/install?tool=' + encodeURIComponent(id), { method: 'POST' });
+  } else if (act === 'setup') {
+    runAction('Setup ' + id, 'api/setup?agent=' + encodeURIComponent(id), { method: 'POST' });
+  }
+});
 refresh();
 </script>
 </body>
@@ -741,25 +856,12 @@ class WizardHandler(BaseHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001
                 self._json(500, {"ok": False, "error": str(exc)})
             return
-        if path == "/api/agents":
+        if path in ("/api/agents", "/api/report"):
             try:
-                self._json(200, _agent_summary())
+                code, payload = _agent_report()
+                self._json(code, payload)
             except Exception as exc:  # noqa: BLE001
-                self._json(500, {"ok": False, "error": str(exc)})
-            return
-        # Smoke-test / back-compat endpoints (not used by the lean page).
-        if path == "/api/report":
-            rc, out, err = _run_lab(["--json", "agent", "list"], timeout=120)
-            data = _parse_json_stdout(out)
-            if isinstance(data, dict):
-                data.setdefault("log_tail", _log_tail())
-                data["cli_exit"] = rc
-                self._json(200 if rc in (0, 1) else 500, data)
-                return
-            self._json(
-                500,
-                {"ok": False, "error": err or out or "agent list failed", "cli_exit": rc},
-            )
+                self._json(500, {"ok": False, "error": str(exc), "agents": []})
             return
         if path == "/api/addons":
             tag = (qs.get("tag") or ["lean"])[0]
@@ -788,33 +890,36 @@ class WizardHandler(BaseHTTPRequestHandler):
 
         try:
             if path == "/api/setup":
-                rc, out, err = _run_lab(["--yes", "--json", "agent", "setup"])
-                data = _parse_json_stdout(out) or {}
-                if not isinstance(data, dict):
-                    data = {}
-                data["ok"] = rc == 0
-                data["partial"] = rc == 2
-                data["cli_exit"] = rc
-                data["summary"] = (
-                    "setup ok"
-                    if rc == 0
-                    else ("partial setup" if rc == 2 else (err or out or "setup failed")[:300])
-                )
-                self._json(200, data)
+                agent = _safe_agent_id((qs.get("agent") or [None])[0])
+                if not agent:
+                    self._json(400, {"ok": False, "error": "missing agent= query param"})
+                    return
+                self._json(200, _setup_payload(agent))
                 return
 
             if path == "/api/install":
-                tool = (qs.get("tool") or [None])[0]
+                tool = _safe_agent_id((qs.get("tool") or [None])[0])
                 if not tool:
                     self._json(400, {"ok": False, "error": "missing tool= query param"})
                     return
-                rc, out, err = _run_lab(["--json", "agent", "install", tool])
+                rc, out, err = _run_lab(["--yes", "--json", "agent", "install", tool])
                 data = _parse_json_stdout(out) or {}
                 if not isinstance(data, dict):
                     data = {}
                 data["ok"] = rc == 0
                 data["cli_exit"] = rc
-                data["summary"] = f"install {tool}" if rc == 0 else (err or out or "failed")[:300]
+                if rc == 0:
+                    data["summary"] = f"installed {tool}"
+                    data["user_message"] = f"installed {tool}"
+                else:
+                    errors = data.get("errors") or []
+                    if isinstance(errors, list) and errors:
+                        msg = "; ".join(str(e) for e in errors)[:300]
+                    else:
+                        msg = (err or out or "failed")[:300]
+                    data["summary"] = msg
+                    data["user_message"] = msg
+                    data.setdefault("error", msg)
                 self._json(200, data)
                 return
 

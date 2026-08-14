@@ -28,7 +28,7 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
    - append `/astroai-agents/` (e.g. `…/session/contrib/<id>/astroai-agents/`).
 3. In the hub (one screen):
    - **Start batch compute** — ensures ray-manager + workers and wires OpenResearch (when on openresearch)
-   - **Setup agents** — optional config seed on shared `/arc/home` (`astroai-lab agent install …` for CLIs)
+   - Agent table — same columns as `astroai-lab agent list` (Agent, Bin, Cfg, Where, Ver). **Install** puts the CLI on PATH; **Setup** writes that agent's config, skills, and default plugins on `/arc/home`
    - Status shows CANFAR auth, manager Running/Pending, wire state, Jobs URL
    - **← Back** returns to the main UI
 4. Run experiments in OpenResearch — default compute is already CANFAR batch. Put shared I/O on `/arc` (`/scratch` is per-pod only).
@@ -103,7 +103,7 @@ astroai-lab init mylab          # or clone owner/repo
 astroai-lab save / resume --yes
 astroai-lab agent setup         # once (UI sessions auto-run in background; webterm opt-in)
 astroai-lab agent install claude
-# Or open /astroai-agents/ in openresearch / openworker for Start batch compute
+# Or open /astroai-agents/ for Start batch compute and per-agent Install / Setup
 astroai-lab kernel ensure       # notebook
 ```
 
@@ -119,8 +119,8 @@ Compilers and editors are in interactive images; put CUDA/ML stacks in your pixi
 | `vscode` | OpenVSCode on `:5000` |
 | `marimo` | Reactive `.py` notebooks; starter seeded once under `/srcdir/notebooks` |
 | `notebook` | JupyterLab `:8888`. Stock Skaha may run platform Jupyter CMD — AstroAI `startup-notebook.sh` only with a platform override ([OPERATORS.md](OPERATORS.md)) |
-| `openresearch` | Autoresearch UI (`orx`) on `:5000`; lean AstroAI hub at `/astroai-agents/` (batch compute + agent setup) |
-| `openworker` | OpenWorker browser UI + local agent server (no Tauri); lean AstroAI hub at `/astroai-agents/` |
+| `openresearch` | Autoresearch UI (`orx`) on `:5000`; AstroAI hub at `/astroai-agents/` (batch compute + agent list) |
+| `openworker` | OpenWorker browser UI + local agent server (no Tauri); AstroAI hub at `/astroai-agents/` |
 | `ray-manager` | Cluster UI + Ray head; see Ray section |
 | `improc` | Headless FITS/HDF5 image-processing CLIs — see [Image processing (`improc`)](#image-processing-improc) |
 | `improc-webterm` | Same tools + browser terminal (ttyd/tmux) |
