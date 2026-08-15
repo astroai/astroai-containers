@@ -92,8 +92,7 @@ CHECK_BATCH
 fi
 
 # ================================================================
-# Batch 2 — 5 astroai-lab subcommands (each imports Python, so
-# grouping them avoids 4 extra shell + Python startups). Skipped
+# Batch 2 — astroai-lab subcommands + WORK overlay policy. Skipped
 # in --agents mode (lightweight probe).
 # ================================================================
 if [[ "${AGENTS}" -eq 0 ]]; then
@@ -102,6 +101,43 @@ astroai-lab status --json >/dev/null 2>&1 && echo "PASS:astroai-lab status" || e
 astroai-lab env export --json | grep -q '"WORK"' && echo "PASS:astroai-lab env export" || echo "FAIL:astroai-lab env export"
 astroai-lab saves --json >/dev/null 2>&1 && echo "PASS:astroai-lab saves" || echo "FAIL:astroai-lab saves"
 astroai-lab agent list >/dev/null 2>&1 && echo "PASS:astroai-lab agent list" || echo "FAIL:astroai-lab agent list"
+
+# WORK relocate: /srcdir on the overlay (same device as /) + writable /scratch
+# on another volume → $SCRATCH/src. Bind-mounted /srcdir must stay put.
+# Mirrors astroai_lab.core.session_common.overlay_work_dir.
+flag="$(printf '%s' "${ASTROAI_LAB_WORK_ON_SCRATCH:-}" | tr '[:upper:]' '[:lower:]')"
+exported="$(astroai-lab env export --json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("WORK",""))' 2>/dev/null || true)"
+case "${flag}" in
+    0|false|no|off)
+        echo "PASS:WORK relocate disabled"
+        ;;
+    *)
+        scratch="${SCRATCH:-/scratch}"
+        if [[ -d "${scratch}" && -w "${scratch}" ]]; then
+            root_dev="$(stat -c %d / 2>/dev/null || true)"
+            scratch_dev="$(stat -c %d "${scratch}" 2>/dev/null || true)"
+            if [[ -d /srcdir ]]; then
+                src_dev="$(stat -c %d /srcdir 2>/dev/null || true)"
+            else
+                src_dev="${root_dev}"
+            fi
+            if [[ -n "${root_dev}" && -n "${scratch_dev}" && "${scratch_dev}" != "${root_dev}" && "${src_dev}" == "${root_dev}" ]]; then
+                expected="${scratch%/}/src"
+                if [[ "${exported}" == "${expected}" && -d "${exported}" && -w "${exported}" ]]; then
+                    echo "PASS:WORK overlay relocate"
+                else
+                    echo "FAIL:WORK overlay relocate (got ${exported:-empty}, want ${expected})"
+                fi
+            elif [[ "${exported}" == "${scratch%/}/src" && "${src_dev}" != "${root_dev}" ]]; then
+                echo "FAIL:WORK relocated despite bind-mounted /srcdir"
+            else
+                echo "PASS:WORK no overlay relocate"
+            fi
+        else
+            echo "PASS:WORK no writable scratch"
+        fi
+        ;;
+esac
 echo "BATCH_END"
 CHECK_BATCH
 )

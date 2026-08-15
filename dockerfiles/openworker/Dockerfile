@@ -10,7 +10,9 @@ ARG NODE_VERSION=24
 
 # --- Build Vite GUI (relative asset URLs; API injected at runtime by proxy) ---
 # Unpinned: tracks upstream main HEAD (container TAG is the user-facing version).
+# OPENWORKER_HEAD busts this layer when origin/main moves.
 FROM node:${NODE_VERSION}-bookworm-slim AS gui-build
+ARG OPENWORKER_HEAD
 WORKDIR /src
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
@@ -19,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
     && git remote add origin https://github.com/andrewyng/openworker.git \
     && git fetch --depth 1 origin main \
     && git checkout FETCH_HEAD \
+    && echo "openworker ${OPENWORKER_HEAD:-$(git rev-parse HEAD)}" \
     && cd surfaces/gui \
     && npm ci \
     && npm run build
@@ -34,6 +37,7 @@ LABEL io.canfar.skaha.session.type="contributed" \
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+ARG OPENWORKER_HEAD
 # Install OpenWorker Python package into an isolated venv (aisuite from git).
 RUN mkdir -p /opt/openworker/src \
     && python3 -m venv /opt/openworker/venv \
@@ -43,6 +47,7 @@ RUN mkdir -p /opt/openworker/src \
     && git remote add origin https://github.com/andrewyng/openworker.git \
     && git fetch --depth 1 origin main \
     && git checkout FETCH_HEAD \
+    && echo "openworker ${OPENWORKER_HEAD:-$(git rev-parse HEAD)}" \
     && /opt/openworker/venv/bin/pip install --no-cache-dir . \
     && /opt/openworker/venv/bin/openworker-server --help >/dev/null \
     && rm -rf /root/.cache/pip

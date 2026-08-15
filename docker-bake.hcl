@@ -16,6 +16,16 @@ variable "PYTHON_VERSION" {
   default = "3.13"
 }
 
+# Git SHAs for unpinned upstream clones. Makefile exports current origin/main
+# so Docker cache invalidates when those repos move.
+variable "ORX_HEAD" {
+  default = ""
+}
+
+variable "OPENWORKER_HEAD" {
+  default = ""
+}
+
 group "default" {
   targets = ["base", "webterm", "notebook", "vscode", "marimo", "openresearch", "openworker"]
 }
@@ -89,10 +99,10 @@ target "openresearch" {
   dockerfile = "dockerfiles/openresearch/Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/openresearch:${TAG}"]
   args = {
-    # Ray Jobs backend — pin fork SHA until alphaXiv ships a release with
+    # Unpinned fork main until alphaXiv ships a release with
     # https://github.com/alphaXiv/openresearch-cli/pull/138
     ORX_REPO = "https://github.com/sfabbro/openresearch-cli.git"
-    ORX_SHA  = "e076d027c9cbbac8b7bb5ded0821efa9d0a41c6b"
+    ORX_HEAD = "${ORX_HEAD}"
   }
 }
 
@@ -101,7 +111,7 @@ target "openworker" {
   dockerfile = "dockerfiles/openworker/Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/openworker:${TAG}"]
   args = {
-    OPENWORKER_SHA = "01b6f83b3927e02912dda84bb392942c13ca70d1"
+    OPENWORKER_HEAD = "${OPENWORKER_HEAD}"
   }
 }
 

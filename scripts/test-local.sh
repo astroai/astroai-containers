@@ -1,6 +1,10 @@
 #!/bin/bash -e
 # Local smoke test: run an AstroAI session image as a non-root user.
 #
+# Bind-mounts host dirs at /srcdir and /scratch. That is the volume layout
+# (WORK stays /srcdir). The CANFAR overlay path — /srcdir on the container
+# overlay, WORK → /scratch/src — is covered by test-work-overlay.sh.
+#
 # Usage:
 #   ./scripts/test-local.sh webterm [port]
 #   ./scripts/test-local.sh notebook [port]   # defaults to 8888

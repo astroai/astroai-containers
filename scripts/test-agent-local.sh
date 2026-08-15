@@ -70,6 +70,8 @@ export HOME="${HOME_DIR}"
 export USER=testuser
 export WORK=/srcdir
 export SCRATCH="${SCRATCH:-}"
+# Bind-mounted /srcdir (harness -v) is not the CANFAR overlay; WORK stays
+# /srcdir. Overlay relocate is scripts/test-work-overlay.sh.
 
 fail() { echo "  FAIL: $*" >&2; exit 1; }
 ok()   { echo "  ok: $*"; }

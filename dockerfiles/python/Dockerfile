@@ -3,6 +3,8 @@
 # uv/pixi: official install scripts (latest at build time).
 
 ARG PYTHON_VERSION=3.13
+# Stay on 3.13 until CADC/clint is clean on 3.14. Ray workers stay on 3.12
+# (no cp313 wheels yet). uv/pixi/micromamba are latest-at-build below.
 
 FROM python:${PYTHON_VERSION}-slim
 

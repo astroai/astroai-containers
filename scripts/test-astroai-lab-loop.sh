@@ -1,8 +1,14 @@
 #!/bin/bash -e
 # astroai-lab cold-start → save → resume loop inside astroai/base image.
 #
+# Runs two layouts:
+#   bind    — host dir mounted at /srcdir (local docker). WORK stays /srcdir.
+#   overlay — /srcdir is the image overlay, /scratch is a volume (CANFAR).
+#             WORK relocates to /scratch/src. This is the production path;
+#             bind-only tests never exercise it.
+#
 # Usage:
-#   test-astroai-lab-loop.sh            full save/resume cycle
+#   test-astroai-lab-loop.sh            full save/resume cycle (both layouts)
 #   test-astroai-lab-loop.sh --smoke     fast smoke: status only (no pixi init)
 
 set -o pipefail
@@ -40,52 +46,75 @@ fi
 mkdir -p "${FAKE_ARC}/testuser"
 chmod -R a+rwX "${FAKE_ARC}" "${FAKE_SRC}" "${FAKE_SCRATCH}"
 
-OUT="$(docker run --rm \
-    -u "$(id -u):$(id -g)" \
-    -e HOME="${FAKE_ARC}/testuser" \
-    -e USER=testuser \
-    -e WORK=/srcdir \
-    -e SCRATCH=/scratch \
-    -v "${FAKE_ARC}/testuser:${FAKE_ARC}/testuser" \
-    -v "${FAKE_SRC}:/srcdir" \
-    -v "${FAKE_SCRATCH}:/scratch" \
-    "${IMAGE}" \
-    bash -lc '
+run_loop() {
+    local layout="$1"
+    local expected_work="$2"
+    shift 2
+    docker run --rm \
+        -u "$(id -u):$(id -g)" \
+        -e HOME="${FAKE_ARC}/testuser" \
+        -e USER=testuser \
+        -e SCRATCH=/scratch \
+        "$@" \
+        -v "${FAKE_ARC}/testuser:${FAKE_ARC}/testuser" \
+        -v "${FAKE_SCRATCH}:/scratch" \
+        "${IMAGE}" \
+        bash -c '
 set -e
+# shellcheck disable=SC1091
 source /etc/profile.d/astroai.sh
+layout="'"${layout}"'"
+expected_work="'"${expected_work}"'"
+if [[ "${WORK}" != "${expected_work}" ]]; then
+    echo "WORK=${WORK} (want ${expected_work})" >&2
+    exit 1
+fi
+cd "${WORK}"
 
 if [[ "'"${SMOKE}"'" -eq 1 ]]; then
     astroai-lab status --json | head -1
-    echo SMOKE_OK
+    echo "SMOKE_OK_${layout}"
 else
-    cd /srcdir
-    pixi init loopdemo --no-progress
-    cd loopdemo
-    astroai-lab save loopdemo
+    pixi init "loopdemo-${layout}" --no-progress
+    cd "loopdemo-${layout}"
+    astroai-lab save "loopdemo-${layout}"
 
     # Fresh work tree (same HOME — simulates new session, same /arc/home)
-    rm -rf /srcdir/loopdemo
-    cd /srcdir
-    astroai-lab resume loopdemo
-    test -f loopdemo/pixi.toml
+    rm -rf "${WORK}/loopdemo-${layout}"
+    cd "${WORK}"
+    astroai-lab resume "loopdemo-${layout}"
+    test -f "loopdemo-${layout}/pixi.toml"
     astroai-lab status --json | head -1
-    echo LOOP_OK
+    echo "LOOP_OK_${layout}"
 fi
-' 2>&1)"
+'
+}
 
-echo "${OUT}"
+# Bind-mounted /srcdir is a different device from / → WORK stays /srcdir.
+BIND_OUT="$(run_loop bind /srcdir -e WORK=/srcdir -v "${FAKE_SRC}:/srcdir" 2>&1)" || true
+echo "${BIND_OUT}"
+echo ""
 
+# No /srcdir mount: overlay + scratch volume → WORK=/scratch/src.
+OVERLAY_OUT="$(run_loop overlay /scratch/src 2>&1)" || true
+echo "${OVERLAY_OUT}"
+
+ok=1
 if [[ "${SMOKE}" -eq 1 ]]; then
-    if printf '%s\n' "${OUT}" | grep -q SMOKE_OK; then
-        echo "astroai-lab smoke test passed."
+    printf '%s\n' "${BIND_OUT}" | grep -q SMOKE_OK_bind || ok=0
+    printf '%s\n' "${OVERLAY_OUT}" | grep -q SMOKE_OK_overlay || ok=0
+    if [[ "${ok}" -eq 1 ]]; then
+        echo "astroai-lab smoke test passed (bind + overlay)."
         exit 0
     fi
     echo "astroai-lab smoke test failed." >&2
     exit 1
 fi
 
-if printf '%s\n' "${OUT}" | grep -q LOOP_OK; then
-    echo "astroai-lab loop test passed."
+printf '%s\n' "${BIND_OUT}" | grep -q LOOP_OK_bind || ok=0
+printf '%s\n' "${OVERLAY_OUT}" | grep -q LOOP_OK_overlay || ok=0
+if [[ "${ok}" -eq 1 ]]; then
+    echo "astroai-lab loop test passed (bind + overlay)."
     exit 0
 fi
 

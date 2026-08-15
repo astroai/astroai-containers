@@ -6,6 +6,9 @@ REGISTRY ?= images.canfar.net
 TAG ?= $(shell date -u +%y.%m)
 BUILD_TAG ?= local
 PYTHON_VERSION ?= 3.13
+# Bust Docker cache for unpinned git clones when upstream main moves.
+export ORX_HEAD ?= $(shell git ls-remote https://github.com/sfabbro/openresearch-cli.git refs/heads/main 2>/dev/null | awk '{print $$1}')
+export OPENWORKER_HEAD ?= $(shell git ls-remote https://github.com/andrewyng/openworker.git refs/heads/main 2>/dev/null | awk '{print $$1}')
 
 export OWNER REGISTRY PYTHON_VERSION
 
@@ -125,12 +128,12 @@ lock-ray: ## regenerate config/ray-deps.lock from config/ray-deps.txt (Python 3.
 	UV_NO_CACHE=1 uv pip compile --python-version 3.12 --output-file "$$tmp" config/ray-deps.txt >/dev/null; \
 	mv -f "$$tmp" config/ray-deps.lock
 
-lock-astroai-lab: ## regenerate config/astroai-lab.lock from the SHA pin in config/astroai-lab.in.
+lock-astroai-lab: ## regenerate config/astroai-lab.lock from unpinned main in config/astroai-lab.in.
 	@tmp=$$(mktemp); \
 	uv pip compile --python-version 3.13 --output-file "$$tmp" config/astroai-lab.in >/dev/null; \
 	mv -f "$$tmp" config/astroai-lab.lock
 
-lock-workload: ## regenerate config/astroai-workload.lock from the SHA pin in config/astroai-workload.in.
+lock-workload: ## regenerate config/astroai-workload.lock from unpinned main in config/astroai-workload.in.
 	@tmp=$$(mktemp); \
 	uv pip compile --python-version 3.13 --output-file "$$tmp" config/astroai-workload.in >/dev/null; \
 	mv -f "$$tmp" config/astroai-workload.lock
@@ -167,6 +170,7 @@ test-local: ## verify session images (parallel)
 	done; \
 	for pid in "$${pids[@]}"; do wait "$$pid" || fails=$$((fails + 1)); done; \
 	if [[ "$$fails" -gt 0 ]]; then echo "$$fails image(s) failed." >&2; exit 1; fi
+	./scripts/test-work-overlay.sh
 	./scripts/test-status-arc-project.sh
 
 # Runs ALL session images — SESSION_IMAGES is the canonical list (pass it so

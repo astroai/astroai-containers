@@ -18,6 +18,7 @@ ARG NODE_VERSION=24
 # --- UI (embedded into orx via rust-embed) ---
 FROM node:${NODE_VERSION}-bookworm-slim AS ui-build
 ARG ORX_REPO
+ARG ORX_HEAD
 WORKDIR /src
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
@@ -25,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
     && git remote add origin "${ORX_REPO}" \
     && git fetch --depth 1 origin main \
     && git checkout FETCH_HEAD \
+    && echo "orx ${ORX_HEAD:-$(git rev-parse HEAD)}" \
     && cd ui \
     && npm install -g pnpm \
     # pnpm 10+ blocks dependency build scripts by default (ERR_PNPM_IGNORED_BUILDS
@@ -39,6 +41,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 # --- orx binary ---
 FROM rust:1-bookworm AS orx-build
 ARG ORX_REPO
+ARG ORX_HEAD
 WORKDIR /src
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
         pkg-config libssl-dev \
@@ -46,7 +49,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
     && git init repo && cd repo \
     && git remote add origin "${ORX_REPO}" \
     && git fetch --depth 1 origin main \
-    && git checkout FETCH_HEAD
+    && git checkout FETCH_HEAD \
+    && echo "orx ${ORX_HEAD:-$(git rev-parse HEAD)}"
 COPY --from=ui-build /src/repo/ui/dist /src/repo/ui/dist
 WORKDIR /src/repo
 RUN cargo build --release \

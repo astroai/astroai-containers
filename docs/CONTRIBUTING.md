@@ -83,18 +83,20 @@ uv run python -c "print('ok')"
 
 ## Refresh the `astroai-lab` lock
 
-Images install astroai-lab from a pip lockfile (git SHA pin), not a local vendor tree:
+`config/astroai-lab.in` tracks `astroai-lab` `main` unpinned. Images install from the compiled lock (git SHA). After lab lands on `origin/main`, CI `lock-check` fails until you regenerate:
 
 ```bash
 cd ../astroai-lab
 uv run pytest -q
-git tag v0.X.Y  # or bump the git ref in config/astroai-lab.in
 cd ../astroai-containers
 make lock-astroai-lab
+make lock-check
 make build-all BUILD_TAG=local
 make test-local BUILD_TAG=local
 make test-ray BUILD_TAG=local
 ```
+
+Same pattern for `make lock-workload` and `make lock-ray` when those `main` branches or unpinned deps move. OpenResearch and OpenWorker clone upstream `main` at build time; `make build-all` passes `ORX_HEAD` / `OPENWORKER_HEAD` from `git ls-remote` so Docker cache does not stick to a stale commit.
 
 ## Writable CADC venv
 
