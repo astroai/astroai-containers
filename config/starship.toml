@@ -23,6 +23,9 @@ format = "[$all_status$ahead_behind]($style) "
 symbol = ""
 style = "yellow"
 format = "[$version]($style) "
+detect_extensions = []
+detect_files = ["pyproject.toml", "pixi.toml", "requirements.txt"]
+detect_folders = [".venv"]
 
 [cmd_duration]
 min_time = 2000

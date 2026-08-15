@@ -73,7 +73,12 @@ astroai_quota_used_pct() {
                 break
             fi
             [[ "${_cur}" == "/" ]] && break
-            _cur="$(dirname "${_cur}")"
+            _parent="$(dirname "${_cur}")"
+            # Quotas live on the user home or project dir, not /arc or /arc/home.
+            if [[ "${_parent}" == /arc/home || "${_parent}" == /arc/projects || "${_parent}" == /arc ]]; then
+                break
+            fi
+            _cur="${_parent}"
         done
     fi
     local resolved
