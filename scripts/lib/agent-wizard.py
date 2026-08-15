@@ -200,7 +200,7 @@ def _platform_payload() -> dict[str, Any]:
         "session_kind": SESSION_KIND,
         "image_tag": os.environ.get("RAY_IMAGE_TAG")
         or os.environ.get("BUILD_TAG")
-        or "26.07",
+        or "latest",
         "canfar": {
             "available": shutil.which("canfar") is not None,
             "auth_ok": auth_ok,

@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray build-improc push-all push/% push-ray push-improc test-local test-agent-local test-ray test-improc-local test-canfar test-canfar-agents test-canfar-session test-canfar-ray test-canfar-ray-gpu test-canfar-ray-autoscale clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
+.PHONY: help build-all build/% build-ray build-improc push-all push/% push-ray push-improc test-local test-agent-local test-ray test-improc-local test-host test-canfar test-canfar-agents test-canfar-session test-canfar-ray test-canfar-ray-gpu test-canfar-ray-autoscale clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
 
 SHELL := bash
 OWNER ?= astroai
@@ -44,7 +44,8 @@ help:
 	@echo "  make lock-workload      regenerate config/astroai-workload.lock"
 	@echo "  make lock-check         fail if a lockfile drifts from its source"
 	@echo "  make lint-doc-quota     forbid false 'headless consumes quota' advice in test-canfar.sh"
-	@echo "  make lint               run lock-check + lint-doc-quota"
+	@echo "  make test-host          docker-free: peek/osc52 selfchecks + agent-wizard tests"
+	@echo "  make lint               lock-check + lint-doc-quota + test-host"
 	@echo "  make sync-marimo-starter copy marimo starter.py from ../astroai-lab"
 	@echo "  make sync-notebook-starters copy starter.ipynb + ray_train.ipynb from lab"
 	@echo ""
@@ -236,9 +237,16 @@ lint-doc-quota: ## forbid test-canfar.sh from reintroducing the false 'headless 
 	chmod +x scripts/lint-doc-quota.sh
 	./scripts/lint-doc-quota.sh
 
-lint: ## run all lint-style checks (lockfile drift + doc-quota guard)
+test-host: ## docker-free checks (selfchecks + agent-wizard unit tests)
+	chmod +x scripts/peek_selfcheck.sh scripts/osc52_copy_selfcheck.sh
+	./scripts/peek_selfcheck.sh
+	./scripts/osc52_copy_selfcheck.sh
+	python3 scripts/lib/test_agent_wizard_verbs.py
+
+lint: ## lockfile drift + doc-quota guard + docker-free host tests
 	$(MAKE) lock-check
 	$(MAKE) lint-doc-quota
+	$(MAKE) test-host
 
 .PHONY: ray-launch
 ray-launch:

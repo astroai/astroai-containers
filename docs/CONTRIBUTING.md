@@ -109,8 +109,8 @@ Project deps use pixi/uv under `WORK`; caches prefer scratch via
 
 ```bash
 make test-ray BUILD_TAG=local
-make test-canfar-ray TAG=26.07
-make test-canfar-ray-gpu TAG=26.07
+make test-canfar-ray TAG=26.08
+make test-canfar-ray-gpu TAG=26.08
 ```
 
 | Script | Checks |
@@ -136,27 +136,9 @@ make sync-marimo-starter
 ```
 
 Startup (`scripts/startup-marimo.sh`) seeds that file once into
-`WORK/notebooks` and runs `marimo edit starter.py`.
-
-## Marimo AI ↔ astroai-lab upstream integration (done)
-
-`astroai-lab agent setup` now includes a **`marimo`** bundle that writes
-`~/.marimo.toml` with OpenRouter config and API key via `_merge_marimo_openrouter`
-in `bundles.py`. The startup script calls `astroai-lab agent setup marimo`
-at session start (non-destructive; never overwrites user settings).
-
-**What changed:**
-
-- `scripts/startup-marimo.sh`: replaced `agent-env.sh` bridging and manual TOML
-  seeding with a single `astroai-lab agent setup marimo` call; opens `starter.py`
-  by default.
-- `config/marimo.toml`: kept as build-time default template (bundled for reference).
-
-**Verification:** `canfar-verify-agents.sh` checks that `~/.marimo.toml`
-contains an OpenRouter section after agent setup.
-
-**Vault / Remote Storage:** keep `canfar_marimo.VOSpaceUI` until upstream `vos`
-fsspec lands; then expose a notebook FS variable for marimo Remote Storage.
+`WORK/notebooks`, runs `astroai-lab agent setup marimo` (OpenRouter,
+does not overwrite user settings), and opens `starter.py`. Keep
+`canfar_marimo.VOSpaceUI` until vos fsspec lands.
 
 ---
 

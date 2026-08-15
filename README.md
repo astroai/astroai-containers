@@ -84,13 +84,13 @@ See [OPERATORS.md](docs/OPERATORS.md). The `astroai` Harbor project is **public*
 (anonymous pull); push still needs `docker login images.canfar.net`.
 
 ```bash
-make push/vscode TAG=26.07
-make push-all TAG=26.07
-make push-ray TAG=26.07
-make push-improc TAG=26.07
+make push/vscode TAG=26.08
+make push-all TAG=26.08
+make push-ray TAG=26.08
+make push-improc TAG=26.08
 ```
 
-Default `TAG` is current UTC `YY.MM` (for example `26.07`).
+Default `TAG` is current UTC `YY.MM` (for example `26.08`).
 
 ## Layout
 

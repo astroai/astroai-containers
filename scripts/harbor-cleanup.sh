@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Harbor cleanup for astroai/* image tags on images.canfar.net.
 #
-# For each repository in KNOWN_REPOS (default: the seven canonical astroai
-# stacks) under OWNER (default: astroai), delete every tag whose digest does
-# NOT match the digest of any tag in KEEP_TAGS (default: "26.07 latest").
+# For each repository in KNOWN_REPOS under OWNER (default: astroai), delete
+# every tag whose digest does NOT match the digest of any tag in KEEP_TAGS
+# (default: this month, last month, and latest).
 #
 # Algorithm:
 #   1. For each kept tag, HEAD /v2/<repo>/manifests/<tag> with the docker
@@ -32,20 +32,18 @@
 # Environment overrides:
 #   REGISTRY         default: images.canfar.net
 #   OWNER            default: astroai
-#   KEEP_TAGS        default: "26.07 latest"   (space-separated)
-#   KNOWN_REPOS      default: "base webterm vscode notebook marimo ray-manager ray-worker"
-#   CANDIDATE_TAGS   default: "26.07 latest 26.06 26.05 26.04 25.12 25.11 25.10 25.09 25.08
-#                              25.07 25.06 25.05 25.04 25.03 25.02 25.01 24.12 24.11
-#                              24.10 24.09 24.08 24.07 local sha-"
+#   KEEP_TAGS        default: "26.08 26.07 latest"   (space-separated)
+#   KNOWN_REPOS      default: session + ray + improc images (see script)
+#   CANDIDATE_TAGS   default: current + prior YY.MM tags, latest, local, sha-
 #   DOCKER_CONFIG    default: $HOME/.docker/config.json
 
 set -euo pipefail
 
 REGISTRY="${REGISTRY:-images.canfar.net}"
 OWNER="${OWNER:-astroai}"
-KEEP_TAGS="${KEEP_TAGS:-26.07 latest}"
-KNOWN_REPOS="${KNOWN_REPOS:-base webterm vscode notebook marimo openresearch openworker ray-manager ray-worker}"
-CANDIDATE_TAGS_DEFAULT='26.07 latest 26.06 26.05 26.04 25.12 25.11 25.10 25.09 25.08 25.07 25.06 25.05 25.04 25.03 25.02 25.01 24.12 24.11 24.10 24.09 24.08 24.07 local sha-'
+KEEP_TAGS="${KEEP_TAGS:-26.08 26.07 latest}"
+KNOWN_REPOS="${KNOWN_REPOS:-base webterm vscode notebook marimo openresearch openworker improc improc-webterm improc-notebook ray-manager ray-worker}"
+CANDIDATE_TAGS_DEFAULT='26.08 26.07 latest 26.06 26.05 26.04 25.12 25.11 25.10 25.09 25.08 25.07 25.06 25.05 25.04 25.03 25.02 25.01 24.12 24.11 24.10 24.09 24.08 24.07 local sha-'
 CANDIDATE_TAGS="${CANDIDATE_TAGS:-${CANDIDATE_TAGS_DEFAULT}}"
 DRY_RUN="${DRY_RUN:-0}"
 DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker/config.json}"

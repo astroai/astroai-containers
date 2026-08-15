@@ -5,11 +5,11 @@
 # kinds still schedule. Verifies: create → Running → connectURL HTTP healthy.
 #
 # Usage:
-#   ./scripts/test-canfar-session.sh webterm 26.07
-#   ./scripts/test-canfar-session.sh notebook 26.07
-#   ./scripts/test-canfar-session.sh vscode 26.07
-#   ./scripts/test-canfar-session.sh marimo 26.07
-#   ./scripts/test-canfar-session.sh openresearch 26.07
+#   ./scripts/test-canfar-session.sh webterm 26.08
+#   ./scripts/test-canfar-session.sh notebook 26.08
+#   ./scripts/test-canfar-session.sh vscode 26.08
+#   ./scripts/test-canfar-session.sh marimo 26.08
+#   ./scripts/test-canfar-session.sh openresearch 26.08
 #
 # Environment:
 #   REGISTRY, OWNER, CANFAR_TEST_TIMEOUT (default 900)

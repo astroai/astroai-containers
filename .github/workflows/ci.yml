@@ -51,3 +51,6 @@ jobs:
 
       - name: Lockfile integrity — DO NOT add continue-on-error — make -s lock-check
         run: make -s lock-check
+
+      - name: Docker-free host tests
+        run: make test-host

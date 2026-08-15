@@ -49,11 +49,11 @@ on `/arc`.
 ## Build and test
 
 ```bash
-make build-ray BUILD_TAG=26.07
+make build-ray BUILD_TAG=26.08
 make test-ray
-make push-ray TAG=26.07
-make test-canfar-ray TAG=26.07
-make test-canfar-ray-gpu TAG=26.07
+make push-ray TAG=26.08
+make test-canfar-ray TAG=26.08
+make test-canfar-ray-gpu TAG=26.08
 ```
 
 Ray layers use the **same bake `TAG` as `base`**.
@@ -70,7 +70,7 @@ From any AstroAI session (webterm/vscode):
 
 ```bash
 canfar login
-canfar create --name raymgr contributed images.canfar.net/astroai/ray-manager:26.07
+canfar create --name raymgr contributed images.canfar.net/astroai/ray-manager:26.08
 ```
 
 Credentials persist as `~/.canfar/config.yaml` (and optionally
@@ -214,7 +214,7 @@ head, so `ray-head-start.sh` writes the autoscaling YAML
 Verify end-to-end on CANFAR (manager UI + dynamic scale-up + idle scale-down):
 
 ```bash
-make test-canfar-ray-autoscale TAG=26.07
+make test-canfar-ray-autoscale TAG=26.08
 ```
 
 ## Manager API
