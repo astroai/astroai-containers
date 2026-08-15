@@ -143,20 +143,32 @@ PATH includes `/opt/astroai/venv/improc/bin` and sourcextractor++.
 
 | Area | Tools |
 |------|--------|
-| Detection / catalog | `source-extractor` (`sextractor`), sourcextractor++, `scamp` (2.15 from sid), IRAF |
+| Detection / catalog | `source-extractor` (`sextractor`), sourcextractor++, `scamp` (2.15 from sid), `tractor`, IRAF |
+| Deblending / scene modeling | `scarlet`, `scarlet2` (JAX) |
+| Simulation | `skymaker`, `stuff` |
 | Cosmic rays / clean | `astroscrappy`, `lacosmic`, `ccdproc` helpers |
 | Contaminant masks | `maximask`, `maxitrack` (own TF venv — not mixed with science Python) |
 | DIA (difference imaging) | **`sfft`**, `zogyp` (modern; not HOTPANTS) |
 | Mask / weight | `weightwatcher`, `missfits`, gnuastro `astnoisechisel` / `astsegment` |
+| Astrometry / WCS | `twirl`, `astrometry.net`, `tweakwcs` |
 | PSF | `psfex`, `piff`, gnuastro `astscript-psf-*`, `galfit`, `imfit` |
+| Morphology / galaxy fitting | `statmorph`, `petrofit`, `galight` (+ `lenstronomy`) |
 | Mosaic / coadd | `swarp`, `montage`, `theli`, `reproject` |
 | Spherical / HEALPix | `healpy`, `healsparse`, `astropy-healpix`, `mocpy`, `hpgeom` |
+| General imaging / archives | `scikit-image`, `opencv` (`cv2`), `astroquery`, `montage-wrapper` |
 | Pretty pictures | `stiff`, `fitspng`, `fitscut`, `astconvertt`, ImageMagick |
 | FITS / HDF5 / tables | cfitsio utils, `fitsverify`, `topcat`/`stilts`, `pqrs`, `h5dump` |
 
 Science Python lives in `/opt/astroai/venv/improc` (on PATH). MaxiMask uses a
 **separate** `/opt/astroai/venv/maximask` so TensorFlow cannot conflict with
-GalSim/numba; only the `maximask` / `maxitrack` wrappers are on PATH.
+GalSim/numba; only the `maximask` / `maxitrack` wrappers are on PATH. `ngmix`
+(Sheldon's Gaussian-mixture image/shape tools) has no PyPI release, so it lives
+in its own conda env at `/opt/astroai/conda/ngmix` — use
+`/opt/astroai/conda/ngmix/bin/python` to import it.
+
+A complete Stuff → SkyMaker → SExtractor simulation workflow (generate a
+synthetic galaxy field, render it, extract sources) is in
+`examples/improc/simulate_field.sh` — see `examples/improc/README.md`.
 
 ---
 

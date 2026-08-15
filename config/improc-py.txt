@@ -28,6 +28,27 @@ tweakwcs>=0.8
 sfft>=1.7.3
 zogyp>=1.6.3
 # properimage depends on broken tinynpydb (fails on Py3.13); ois is unmaintained.
+# pyzogy/zogy needs tensorflow-cpu (breaks the improc/maximask TF isolation); prose caps at Python<3.12.
+
+# Deblending / forward modeling / astrometry
+# scarlet: the PyPI sdist ships a py2-era version.py and undeclared build deps
+# (pybind11+peigen), so it is built from git in the Dockerfile like tractor.
+scarlet2>=0.5
+# scarlet2 pulls the JAX stack (jax, numpyro, optax, equinox) — acceptable; jaxlib has cp313 wheels.
+# tractor is built separately in the Dockerfile (git pin; needs swig+numpy+cython at build).
+twirl>=0.5
+
+# Galaxy profile / morphology fitting
+petrofit>=0.6
+# galight declares no deps on PyPI, so lenstronomy must be present for it to run.
+galight>=0.2
+lenstronomy>=1.14
+
+# General-purpose imaging + archive access
+scikit-image>=0.26
+opencv-python-headless>=4.10
+astroquery>=0.4
+montage-wrapper>=0.9
 
 # Spherical / HEALPix analysis
 healpy>=1.17

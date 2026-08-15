@@ -15,4 +15,6 @@ _improc_prepend() {
 
 _improc_prepend /opt/astroai/venv/improc/bin
 _improc_prepend /opt/astroai/conda/sxpp/bin
+# ngmix has no CLI; its python is reachable as /opt/astroai/conda/ngmix/bin/python
+_improc_prepend /opt/astroai/conda/ngmix/bin
 unset -f _improc_prepend

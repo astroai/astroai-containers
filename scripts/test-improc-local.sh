@@ -1,49 +1,65 @@
 #!/usr/bin/env bash
-# Local smoke for images.canfar.net/astroai/improc:<tag>
+# Local smoke for the improc image family:
+#   images.canfar.net/astroai/improc:<tag>
+#   images.canfar.net/astroai/improc-webterm:<tag>   (ttyd shell on improc)
+#   images.canfar.net/astroai/improc-notebook:<tag>  (JupyterLab on improc)
 set -euo pipefail
 
 TAG="${1:-${BUILD_TAG:-local}}"
-IMAGE="${REGISTRY:-images.canfar.net}/${OWNER:-astroai}/improc:${TAG}"
+REGISTRY="${REGISTRY:-images.canfar.net}"
+OWNER="${OWNER:-astroai}"
 
-echo "Testing ${IMAGE}"
-
-run() {
-    docker run --rm --entrypoint bash "${IMAGE}" -lc "$1"
+check_image() {
+    local name="$1"
+    local extra="$2"  # image-specific check, e.g. "command -v ttyd" (empty for improc)
+    local image="${REGISTRY}/${OWNER}/${name}:${TAG}"
+    echo "Testing ${image}"
+    docker run --rm --entrypoint bash "${image}" -lc "
+    source /etc/profile.d/astroai.sh 2>/dev/null || true
+    source /etc/profile.d/improc.sh
+    set -euo pipefail
+    missing=0
+    for c in \\
+      source-extractor sextractor swarp psfex scamp stiff missfits \\
+      fitscut fitspng fitsverify weightwatcher montage \\
+      galfit imfit pqrs topcat stilts fits2idia imcore \\
+      astconvertt astnoisechisel h5dump maximask maxitrack sky skymaker stuff; do
+      if ! command -v \"\$c\" >/dev/null; then
+        echo \"FAIL: missing \$c\"
+        missing=\$((missing + 1))
+      else
+        echo \"PASS: \$c -> \$(command -v \"\$c\")\"
+      fi
+    done
+    if ! command -v sourcextractor++ >/dev/null && ! command -v sourcextractor >/dev/null; then
+      echo \"FAIL: sourcextractor++\"
+      missing=\$((missing + 1))
+    else
+      echo \"PASS: sourcextractor++\"
+    fi
+    scamp_v=\$(scamp -v 2>&1 | head -1 || true)
+    echo \"\$scamp_v\" | grep -q '2\\.15' && echo \"PASS: \$scamp_v\" || { echo \"FAIL: SCAMP not 2.15 (\$scamp_v)\"; missing=\$((missing + 1)); }
+    /opt/astroai/venv/improc/bin/python -c \"import ccdproc, photutils, galsim, piff, astroscrappy, lacosmic, sfft, zogyp, healpy, healsparse, mocpy, hpgeom, scarlet, scarlet2, twirl, skimage, astroquery, cv2, petrofit, montage_wrapper, galight, lenstronomy, tractor; print('PASS: improc python imports')\"
+    /opt/astroai/conda/ngmix/bin/python -c \"import ngmix; print('PASS: ngmix')\"
+    /opt/astroai/venv/maximask/bin/python -c \"import tensorflow; import maximask_and_maxitrack; print('PASS: maximask venv')\"
+    if /opt/astroai/venv/improc/bin/python -c \"import tensorflow\" 2>/dev/null; then
+      echo \"FAIL: tensorflow leaked into improc venv\"
+      missing=\$((missing + 1))
+    else
+      echo \"PASS: tensorflow isolated from improc venv\"
+    fi
+    ${extra}
+    exit \"\$missing\"
+    "
+    echo "smoke passed for ${image}"
 }
 
-run 'source /etc/profile.d/astroai.sh 2>/dev/null || true
-source /etc/profile.d/improc.sh
-set -euo pipefail
-missing=0
-for c in \
-  source-extractor sextractor swarp psfex scamp stiff missfits \
-  fitscut fitspng fitsverify weightwatcher montage \
-  galfit imfit pqrs topcat stilts fits2idia imcore \
-  astconvertt astnoisechisel h5dump maximask maxitrack; do
-  if ! command -v "$c" >/dev/null; then
-    echo "FAIL: missing $c"
-    missing=$((missing + 1))
-  else
-    echo "PASS: $c -> $(command -v "$c")"
-  fi
-done
-if ! command -v sourcextractor++ >/dev/null && ! command -v sourcextractor >/dev/null; then
-  echo "FAIL: sourcextractor++"
-  missing=$((missing + 1))
-else
-  echo "PASS: sourcextractor++"
-fi
-scamp_v=$(scamp -v 2>&1 | head -1 || true)
-echo "$scamp_v" | grep -q '2\.15' && echo "PASS: $scamp_v" || { echo "FAIL: SCAMP not 2.15 ($scamp_v)"; missing=$((missing + 1)); }
-/opt/astroai/venv/improc/bin/python -c "import ccdproc, photutils, galsim, piff, astroscrappy, lacosmic, sfft, zogyp, healpy, healsparse, mocpy, hpgeom; print(\"PASS: improc python imports\")"
-/opt/astroai/venv/maximask/bin/python -c "import tensorflow; import maximask_and_maxitrack; print(\"PASS: maximask venv\")"
-if /opt/astroai/venv/improc/bin/python -c "import tensorflow" 2>/dev/null; then
-  echo "FAIL: tensorflow leaked into improc venv"
-  missing=$((missing + 1))
-else
-  echo "PASS: tensorflow isolated from improc venv"
-fi
-exit "$missing"
-'
+check_image improc ""
 
-echo "improc local smoke passed for ${IMAGE}"
+# improc-webterm: browser shell on improc — ttyd must be present.
+check_image improc-webterm "command -v ttyd >/dev/null && echo 'PASS: ttyd' || { echo 'FAIL: ttyd missing'; missing=\$((missing + 1)); }"
+
+# improc-notebook: JupyterLab on improc — the improc science kernel must be registered.
+check_image improc-notebook "jupyter kernelspec list 2>/dev/null | grep -q improc && echo 'PASS: improc jupyter kernel' || { echo 'FAIL: improc jupyter kernel not registered'; missing=\$((missing + 1)); }"
+
+echo "improc family local smoke passed (improc, improc-webterm, improc-notebook)"

@@ -27,7 +27,7 @@ help:
 	@echo "  make push-ray           push Ray images to Harbor"
 	@echo "  make push-improc        push improc stack to Harbor"
 	@echo "  make test-local         verify session images locally"
-	@echo "  make test-improc-local  verify improc CLIs locally"
+	@echo "  make test-improc-local  verify improc family locally (improc/webterm/notebook)"
 	@echo "  make test-agent-local   agent command matrix + no ~/.local pollution (all session images)"
 	@echo "  make test-ray           Ray container + local cluster + UI tests"
 	@echo "  make test-ray SMOKE=1   fast smoke: skip cluster formation"

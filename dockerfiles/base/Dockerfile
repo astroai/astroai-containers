@@ -16,7 +16,15 @@ LABEL org.opencontainers.image.title="AstroAI Base" \
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Keep apt layers lean: never install docs/man/info (dpkg excludes them).
+RUN printf '%s\n' \
+      'path-exclude=/usr/share/doc/*' \
+      'path-include=/usr/share/doc/*/copyright' \
+      'path-exclude=/usr/share/man/*' \
+      'path-exclude=/usr/share/info/*' \
+      'path-exclude=/usr/share/lintian/*' \
+      > /etc/dpkg/dpkg.cfg.d/01-nodoc \
+    && apt-get update && apt-get install -y --no-install-recommends \
     acl \
     autoconf \
     automake \
@@ -154,7 +162,8 @@ RUN uv venv /opt/astroai/venv/cadc \
     && test -f /etc/astroai-lab/profile.sh \
     && test -f /etc/astroai-lab/hooks.sh \
     && HOME=/tmp WORK=/srcdir SCRATCH=/scratch \
-       /opt/astroai/venv/cadc/bin/astroai-lab env export --no-ensure >/dev/null
+       /opt/astroai/venv/cadc/bin/astroai-lab env export --no-ensure >/dev/null \
+    && uv cache clean
 
 COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh scripts/lib/skaha-proxy.sh /opt/astroai/lib/
 COPY scripts/canfar-verify.sh scripts/canfar-verify-agents.sh scripts/bootstrap-canfar-registry.sh scripts/bootstrap-ray-manager-env.sh scripts/upgrade-cadc-tools.sh scripts/peek /opt/astroai/bin/
