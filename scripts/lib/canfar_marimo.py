@@ -26,7 +26,7 @@ import marimo as mo
 def file_browser(initial_path: str = "/scratch", **kwargs: object) -> object:
     """Return a ``mo.ui.file_browser`` configured for CANFAR session storage.
 
-    Navigation is unrestricted so users can reach ``/scratch``, ``/srcdir``,
+    Navigation is unrestricted so users can reach ``/scratch``, ``$WORK``,
     ``/arc/home/*``, and ``/arc/projects/*``. Include the return value as the
     cell's last expression (or in a layout) so it renders.
     """

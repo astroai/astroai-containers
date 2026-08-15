@@ -33,7 +33,7 @@ Welcome. Marimo notebooks are plain **`.py` files** — easy to git and review.
 - **`.py`, not `.ipynb`** — plain Python you can `git diff`.
 - **Reactive** — change a variable and every cell that reads it re-runs.
 - **Files** — use **Session Files** below, or **File → Open** (Cmd/Ctrl+O).
-  Symlinks `📁_scratch`, `📁_srcdir`, `📁_arc` sit next to this notebook.
+  Symlinks `📁_scratch`, `📁_work`, `📁_arc` sit next to this notebook.
 - **Terminal** — open a **webterm** tab for `git`, `canfar login`, `vcp`, and
   mutating `astroai-lab` commands (`init`, `save`, `agent install`).
 
@@ -82,7 +82,7 @@ def _(mo):
         notes.append(f"`env export` skipped: `{exc}`")
 
     scratch = pathlib.Path(os.environ.get("SCRATCH", "").strip() or "/scratch")
-    work = pathlib.Path(os.environ.get("WORK", "").strip() or "/srcdir")
+    work = pathlib.Path(os.environ.get("WORK", "").strip() or "/scratch/src")
 
     lines = [
         f"- **work** (`WORK`): `{work}`",
@@ -174,7 +174,7 @@ def _(fb, mo):
 - `/scratch` — fast session SSD for data and caches
 - `/arc/home/<you>` — persistent home (config, credentials)
 - `/arc/projects/<group>` — persistent shared datasets
-- `/srcdir` — session code workspace
+- `$WORK` — session code workspace (`/scratch/src` on CANFAR)
 
 Selected paths from the browser appear here.
 """

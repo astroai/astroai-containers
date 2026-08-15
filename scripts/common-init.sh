@@ -66,8 +66,8 @@ if [[ ! -f "${_state}/welcomed" ]]; then
   astroai-lab init <name>     New project       astroai-lab help     Full command list
   astroai-lab clone <repo>    Clone from GitHub  less /opt/astroai/USAGE.md  Full docs
 
-  Storage: /srcdir (code)  /scratch (session-private data)  /arc (shared across sessions)
-  Persist: astroai-lab save / git push  (session disks are ephemeral)
+  Storage: $WORK (code)  $SCRATCH (data/caches)  /arc (shared across sessions)
+  Persist: astroai-lab save / git push  (session disks die with the session; $WORK survives container OOM)
   Agents:  astroai-lab agent install claude|goose|opencode|codex
 WELCOME
         if [[ "${ASTROAI_SESSION_KIND:-}" == "webterm" ]]; then

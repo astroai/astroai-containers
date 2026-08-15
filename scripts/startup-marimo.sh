@@ -18,9 +18,9 @@ if [[ -f "${STARTER_SRC}" && ! -e "${STARTER_DST}" ]]; then
 fi
 
 # Convenience symlinks so File > Open and the file browser widget can reach
-# session storage (/scratch, /srcdir) and persistent storage (/arc) in one click.
+# session storage ($WORK, /scratch) and persistent storage (/arc) in one click.
 ln -sfn /scratch "${NOTEBOOKS_DIR}/📁_scratch" 2>/dev/null || true
-ln -sfn /srcdir "${NOTEBOOKS_DIR}/📁_srcdir" 2>/dev/null || true
+ln -sfn "${WORK:-/srcdir}" "${NOTEBOOKS_DIR}/📁_work" 2>/dev/null || true
 ln -sfn /arc "${NOTEBOOKS_DIR}/📁_arc" 2>/dev/null || true
 
 cd "${NOTEBOOKS_DIR}"

@@ -16,7 +16,7 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
 
 1. Portal → launch **openresearch** or **openworker** as your day-to-day home base (or webterm/vscode/notebook/marimo/ray-manager as needed).
 2. Inside: `astroai-lab` · `astroai-lab help` · `less /opt/astroai/USAGE.md`
-3. Work under `/srcdir` (code) and `/scratch` (data/caches).
+3. Work under `$WORK` (code; `/scratch/src` on CANFAR so container OOM does not wipe it) and `/scratch` (data/caches).
 4. Persist to `/arc/home` or `/arc/projects` before the session ends (`astroai-lab save` / `git push`).
 5. Env snapshots live in `~/.astroai/lab/saves/` on `/arc/home` — resume them in the next session with `astroai-lab resume NAME`.
 
@@ -47,7 +47,7 @@ canfar open <session-id>
 
 | Tier | Path | Lifetime | Shared across sessions? |
 |------|------|----------|-------------------------|
-| Work | `/srcdir` (`WORK`) | Session | No |
+| Work | `$WORK` (`/scratch/src`) | Session (survives container OOM) | No |
 | Scratch | `/scratch` (`SCRATCH`) | Session | **No** — other sessions cannot see it |
 | Home | `/arc/home/<you>` | Persistent | **Yes** |
 | Projects | `/arc/projects/<group>` | Persistent | **Yes** (group ACLs) |
@@ -118,7 +118,7 @@ Compilers and editors are in interactive images; put CUDA/ML stacks in your pixi
 |-------|-------|
 | `webterm` | ttyd + tmux on `:5000` |
 | `vscode` | OpenVSCode on `:5000` |
-| `marimo` | Reactive `.py` notebooks; starter seeded once under `/srcdir/notebooks` |
+| `marimo` | Reactive `.py` notebooks; starter seeded once under `$WORK/notebooks` |
 | `notebook` | JupyterLab `:8888`. Stock Skaha may run platform Jupyter CMD — AstroAI `startup-notebook.sh` only with a platform override ([OPERATORS.md](OPERATORS.md)) |
 | `openresearch` | Autoresearch UI (`orx`) on `:5000`; AstroAI hub at `/astroai-agents/` (batch compute + agent list) |
 | `openworker` | OpenWorker browser UI + local agent server (no Tauri); AstroAI hub at `/astroai-agents/` |

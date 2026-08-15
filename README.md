@@ -107,7 +107,7 @@ examples/ray/  container-local Ray smokes
 
 - **Same images for CPU and GPU** — choose the node in the portal; CUDA/ML stacks via pixi/uv in the project.
 - **Bake graph:** `python` → fat `base` (compilers + session tools) → interactive sessions and `improc`; slim `ray-base` (from `python`) → `ray-worker`; fat `base` → `ray-manager` (scientists use its shell/UI).
-- **Fast session disks:** `WORK` (`/srcdir`) for code, `SCRATCH` (`/scratch`) for data and caches (session-private); `/arc/home` and `/arc/projects` are shared across sessions. Hourly `/srcdir` backup + `astroai-lab` persist to `/arc`.
+- **Fast session disks:** `WORK` is `$SCRATCH/src` when `/srcdir` is the container overlay (OOM-fragile) and `/scratch` is a volume; `SCRATCH` (`/scratch`) holds data and caches. Both are session-private. `/arc/home` and `/arc/projects` are shared across sessions. Persist with `astroai-lab save` / `git push`.
 - **Skaha types:** Contributed listen on **5000**; Notebook on **8888**.
 - **Auth at the edge:** Session UIs trust CANFAR TLS + portal login. Use these images only behind an authenticating reverse proxy.
 
