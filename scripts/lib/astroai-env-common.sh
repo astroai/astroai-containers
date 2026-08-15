@@ -50,10 +50,40 @@ astroai_src_dir() {
 }
 
 # Echo integer 0-100 used percentage for path, or empty if unknown.
+# Prefer Ceph directory quota xattrs. df on /arc/home is the shared pool,
+# not the user's quota — never use it for home.
 astroai_quota_used_pct() {
     local path="${1:-}"
     [[ -d "${path}" ]] || return 0
-    df "${path}" 2>/dev/null | awk 'NR>1 {used=$3; size=$2; if(size>0) printf "%.0f", (used/size)*100; else print 0}'
+    if command -v getfattr >/dev/null 2>&1; then
+        local _cur="${path}" _max _used _i
+        for _i in 1 2 3 4 5 6 7 8; do
+            _max="$(getfattr --only-values -n ceph.quota.max_bytes "${_cur}" 2>/dev/null || true)"
+            _max="${_max//[!0-9]/}"
+            if [[ -n "${_max}" && "${_max}" -gt 0 ]]; then
+                _used="$(getfattr --only-values -n ceph.dir.rbytes "${_cur}" 2>/dev/null || true)"
+                _used="${_used//[!0-9]/}"
+                if [[ -n "${_used}" ]]; then
+                    awk -v u="${_used}" -v t="${_max}" 'BEGIN {
+                        if (t>0) printf "%.0f", (u/t)*100
+                        else print 0
+                    }'
+                    return 0
+                fi
+                break
+            fi
+            [[ "${_cur}" == "/" ]] && break
+            _cur="$(dirname "${_cur}")"
+        done
+    fi
+    local resolved
+    resolved="$(readlink -f "${path}" 2>/dev/null || echo "${path}")"
+    if [[ "${resolved}" == /arc/home || "${resolved}" == /arc/home/* ]]; then
+        return 0
+    fi
+    df "${path}" 2>/dev/null | awk 'NR>1 {
+        pct=$5; gsub(/%/, "", pct); print pct
+    }'
 }
 
 # Echo /arc/projects/<name> when start path is inside a project, else empty.

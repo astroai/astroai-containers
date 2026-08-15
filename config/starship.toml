@@ -1,41 +1,37 @@
-# Starship configuration for AstroAI webterm
+# Prompt for webterm sessions: path, git, python, slow-command duration.
 
-format = """
-[AstroAI](cyan bold) $directory $git_branch$git_status$python$kubernetes$cmd_duration
-[└─>](blue bold) """
+format = """$directory$git_branch$git_status$python$cmd_duration$character"""
 
-add_newline = true
+add_newline = false
 
 [directory]
-style = "blue bold"
-format = "in [$path]($style)"
+style = "blue"
+format = "[$path]($style) "
 truncation_length = 3
 truncation_symbol = "…/"
 
 [git_branch]
-symbol = "git:"
-style = "green bold"
-format = "on [$symbol$branch]($style)"
+symbol = ""
+style = "green"
+format = "[$branch]($style) "
 
 [git_status]
-style = "red bold"
-format = "[($all_status$ahead_behind)]($style) "
+style = "red"
+format = "[$all_status$ahead_behind]($style) "
 
 [python]
-symbol = "py:"
-style = "yellow bold"
-format = "using [$symbol$version]($style) "
+symbol = ""
+style = "yellow"
+format = "[$version]($style) "
 
 [cmd_duration]
-style = "purple bold"
-format = "took [$duration]($style) "
+min_time = 2000
+style = "purple"
+format = "[$duration]($style) "
 
 [kubernetes]
-symbol = "kube:"
-style = "magenta bold"
-format = "at [$symbol$context]($style) "
-disabled = false
+disabled = true
 
 [character]
-success_symbol = "[➜](green bold) "
-error_symbol = "[➜](red bold) "
+success_symbol = "[>](bold green) "
+error_symbol = "[>](bold red) "

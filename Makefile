@@ -242,6 +242,9 @@ test-host: ## docker-free checks (selfchecks + agent-wizard unit tests)
 	./scripts/peek_selfcheck.sh
 	./scripts/osc52_copy_selfcheck.sh
 	python3 scripts/lib/test_agent_wizard_verbs.py
+	@! grep -F '[AstroAI]' config/starship.toml
+	@! grep -E 'format = "in ' config/starship.toml
+	@grep -q 'disabled = true' config/starship.toml
 
 lint: ## lockfile drift + doc-quota guard + docker-free host tests
 	$(MAKE) lock-check
