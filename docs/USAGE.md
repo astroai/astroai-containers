@@ -92,7 +92,7 @@ Dashboard: `connectURL/dashboard/`. Full detail: [RAY.md](RAY.md). Prefer manage
 
 Manual fallback: Settings → Compute → Ray with the manager Jobs URL (`connectURL/dashboard`). Cluster lifecycle stays on the hub / ray-manager — not a CANFAR card in upstream OpenResearch.
 
-Put env saves on `/arc` (`~/.astroai/lab/saves/` or `/arc/projects/<group>/env-saves/`). Slim workers can resume with `ASTROAI_LAB_RESUME=<name>` (optional) before joining — see RAY.md.
+Put env saves on `/arc` (`~/.astroai/lab/saves/` or `/arc/projects/<group>/env-saves/` via `save --to` / `resume --from`). Ray workers join with the image venv; restore a save in an interactive session if you need that stack on `$WORK`.
 
 ---
 
@@ -100,7 +100,8 @@ Put env saves on `/arc` (`~/.astroai/lab/saves/` or `/arc/projects/<group>/env-s
 
 ```bash
 astroai-lab init mylab          # or clone owner/repo
-astroai-lab save / resume --yes
+astroai-lab save mylab
+astroai-lab --yes resume mylab  # or: astroai-lab resume mylab --yes
 astroai-lab agent setup         # once (UI sessions auto-run in background; webterm opt-in)
 astroai-lab agent install claude
 # Or open /astroai-agents/ for Start batch compute and per-agent Install / Setup

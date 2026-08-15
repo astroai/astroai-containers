@@ -38,6 +38,11 @@ echo "Ray container verification"
 [[ "${SMOKE}" -eq 1 ]] && echo "(smoke mode — core checks only)"
 echo "=========================="
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+check "worker has no ASTROAI_LAB_RESUME hook" \
+    bash -c "! grep -q ASTROAI_LAB_RESUME '${ROOT}/ray/worker/start-worker.sh'"
+
 check "ray-manager startup.sh" docker run --rm --entrypoint test "${MGR}" -x /skaha/startup.sh
 check "ray-worker entrypoint" docker run --rm --entrypoint test "${WRK}" -x /opt/astroai/bin/start-ray-worker.sh
 check "ray installed" docker run --rm --entrypoint python "${WRK}" -c "import ray; print(ray.__version__)"

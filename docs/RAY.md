@@ -41,15 +41,10 @@ every node. Persist cluster state under `/arc/home/<user>/` or
 | `ray-worker` | Headless | Manager launches workers | Slim `ray-base` (from `python`) |
 | `ray-base` | Build-only | — | Minimal apt + `astroai-lab` + Ray |
 
-Workers can optionally restore an env save from `/arc` before joining:
-
-```bash
-# set by manager env or headless create --env
-ASTROAI_LAB_RESUME=mylab
-ASTROAI_LAB_RESUME_FROM=/arc/projects/mygroup/env-saves   # optional
-```
-
-Default saves: `~/.astroai/lab/saves/`. `/scratch` is **per-pod** — not shared with the manager or other sessions; put shared data on `/arc`.
+Workers join with the image Ray venv. Env snapshots stay on `/arc`
+(`astroai-lab save` / `resume` in an interactive session). `/scratch` is
+**per-pod** — not shared with the manager or other sessions; put shared data
+on `/arc`.
 
 ## Build and test
 
