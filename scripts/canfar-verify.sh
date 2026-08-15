@@ -99,7 +99,7 @@ if [[ "${AGENTS}" -eq 0 ]]; then
 process_batch < <(batch_login <<'CHECK_BATCH'
 astroai-lab status --json >/dev/null 2>&1 && echo "PASS:astroai-lab status" || echo "FAIL:astroai-lab status"
 astroai-lab env export --json | grep -q '"WORK"' && echo "PASS:astroai-lab env export" || echo "FAIL:astroai-lab env export"
-astroai-lab saves --json >/dev/null 2>&1 && echo "PASS:astroai-lab saves" || echo "FAIL:astroai-lab saves"
+astroai-lab save --list --json >/dev/null 2>&1 && echo "PASS:astroai-lab save --list" || echo "FAIL:astroai-lab save --list"
 astroai-lab agent list >/dev/null 2>&1 && echo "PASS:astroai-lab agent list" || echo "FAIL:astroai-lab agent list"
 
 # WORK relocate: /srcdir on the overlay (same device as /) + writable /scratch
