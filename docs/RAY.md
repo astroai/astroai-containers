@@ -21,10 +21,11 @@ flowchart TB
 
 | Path | Why |
 |------|-----|
-| Stock **Ray Dashboard** at `connectURL/dashboard/` | Jobs, actors, nodes, logs |
-| Manager control panel at `/` | Auth, preflight, create/stop cluster |
-| AstroAI hub → **Start batch compute** | Ensures manager + workers + orx wiring (idempotent) |
-| **`astroai-workload run`** (on PATH in ray-manager) | Scripted Jobs submit / status / logs |
+| AstroAI hub → **Start batch compute** | Creates the ray-manager (this CLI cannot) |
+| **`astroai-workload cluster ensure --workers N`** | Starts a fixed number of workers from any AstroAI session |
+| **`astroai-workload run train.py`** | Runs a program on that cluster and waits |
+| Ray Dashboard at `connectURL/dashboard/` | Watch jobs, nodes, logs. Not the submit command. |
+| Manager control panel at `/` | Auth, network check, fallback create/stop |
 | One `ray-worker` image | Request `gpus=N` per worker; CPU and GPU share the image |
 
 
@@ -146,6 +147,22 @@ Local UI smoke: `./scripts/test-ray-ui-local.sh` (part of `make test-ray`).
 
 ## Cluster workflow
 
+From a notebook or webterm, after the manager exists:
+
+```bash
+astroai-workload cluster ensure --workers 2
+export ASTROAI_RAY_JOBS_ADDRESS=…    # printed by ensure
+astroai-workload run train.py --cpus 2
+astroai-workload cluster scale 0
+```
+
+`run` does not start workers. `cluster ensure` does not create the manager.
+Autoscaling (Ray starts and stops workers by itself) is below; it is not this
+path.
+
+The manager UI still exists for auth, the network check, and fallback
+create/stop. Sequence when using the UI:
+
 ```mermaid
 sequenceDiagram
   participant U as User
@@ -158,7 +175,7 @@ sequenceDiagram
   M->>C: Launch ray-worker sessions
   C->>W: Start workers
   W->>M: Join Ray head
-  U->>M: Open /dashboard/ or submit Jobs
+  U->>M: Open /dashboard/ or run jobs from CLI
   U->>M: Stop cluster
   M->>C: Delete workers
 ```
@@ -244,5 +261,5 @@ examples/ray/                Container smokes
 
 - [USAGE.md](USAGE.md) — general sessions
 - [OPERATORS.md](OPERATORS.md) — publish and platform notes
-- [astroai-workload](https://github.com/astroai/astroai-workload) — Jobs CLI (`astroai-workload run`) + MNIST example
+- [astroai-workload](https://github.com/astroai/astroai-workload) — `cluster ensure` + `run` (not `ray job submit`)
 - Starter notebook in-image: `/opt/astroai/notebooks/ray_train.ipynb`
