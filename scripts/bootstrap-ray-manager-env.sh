@@ -27,6 +27,14 @@ lab_dir="${HOME}/.config/canfar/lab"
 mkdir -p "${lab_dir}"
 env_file="${lab_dir}/ray-manager.env"
 
+# ENABLED!=1 (or unset) removes a leftover file so the next contributed
+# manager does not inherit autoscaling from a prior test/session.
+if [[ "${RAY_AUTOSCALING_ENABLED:-0}" != "1" ]]; then
+    rm -f "${env_file}"
+    echo "ray-manager.env removed (autoscaler off)"
+    exit 0
+fi
+
 # Truncate any stale file first, then write every RAY_AUTOSCALING_* var that is
 # present in the environment (values are numeric today; keep them free of
 # spaces/$ so `set -a; source` in startup-ray-manager.sh parses cleanly).

@@ -92,6 +92,55 @@ PY
     export CANFAR_REGISTRY__URL="${CANFAR_REGISTRY__URL:-https://${REGISTRY}}"
 }
 
+# Sticky ~/.config/canfar/lab/ray-manager.env on /arc/home survives across
+# manager sessions. A prior autoscaler run leaves RAY_AUTOSCALING_ENABLED=1,
+# and the next `make test-canfar-ray` (autoscaling off) then spawns ray-as-*
+# workers until Skaha's headless Pending flake turns that into a flood.
+clear_sticky_autoscaler_env() {
+    [[ "${CANFAR_RAY_AUTOSCALING}" == "1" ]] && return 0
+    local user="${CANFAR_ARC_USER:-}"
+    if [[ -z "${user}" && -r "${HOME}/.canfar/config.yaml" ]]; then
+        user="$(awk '/^[[:space:]]*username:/{print $2; exit}' "${HOME}/.canfar/config.yaml")"
+    fi
+    if [[ -z "${user}" ]]; then
+        echo "Warning: cannot resolve /arc/home user — leftover ray-manager.env may still enable autoscaling." >&2
+        return 0
+    fi
+    local env_path="/arc/home/${user}/.config/canfar/lab/ray-manager.env"
+    local bootstrap_name="ray-asoff-${TAG_SAFE}-$(date -u +%Y%m%d%H%M%S)"
+    local base_image="${REGISTRY}/${OWNER}/base:${TAG}"
+    echo "Clearing leftover ${env_path} (autoscaler off for this run)..."
+    local create_out="" bootstrap_id="" status=""
+    # Skaha splits args on whitespace; `rm -f /absolute/path` is two tokens.
+    create_out="$(canfar create --name "${bootstrap_name}" --cpu 1 --memory 1 \
+        headless "${base_image}" -- rm -f "${env_path}" 2>&1)" || {
+        echo "${create_out}" >&2
+        echo "Warning: could not clear ray-manager.env" >&2
+        return 0
+    }
+    bootstrap_id="$(printf '%s\n' "${create_out}" | sed -n 's/.*(ID:[[:space:]]*\([^)]*\)).*/\1/p' | awk '{print $1}')"
+    [[ -n "${bootstrap_id}" ]] || bootstrap_id="$(canfar_ps_field name "${bootstrap_name}" id)"
+    [[ -n "${bootstrap_id}" ]] || return 0
+    local deadline=$((SECONDS + "${CANFAR_BOOTSTRAP_TIMEOUT:-120}"))
+    local pending_since="${SECONDS}"
+    while (( SECONDS < deadline )); do
+        status="$(canfar_ps_field id "${bootstrap_id}" status)"
+        case "${status}" in
+            Succeeded|Completed) break ;;
+            Failed|Error) break ;;
+            Pending)
+                if (( SECONDS - pending_since > "${CANFAR_BOOTSTRAP_PENDING_MAX:-90}" )); then
+                    break
+                fi
+                ;;
+            *) pending_since="${SECONDS}" ;;
+        esac
+        sleep 5
+    done
+    canfar delete --force "${bootstrap_id}" 2>/dev/null || true
+    echo "ray-manager.env clear attempt finished (status=${status:-unknown})."
+}
+
 bootstrap_ray_autoscaler_env() {
     [[ "${CANFAR_RAY_AUTOSCALING}" == "1" ]] || return 0
     local bootstrap_name="ray-ascfg-${TAG_SAFE}-$(date -u +%Y%m%d%H%M%S)"
@@ -443,6 +492,9 @@ else
     echo "Warning: registry bootstrap skipped/failed — relying on existing /arc/home canfar config." >&2
 fi
 
+if ! clear_sticky_autoscaler_env; then
+    echo "Warning: sticky autoscaler env clear failed." >&2
+fi
 if ! bootstrap_ray_autoscaler_env; then
     echo "Could not persist autoscaler env — aborting." >&2
     exit 1

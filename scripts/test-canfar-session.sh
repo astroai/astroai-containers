@@ -10,11 +10,12 @@
 #   ./scripts/test-canfar-session.sh vscode 26.08
 #   ./scripts/test-canfar-session.sh marimo 26.08
 #   ./scripts/test-canfar-session.sh openresearch 26.08
+#   ./scripts/test-canfar-session.sh improc-notebook 26.08
 #
 # Environment:
 #   REGISTRY, OWNER, CANFAR_TEST_TIMEOUT (default 900)
 
-IMAGE="${1:?image name required (webterm|notebook|vscode|marimo|openresearch|openworker|ray-manager)}"
+IMAGE="${1:?image name required (webterm|notebook|vscode|marimo|openresearch|openworker|ray-manager|improc-webterm|improc-notebook)}"
 TAG="${2:-${TAG:-latest}}"
 OWNER="${OWNER:-astroai}"
 REGISTRY="${REGISTRY:-images.canfar.net}"
@@ -36,8 +37,8 @@ SESSION_ID=""
 FAILURES=0
 
 case "${IMAGE}" in
-    notebook) KIND=notebook ;;
-    *)        KIND=contributed ;;
+    *notebook) KIND=notebook ;;
+    *)         KIND=contributed ;;
 esac
 
 # Ray manager runs Ray head + Dashboard — needs ≥8 GiB (see RAY.md / OPERATORS).
