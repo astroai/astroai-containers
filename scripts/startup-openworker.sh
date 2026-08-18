@@ -55,5 +55,6 @@ fi
 python3 /opt/astroai/lib/openworker-canfar-proxy.py &
 PROXY_PID=$!
 
+astroai_boot_log "openworker+proxy ready, waiting"
 wait -n "${OW_PID}" "${PROXY_PID}"
 exit $?

@@ -30,4 +30,5 @@ if [[ -n "${skaha_sessionid:-}" ]]; then
     OPS+=(--server-base-path "$(astroai_skaha_base_url "${skaha_sessionid}" contrib)")
 fi
 
+astroai_boot_log "exec openvscode-server"
 exec /opt/openvscode-server/bin/openvscode-server "${OPS[@]}"

@@ -89,5 +89,6 @@ python3 /opt/astroai/lib/orx-canfar-proxy.py &
 PROXY_PID=$!
 
 # Main UI + proxy; wizard exit must not take down the session.
+astroai_boot_log "orx+proxy ready, waiting"
 wait -n "${ORX_PID}" "${PROXY_PID}"
 exit $?

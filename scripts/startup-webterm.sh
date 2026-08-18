@@ -14,6 +14,8 @@ TTYD_ARGS=(
     --writable
     --port 5000
     --index /cadc/index.html
+    # lws: ERR|WARN|NOTICE|INFO so client connect shows in canfar logs
+    --debug 15
     -w "${PWD}"
     -t "titleFixed=$(astroai_session_title "AstroAI Webterm")"
     -t 'theme={"background":"#1e1e2e","foreground":"#cdd6f4","cursor":"#f5e0dc","selectionBackground":"#585b70"}'
@@ -23,5 +25,6 @@ TTYD_ARGS=(
     -t rightClickSelectsWord=false
 )
 
+astroai_boot_log "exec ttyd"
 exec ttyd "${TTYD_ARGS[@]}" \
     tmux new-session -A -s astroai bash -l

@@ -1,10 +1,21 @@
 #!/bin/bash -e
 # Shared session setup: code on WORK, data on SCRATCH, config on /arc.
 
+if [[ -f /opt/astroai/lib/astroai-env-common.sh ]]; then
+    # shellcheck disable=SC1091
+    source /opt/astroai/lib/astroai-env-common.sh
+fi
+if ! declare -F astroai_boot_log >/dev/null 2>&1; then
+    astroai_boot_log() { echo "[astroai-boot] $*" >&2 || true; }
+fi
+
+astroai_boot_log "common-init:start"
+
 if [[ -f /etc/profile.d/astroai.sh ]]; then
     # shellcheck disable=SC1091
     source /etc/profile.d/astroai.sh
 fi
+astroai_boot_log "common-init:profile.d done"
 
 _cache_dirs=(
     "${ASTROAI_LAB_BIN_DIR:-${HOME}/.local/bin}"
@@ -31,18 +42,14 @@ for d in "${_cache_dirs[@]}"; do
     mkdir -p "${d}"
 done
 chmod 700 "${HOME}/.ssh" 2>/dev/null || true
+astroai_boot_log "common-init:dirs ready"
 
 if [[ -n "${TMPDIR:-}" ]]; then
     mkdir -p "${TMPDIR}"
 fi
 
-# Source lib for quota helper before the quota check
-if [[ -f /opt/astroai/lib/astroai-env-common.sh ]]; then
-    # shellcheck disable=SC1091
-    source /opt/astroai/lib/astroai-env-common.sh
-fi
-
 command -v astroai_quota_startup_check &>/dev/null && astroai_quota_startup_check
+astroai_boot_log "common-init:quota done"
 
 if astroai_scratch_available; then
     git config --global --add safe.directory "$(astroai_scratch_dir)" 2>/dev/null || true
@@ -51,6 +58,7 @@ _src_root="$(astroai_src_dir)"
 git config --global --add safe.directory "${_src_root}" 2>/dev/null || true
 mkdir -p "${_src_root}"
 cd "${_src_root}"
+astroai_boot_log "common-init:work=${PWD}"
 
 # Track session start time for astroai status; reset per-session auto-archive markers
 _state="${ASTROAI_LAB_CONFIG_DIR:-${HOME}/.astroai/lab}"
@@ -84,10 +92,11 @@ fi
 
 # Notebook-safe caches even when platform overrides Jupyter CMD.
 if command -v astroai >/dev/null 2>&1; then
-  # Apply cache redirects for this process tree.
+  astroai_boot_log "common-init:env export"
   eval "$(astroai env export 2>/dev/null)" || true
-  # Scratch-safe default kernel — notebook sessions only (slow pip install).
+  astroai_boot_log "common-init:env export done"
   if [[ "${ASTROAI_SESSION_KIND:-}" == "notebook" || "${ASTROAI_LAB_ENSURE_KERNEL:-}" == "1" ]]; then
+    # Scratch-safe default kernel — notebook sessions only (slow pip install).
     astroai kernel ensure --name astroai >/dev/null 2>&1 || true
   fi
   # Agent configs (MCP, rules, skills). UI sessions default to background setup;
@@ -137,3 +146,4 @@ if command -v astroai >/dev/null 2>&1; then
 fi
 
 unset ASTROAI_LAB_PROFILE_LOADED
+astroai_boot_log "common-init:done"

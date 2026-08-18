@@ -52,6 +52,7 @@ fi
 
 TITLE="$(astroai_session_title "AstroAI Notebook")"
 
+astroai_boot_log "exec jupyter lab"
 exec jupyter lab \
     --ip 0.0.0.0 \
     --port "${PORT}" \

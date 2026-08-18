@@ -50,6 +50,7 @@ fi
 # (same as webterm). Do not pass --base-url here — marimo would only serve under
 # that prefix and the proxied request for / would 404.
 
+astroai_boot_log "exec marimo"
 exec marimo --log-level warn edit \
     --no-token \
     --port 5000 \
