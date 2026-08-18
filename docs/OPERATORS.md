@@ -102,7 +102,7 @@ entrypoint, ask the science-platform team for a per-image override that sets
 1. Push `images.canfar.net/astroai/*:<tag>` (sessions + Ray + improc stack).
 2. Register Contributed: `webterm`, `vscode`, `marimo`, `openresearch`, `openworker`, `ray-manager`, `improc-webterm` → port **5000**.
 3. Register Notebook: `notebook`, `improc-notebook` → port **8888**.
-4. Leave `base`, `ray-base`, `ray-worker`, and `improc` (headless) off the interactive catalog (or list `improc` under headless only).
+4. Leave `base`, `ray-worker`, and `improc` (headless) off the interactive catalog (or list `improc` under headless only). `python` and `ray-base` are bake-only, never Harbor images.
 5. Document the published tag for users (`YY.MM`).
 6. Smoke: `make test-canfar-session IMAGE=webterm TAG=…`, `IMAGE=openresearch`, `IMAGE=openworker`, `IMAGE=improc-webterm`, and `make test-canfar-ray TAG=…`.
 7. **Agent verbs:** `make test-canfar-agents TAG=…` (lightweight in-session probe of the full agent verb surface — required after every image push; see below).

@@ -102,10 +102,11 @@ Put env saves on `/arc` (`~/.astroai/lab/saves/` or `/arc/projects/<group>/env-s
 ```bash
 astroai init mylab          # or clone owner/repo
 astroai save mylab
-astroai --yes resume mylab  # or: astroai resume mylab --yes
+astroai --yes resume mylab
+astroai cluster start --autoscaling
+astroai run train.py --cpus 2
 astroai agent setup         # once (UI sessions auto-run in background; webterm opt-in)
 astroai agent install claude
-# Or open /astroai-agents/ for Start batch compute and per-agent Install / Setup
 astroai kernel ensure       # notebook
 ```
 
@@ -190,5 +191,5 @@ astroai status --json
 
 ## Related
 
-- [astroai-lab](https://github.com/astroai/lab) — CLI detail (`astroai run` / `cluster`)
+- [astroai/lab](https://github.com/astroai/lab) — `astroai` CLI (`cluster` / `run` / `save` / `agent`)
 - [OPERATORS.md](OPERATORS.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [RAY.md](RAY.md)

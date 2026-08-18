@@ -30,7 +30,7 @@ flowchart TB
 | **AstroAI** | This product: GitHub [`astroai`](https://github.com/astroai), Harbor project `astroai`, images and tools |
 | **CANFAR** | Hosting platform: portal, Skaha, auth, `/arc`, scheduling |
 | **`canfar`** | Platform CLI — login, create/list/delete sessions |
-| **`astroai`** | In-session workbench (installed into these images via lockfile) |
+| **`astroai`** | In-session CLI: project env, Ray cluster/jobs, agents |
 | **`images.canfar.net/astroai/*`** | AstroAI images on CANFAR Harbor (host ≠ product name) |
 
 ## Sessions
@@ -93,7 +93,7 @@ Default `TAG` is current UTC `YY.MM` (for example `26.08`).
 ## Layout
 
 ```
-dockerfiles/   python → base → sessions | improc; python → ray-base → worker; base → ray-manager
+dockerfiles/   python (untagged bake parent) → base → sessions | improc; python → ray-base → worker; base → ray-manager
 ray/           manager FastAPI app + worker helpers
 scripts/       startup-*.sh, test-*.sh, profile
 config/        astroai-lab.lock, ray-deps.lock, improc-py.txt, notebooks (synced from lab)
@@ -104,7 +104,7 @@ examples/ray/  container-local Ray smokes
 ## Design
 
 - **Same images for CPU and GPU** — choose the node in the portal; CUDA/ML stacks via pixi/uv in the project.
-- **Bake graph:** `python` → fat `base` (compilers + session tools) → interactive sessions and `improc`; slim `ray-base` (from `python`) → `ray-worker`; fat `base` → `ray-manager` (scientists use its shell/UI).
+- **Bake graph:** untagged `python` stage → fat `base` (compilers + session tools) → interactive sessions and `improc`; slim `ray-base` (from that python stage) → `ray-worker`; fat `base` → `ray-manager`. `python` is not published to Harbor.
 - **Fast session disks:** `WORK` is `$SCRATCH/src` when `/srcdir` is the container overlay (OOM-fragile) and `/scratch` is a volume; `SCRATCH` (`/scratch`) holds data and caches. Both are session-private. `/arc/home` and `/arc/projects` are shared across sessions. Persist with `astroai save` / `git push`.
 - **Skaha types:** Contributed listen on **5000**; Notebook on **8888**.
 - **Auth at the edge:** Session UIs trust CANFAR TLS + portal login. Use these images only behind an authenticating reverse proxy.

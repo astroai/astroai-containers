@@ -14,7 +14,7 @@ flowchart TB
   Pref --> W2[ray-worker]
   Mgr --> Dash["/dashboard/ → Ray Dashboard :8265"]
   Mgr --> Jobs["ASTROAI_RAY_JOBS_ADDRESS → Jobs API"]
-  Jobs --> WL["astroai_workload RayExecutor"]
+  Jobs --> Run["astroai run"]
 ```
 
 ## Prefer
@@ -40,7 +40,7 @@ every node. Persist cluster state under `/arc/home/<user>/` or
 | Image | Skaha type | Portal | Parent |
 |-------|------------|--------|--------|
 | `ray-manager` | Contributed | Register — users launch this | Fat `base` (compilers + shell tools) |
-| `ray-worker` | Headless | Manager launches workers | Slim `ray-base` (from `python`) |
+| `ray-worker` | Headless | Manager launches workers | Slim `ray-base` (python bake stage) |
 | `ray-base` | Build-only | — | Minimal apt + `astroai` + Ray |
 
 Workers join with the image Ray venv. Env snapshots stay on `/arc`

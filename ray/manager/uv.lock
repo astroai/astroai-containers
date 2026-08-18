@@ -36,7 +36,7 @@ wheels = [
 [[package]]
 name = "astroai-lab"
 version = "0.4.0"
-source = { git = "https://github.com/astroai/lab.git#0f1e7314ef849d44d68fcc52fe71913abf76a286" }
+source = { git = "https://github.com/astroai/lab.git#173193733eb2e3d02300ee82fccd59761dd1ee85" }
 dependencies = [
     { name = "canfar" },
     { name = "httpx" },
