@@ -47,7 +47,7 @@ def file_browser_tips() -> object:
 - `/scratch` — fast session SSD for data and caches
 - `/arc/home/<you>` — persistent home (config, credentials)
 - `/arc/projects/<group>` — persistent shared datasets
-- `/srcdir` — session code workspace
+- `$WORK` (`$SCRATCH/src`) — session code workspace
 """
     )
 

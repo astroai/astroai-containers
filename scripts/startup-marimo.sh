@@ -20,15 +20,15 @@ fi
 # Convenience symlinks so File > Open and the file browser widget can reach
 # session storage ($WORK, /scratch) and persistent storage (/arc) in one click.
 ln -sfn /scratch "${NOTEBOOKS_DIR}/📁_scratch" 2>/dev/null || true
-ln -sfn "${WORK:-/srcdir}" "${NOTEBOOKS_DIR}/📁_work" 2>/dev/null || true
+ln -sfn "${WORK:-${SCRATCH:-/scratch}/src}" "${NOTEBOOKS_DIR}/📁_work" 2>/dev/null || true
 ln -sfn /arc "${NOTEBOOKS_DIR}/📁_arc" 2>/dev/null || true
 
 cd "${NOTEBOOKS_DIR}"
 
-# Ensure marimo AI config exists with OpenRouter API key (astroai-lab agent setup marimo).
+# Ensure marimo AI config exists with OpenRouter API key (astroai agent setup marimo).
 # Non-destructive: only creates/seeds ~/.marimo.toml on first launch; never overwrites.
-if command -v astroai-lab >/dev/null 2>&1; then
-    astroai-lab --yes agent setup marimo 2>/dev/null || true
+if command -v astroai >/dev/null 2>&1; then
+    astroai --yes agent setup marimo 2>/dev/null || true
 fi
 
 # Prefer opening the starter notebook for a guided first screen. If the user

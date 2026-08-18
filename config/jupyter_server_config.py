@@ -18,7 +18,9 @@ c.ServerApp.open_browser = False
 c.ServerApp.allow_origin = "*"
 c.ServerApp.disable_check_xsrf = True
 c.ServerApp.trust_xheaders = True
-c.ServerApp.root_dir = os.environ.get("WORK", "/srcdir")
+c.ServerApp.root_dir = os.environ.get("WORK") or os.path.join(
+    os.environ.get("SCRATCH", "/scratch"), "src"
+)
 c.ServerApp.log_level = "WARN"
 c.FileContentsManager.delete_to_trash = False
 c.InlineBackend.figure_formats = {"png", "jpeg", "svg", "pdf"}

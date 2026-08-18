@@ -33,8 +33,8 @@ extend-ignore = ["SIM112"]
 # bounds here.
 #
 # Note: `make lock-ray` regenerates config/ray-deps.lock only — it does NOT
-# touch this directory's uv.lock. After bumping the astroai-workload git SHA
-# below, also run `uv lock` here and `make lock-workload` (config/astroai-workload.lock).
+# touch this directory's uv.lock. After astroai-lab main moves, run `uv lock`
+# here and `make lock-astroai-lab`.
 [project]
 name = "astroai-ray-manager"
 version = "0.1.0"
@@ -48,10 +48,10 @@ dependencies = [
     "python-multipart>=0.0.9",
     "httpx>=0.27",
     "websockets>=12",
-    # Cluster lifecycle + CANFAR ops live in astroai-workload (single home);
-    # the [cluster] extra pulls the canfar client for session ops. Unpinned:
-    # the container TAG is the user-facing version (uv lock resolves latest).
-    "astroai-workload[cluster] @ git+https://github.com/astroai/astroai-workload.git",
+    "canfar>=1.4.1",
+    # Cluster lifecycle + CANFAR ops ship in astroai-lab (`astroai_workload`).
+    # Unpinned: the container TAG is the user-facing version.
+    "astroai-lab @ git+https://github.com/astroai/lab.git",
 ]
 
 [dependency-groups]

@@ -11,12 +11,12 @@ fi
 # Map the platform vars to the canonical names here, before astroai-lab runs.
 # Platform vars win over image ENV defaults (the image sets WORK=/srcdir,
 # which must not shadow a non-default session disk path from Skaha).
-# astroai-lab env export then relocates WORK to $SCRATCH/src when /srcdir is
+# astroai env export then relocates WORK to $SCRATCH/src when /srcdir is
 # the container overlay (wiped on OOM restart) and /scratch is a real volume.
 export WORK="${TMP_SRC_DIR:-${WORK:-/srcdir}}"
 export SCRATCH="${TMP_SCRATCH_DIR:-${SCRATCH:-/scratch}}"
 
-# CADC venv first — astroai-lab env export runs from profile.sh below.
+# CADC venv first — astroai env export runs from profile.sh below.
 case ":${PATH}:" in
     *":/opt/astroai/venv/cadc/bin:"*) ;;
     *) export PATH="/opt/astroai/venv/cadc/bin:/opt/astroai/bin:${PATH}" ;;

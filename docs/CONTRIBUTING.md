@@ -51,10 +51,10 @@ git checkout -b my-change
 | System packages | `dockerfiles/base/Dockerfile` | Yes — `base`+ |
 | Python / uv / pixi foundation | `dockerfiles/python/Dockerfile` | Full stack |
 | Jupyter config | `config/jupyter_server_config.py` | `notebook` |
-| Marimo starter notebook | **Edit in** [astroai-lab](https://github.com/astroai/astroai-lab) `data/notebooks/starter.py`, then `make sync-marimo-starter` | `marimo` |
+| Marimo starter notebook | **Edit in** [astroai-lab](https://github.com/astroai/lab) `data/notebooks/starter.py`, then `make sync-marimo-starter` | `marimo` |
 | Jupyter / Ray starters | **Edit in** lab `data/notebooks/`, then `make sync-notebook-starters` | `notebook` |
 | CADC client list | `config/cadc-tools.txt` | `base`+ |
-| **`astroai-lab` CLI** | `config/astroai-lab.in` + `config/astroai-lab.lock` | `base`+ |
+| **`astroai` CLI** | `config/astroai-lab.in` + `config/astroai-lab.lock` | `base`+ |
 | Ray | `config/ray-deps.txt`, `dockerfiles/ray-*`, `ray/`, `scripts/*ray*` | `make build-ray` |
 | Bake graph, tags | `docker-bake.hcl`, `Makefile` | Depends |
 
@@ -77,7 +77,7 @@ After profile or base changes:
 ./scripts/test-local.sh webterm 5000
 # inside container:
 source /etc/profile.d/astroai.sh
-astroai-lab status
+astroai status
 uv run python -c "print('ok')"
 ```
 
@@ -90,20 +90,21 @@ cd ../astroai-lab
 uv run pytest -q
 cd ../astroai-containers
 make lock-astroai-lab
+(cd ray/manager && uv lock)
 make lock-check
 make build-all BUILD_TAG=local
 make test-local BUILD_TAG=local
 make test-ray BUILD_TAG=local
 ```
 
-Same pattern for `make lock-workload` and `make lock-ray` when those `main` branches or unpinned deps move. OpenResearch and OpenWorker clone upstream `main` at build time; `make build-all` passes `ORX_HEAD` / `OPENWORKER_HEAD` from `git ls-remote` so Docker cache does not stick to a stale commit.
+Same pattern for `make lock-ray` when unpinned Ray deps move. OpenResearch and OpenWorker clone upstream `main` at build time; `make build-all` passes `ORX_HEAD` / `OPENWORKER_HEAD` from `git ls-remote` so Docker cache does not stick to a stale commit.
 
 ## Writable CADC venv
 
 `/opt/astroai/venv/cadc` is writable so users can run `upgrade-cadc-tools.sh` or
 `uv pip install --python /opt/astroai/venv/cadc …` for this session only.
 Project deps use pixi/uv under `WORK`; caches prefer scratch via
-`astroai-lab`.
+`astroai`.
 
 ## Ray tests
 
@@ -120,7 +121,7 @@ make test-canfar-ray-gpu TAG=26.08
 | `scripts/test-canfar-ray.sh` | CANFAR manager UI + cluster lifecycle |
 
 Integration tests for the CLI live in
-[astroai/astroai-lab](https://github.com/astroai/astroai-lab)
+[astroai/lab](https://github.com/astroai/lab)
 (`tests/integration/test_cold_start_save_resume.py`).
 
 ## Marimo starter sync
@@ -136,7 +137,7 @@ make sync-marimo-starter
 ```
 
 Startup (`scripts/startup-marimo.sh`) seeds that file once into
-`WORK/notebooks`, runs `astroai-lab agent setup marimo` (OpenRouter,
+`WORK/notebooks`, runs `astroai agent setup marimo` (OpenRouter,
 does not overwrite user settings), and opens `starter.py`. Keep
 `canfar_marimo.VOSpaceUI` until vos fsspec lands.
 
@@ -157,7 +158,7 @@ keys, or large binary artifacts unrelated to image build context.
 ### Checklist
 
 - [ ] `docs/USAGE.md` updated when user-visible behavior changes
-- [ ] Upstream [astroai-lab](https://github.com/astroai/astroai-lab) updated when CLI or path behavior changes
+- [ ] Upstream [astroai-lab](https://github.com/astroai/lab) updated when CLI or path behavior changes
 - [ ] `dockerfiles/base/Dockerfile` still copies `docs/USAGE.md` correctly
 - [ ] `./scripts/test-local.sh` run when scripts or Dockerfiles change
 - [ ] Post-push release gate: `make test-canfar-agents TAG=…` (lightweight agent verb-surface probe on CANFAR; required after every image push — see OPERATORS.md)

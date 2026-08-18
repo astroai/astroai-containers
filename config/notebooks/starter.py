@@ -35,7 +35,7 @@ Welcome. Marimo notebooks are plain **`.py` files** — easy to git and review.
 - **Files** — use **Session Files** below, or **File → Open** (Cmd/Ctrl+O).
   Symlinks `📁_scratch`, `📁_work`, `📁_arc` sit next to this notebook.
 - **Terminal** — open a **webterm** tab for `git`, `canfar login`, `vcp`, and
-  mutating `astroai-lab` commands (`init`, `save`, `agent install`).
+  mutating `astroai` commands (`init`, `save`, `agent install`).
 
 ### Quick rules
 
@@ -46,7 +46,7 @@ Welcome. Marimo notebooks are plain **`.py` files** — easy to git and review.
 
 ### Open an existing project
 
-1. In a **webterm**: `astroai-lab init mylab` or `astroai-lab clone owner/repo`
+1. In a **webterm**: `astroai init mylab` or `astroai clone owner/repo`
    (projects land under `$WORK`).
 2. Here: **File → Open** and browse into that folder, or follow the paths listed
    in **Session status** below.
@@ -72,7 +72,7 @@ def _(mo):
 
     # Apply scratch-backed caches even if the session missed profile hooks.
     try:
-        out = subprocess.check_output(["astroai-lab", "env", "export"], text=True)
+        out = subprocess.check_output(["astroai", "env", "export"], text=True)
         for line in out.splitlines():
             if line.startswith("export ") and "=" in line:
                 body = line[len("export ") :]
@@ -95,7 +95,7 @@ def _(mo):
     # Banner JSON shows session paths and save count.
     try:
         proc = subprocess.run(
-            ["astroai-lab", "--json"],
+            ["astroai", "--json"],
             check=False,
             capture_output=True,
             text=True,
@@ -106,9 +106,9 @@ def _(mo):
             lines.append(f"- **saves**: {banner.get('saves_count', '?')}")
         else:
             err = (proc.stderr or "").strip() or f"exit {proc.returncode}"
-            lines.append(f"- **astroai-lab**: no output (`{err}`)")
+            lines.append(f"- **astroai**: no output (`{err}`)")
     except Exception as exc:  # noqa: BLE001
-        lines.append(f"- **astroai-lab**: skipped (`{exc}`)")
+        lines.append(f"- **astroai**: skipped (`{exc}`)")
 
     # Surface existing projects under the session work root.
     markers = ("pyproject.toml", "pixi.toml", "environment.yml", ".git")
@@ -126,7 +126,7 @@ def _(mo):
     else:
         lines.append(
             "- **projects**: none detected under work yet — "
-            "`astroai-lab init mylab` or `astroai-lab clone owner/repo` in a webterm"
+            "`astroai init mylab` or `astroai clone owner/repo` in a webterm"
         )
 
     if notes:
@@ -255,7 +255,7 @@ def _(mo, vc, vos_dest, vos_fetch_btn, vos_list_btn, vos_uri):
 def _(mo):
     mo.md(
         r"""
-### astroai-lab (webterm)
+### astroai (webterm)
 
 Read-only checks run in **Session status** above. Mutating work stays in a
 **webterm** tab:
@@ -263,28 +263,28 @@ Read-only checks run in **Session status** above. Mutating work stays in a
 **First session / new project**
 
 ```bash
-astroai-lab init mylab              # pixi (recommended)
-astroai-lab init mylab --uv
-astroai-lab clone owner/repo
-astroai-lab clone owner/repo --from-env
+astroai init mylab              # pixi (recommended)
+astroai init mylab --uv
+astroai clone owner/repo
+astroai clone owner/repo --from-env
 ```
 
 **Persist before logout**
 
 ```bash
-astroai-lab save
+astroai save
 # copy results to /arc/projects or vos: with canfar data / vcp
 ```
 
 **AI agents** (config on `/arc/home`)
 
 ```bash
-astroai-lab agent setup             # once per user (also seeds marimo AI)
-astroai-lab agent install kilo      # or goose, claude, opencode, codex, qoder
-astroai-lab agent update
+astroai agent setup             # once per user (also seeds marimo AI)
+astroai agent install kilo      # or goose, claude, opencode, codex, qoder
+astroai agent update
 ```
 
-Full reference: `astroai-lab help` · [astroai-lab docs](https://github.com/astroai/astroai-lab)
+Full reference: `astroai help` · [astroai docs](https://github.com/astroai/lab)
 """
     )
     return
@@ -297,9 +297,9 @@ def _(mo):
 ### Marimo AI Assistant
 
 Toolbar **AI** (or Cmd/Ctrl+Shift+E to refactor the current cell). Uses
-**OpenRouter**, same as `astroai-lab` agents.
+**OpenRouter**, same as `astroai` agents.
 
-1. Once: `astroai-lab agent setup` in a webterm (stores the key on `/arc/home`).
+1. Once: `astroai agent setup` in a webterm (stores the key on `/arc/home`).
 2. Open the AI sidebar; chat, agent mode, or generate cells from a prompt.
 3. Pass in-memory values with `@variable_name`. Models: `~/.marimo.toml`.
 """
@@ -313,7 +313,7 @@ def _(mo):
         r"""
 ## Next steps
 
-- Install packages into a **project** (`astroai-lab init mylab`), not `$HOME`.
+- Install packages into a **project** (`astroai init mylab`), not `$HOME`.
 - Or use a short-lived venv under `/scratch` if you must.
 """
     )

@@ -2,12 +2,9 @@
 # Slim Ray runtime — FROM python (not fat interactive base).
 # Used by ray-worker only. Managers stay on fat base for scientist shell/UI.
 
-ARG REGISTRY=images.canfar.net
-ARG OWNER=astroai
 ARG PYTHON_VERSION=3.13
-ARG TAG=local
 
-FROM ${REGISTRY}/${OWNER}/python:${PYTHON_VERSION}
+FROM astroai-python:${PYTHON_VERSION}
 
 LABEL org.opencontainers.image.title="AstroAI Ray Base (slim)" \
       org.opencontainers.image.description="Minimal Ray + astroai-lab for workers"
@@ -45,24 +42,21 @@ RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${WORK}" \
 COPY config/astroai-lab.in config/astroai-lab.lock /tmp/
 RUN uv venv /opt/astroai/venv/cadc \
     && uv pip install --python /opt/astroai/venv/cadc --requirements /tmp/astroai-lab.lock \
-    && rm /tmp/astroai-lab.in /tmp/astroai-lab.lock \
     && chmod -R a+rwX /opt/astroai/venv/cadc \
-    # Copy the packaged session shell files straight out of the installed
-    # astroai-lab wheel — astroai-lab itself stays an in-session tool only.
     && mkdir -p /etc/astroai-lab \
     && /opt/astroai/venv/cadc/bin/python -c "import importlib.resources as r, shutil; p=r.files('astroai_lab.data.shell'); shutil.copy(p.joinpath('profile.sh'), '/etc/astroai-lab/profile.sh'); shutil.copy(p.joinpath('hooks.sh'), '/etc/astroai-lab/hooks.sh')" \
     && chmod a+r /etc/astroai-lab/profile.sh /etc/astroai-lab/hooks.sh \
     && test -f /etc/astroai-lab/profile.sh \
     && test -f /etc/astroai-lab/hooks.sh \
     && HOME=/tmp WORK=/srcdir SCRATCH=/scratch \
-       /opt/astroai/venv/cadc/bin/astroai-lab env export --no-ensure >/dev/null
+       /opt/astroai/venv/cadc/bin/astroai env export --no-ensure >/dev/null
 
 COPY scripts/lib/astroai-env-common.sh scripts/lib/astroai-ui.sh /opt/astroai/lib/
 COPY config/ray-deps.txt config/ray-deps.lock /tmp/
-RUN uv python install 3.12 \
-    && uv venv /opt/astroai/venv/ray --python 3.12 \
+RUN uv venv /opt/astroai/venv/ray \
     && uv pip install --python /opt/astroai/venv/ray --requirements /tmp/ray-deps.lock \
-    && rm /tmp/ray-deps.txt /tmp/ray-deps.lock \
+    && uv pip install --python /opt/astroai/venv/ray --requirements /tmp/astroai-lab.lock \
+    && rm /tmp/ray-deps.txt /tmp/ray-deps.lock /tmp/astroai-lab.in /tmp/astroai-lab.lock \
     && /opt/astroai/venv/ray/bin/python -c "import ray; print(ray.__version__)" \
         > /opt/astroai/ray-version.txt \
     && chmod a+r /opt/astroai/ray-version.txt

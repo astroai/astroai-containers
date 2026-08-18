@@ -17,9 +17,9 @@ export OPENWORKER_UI_ROOT="${OPENWORKER_UI_ROOT:-/opt/openworker/gui}"
 mkdir -p \
     "${XDG_DATA_HOME:-${HOME}/.local/share}/openworker" \
     "${XDG_CONFIG_HOME:-${HOME}/.config}/openworker" \
-    "${XDG_CACHE_HOME:-${HOME}/.cache}/openworker"
+    "${XDG_CACHE_HOME:-${SCRATCH:-/tmp}}/openworker"
 
-WORKDIR="${WORK:-/srcdir}"
+WORKDIR="${WORK:-${SCRATCH:-/scratch}/src}"
 mkdir -p "${WORKDIR}"
 
 # Agent wizard — never block the main UI.

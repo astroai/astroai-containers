@@ -21,6 +21,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+_LIB = Path(__file__).resolve().parent
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+from session_title import stick_html_title  # noqa: E402
+
 PUBLIC_PORT = int(os.environ.get("ASTROAI_OPENWORKER_PORT", "5000"))
 OW_HOST = os.environ.get("OPENWORKER_HOST", "127.0.0.1")
 OW_PORT = int(os.environ.get("OPENWORKER_PORT", "8765"))
@@ -87,6 +92,7 @@ def inject_index(html: bytes) -> bytes:
             text = text[:idx] + chip + text[idx:]
         else:
             text += chip
+    text = stick_html_title(text)
     return text.encode("utf-8")
 
 
@@ -107,7 +113,7 @@ def _forward_http(handler: BaseHTTPRequestHandler, host: str, port: int, path: s
             fallback = (
                 b"<!DOCTYPE html><html><body style='font-family:sans-serif;padding:2rem'>"
                 b"<h1>Agents unavailable</h1>"
-                b"<p>Use webterm: <code>astroai-lab agent list --ui</code></p>"
+                b"<p>Use webterm: <code>astroai agent list --ui</code></p>"
                 b"</body></html>"
             )
             handler.send_response(503)

@@ -10,8 +10,7 @@ Licensed under [BSD-2-Clause](LICENSE).
 flowchart TB
   subgraph astroai [AstroAI]
     Imgs["Harbor: images.canfar.net/astroai/*"]
-    Lab["astroai-lab workbench CLI"]
-    WL["astroai-workload Ray Jobs"]
+    Lab["astroai workbench CLI"]
   end
   subgraph canfar [CANFAR]
     Portal[Science Portal]
@@ -22,7 +21,6 @@ flowchart TB
   CLI --> Skaha
   Imgs --> Skaha
   Lab --> Skaha
-  WL --> Imgs
 ```
 
 ## Names at a glance
@@ -32,7 +30,7 @@ flowchart TB
 | **AstroAI** | This product: GitHub [`astroai`](https://github.com/astroai), Harbor project `astroai`, images and tools |
 | **CANFAR** | Hosting platform: portal, Skaha, auth, `/arc`, scheduling |
 | **`canfar`** | Platform CLI — login, create/list/delete sessions |
-| **`astroai-lab`** | In-session workbench (installed into these images via lockfile) |
+| **`astroai`** | In-session workbench (installed into these images via lockfile) |
 | **`images.canfar.net/astroai/*`** | AstroAI images on CANFAR Harbor (host ≠ product name) |
 
 ## Sessions
@@ -57,12 +55,12 @@ flowchart TB
 | Doc | Audience |
 |-----|----------|
 | [docs/USAGE.md](docs/USAGE.md) | Session users — first session, storage, tools |
-| [astroai-lab USAGE](https://github.com/astroai/astroai-lab/blob/main/docs/USAGE.md) | `astroai-lab` CLI detail |
+| [astroai USAGE](https://github.com/astroai/lab/blob/main/docs/USAGE.md) | `astroai` CLI detail |
 | [docs/RAY.md](docs/RAY.md) | Ray clusters — manager + workers |
 | [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Developers — clone, build, test, PRs |
 | [docs/OPERATORS.md](docs/OPERATORS.md) | Maintainers — push, register, smoke tests |
 
-In-session: `astroai-lab help` · `less /opt/astroai/USAGE.md`
+In-session: `astroai help` · `less /opt/astroai/USAGE.md`
 
 ## Build and test
 
@@ -107,7 +105,7 @@ examples/ray/  container-local Ray smokes
 
 - **Same images for CPU and GPU** — choose the node in the portal; CUDA/ML stacks via pixi/uv in the project.
 - **Bake graph:** `python` → fat `base` (compilers + session tools) → interactive sessions and `improc`; slim `ray-base` (from `python`) → `ray-worker`; fat `base` → `ray-manager` (scientists use its shell/UI).
-- **Fast session disks:** `WORK` is `$SCRATCH/src` when `/srcdir` is the container overlay (OOM-fragile) and `/scratch` is a volume; `SCRATCH` (`/scratch`) holds data and caches. Both are session-private. `/arc/home` and `/arc/projects` are shared across sessions. Persist with `astroai-lab save` / `git push`.
+- **Fast session disks:** `WORK` is `$SCRATCH/src` when `/srcdir` is the container overlay (OOM-fragile) and `/scratch` is a volume; `SCRATCH` (`/scratch`) holds data and caches. Both are session-private. `/arc/home` and `/arc/projects` are shared across sessions. Persist with `astroai save` / `git push`.
 - **Skaha types:** Contributed listen on **5000**; Notebook on **8888**.
 - **Auth at the edge:** Session UIs trust CANFAR TLS + portal login. Use these images only behind an authenticating reverse proxy.
 
@@ -117,8 +115,7 @@ Heavy site software: [CVMFS on CANFAR](https://github.com/opencadc/canfar/blob/m
 
 | Repo | Role |
 |------|------|
-| [astroai-lab](https://github.com/astroai/astroai-lab) | In-session CLI |
-| [astroai-workload](https://github.com/astroai/astroai-workload) | Ray Jobs Python helpers |
+| [astroai-lab](https://github.com/astroai/lab) | In-session CLI (`astroai`) |
 | [opencadc/canfar](https://github.com/opencadc/canfar) | Platform client |
 | [opencadc/science-platform](https://github.com/opencadc/science-platform) | Skaha / Helm (platform team) |
 

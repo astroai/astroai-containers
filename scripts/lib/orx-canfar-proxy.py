@@ -23,7 +23,13 @@ import socket
 import sys
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlsplit
+
+_LIB = Path(__file__).resolve().parent
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+from session_title import stick_html_title  # noqa: E402
 
 PUBLIC_PORT = int(os.environ.get("ASTROAI_OPENRESEARCH_PORT", "5000"))
 ORX_HOST = os.environ.get("ORX_HOST", "127.0.0.1")
@@ -80,12 +86,14 @@ def rewrite_body(data: bytes, content_type: str) -> bytes:
             text = text.replace(f"'__KEEP__{abs_prefix}", f"'{PREFIX}{abs_prefix}")
             text = text.replace(f"`__KEEP__{abs_prefix}", f"`{PREFIX}{abs_prefix}")
 
-    if ctype == "text/html" and "astroai-agents-chip" not in text:
-        href = f"{PREFIX}{WIZARD_MOUNT}/" if PREFIX else f"{WIZARD_MOUNT}/"
-        chip = AGENTS_CHIP.format(href=href)
-        lower = text.lower()
-        idx = lower.rfind("</body>")
-        text = text[:idx] + chip + text[idx:] if idx >= 0 else text + chip
+    if ctype == "text/html":
+        text = stick_html_title(text)
+        if "astroai-agents-chip" not in text:
+            href = f"{PREFIX}{WIZARD_MOUNT}/" if PREFIX else f"{WIZARD_MOUNT}/"
+            chip = AGENTS_CHIP.format(href=href)
+            lower = text.lower()
+            idx = lower.rfind("</body>")
+            text = text[:idx] + chip + text[idx:] if idx >= 0 else text + chip
     return text.encode("utf-8")
 
 
@@ -116,7 +124,9 @@ HOP_BY_HOP = {
 }
 
 
-def _forward(handler: BaseHTTPRequestHandler, host: str, port: int, path: str) -> None:
+def _forward(
+    handler: BaseHTTPRequestHandler, host: str, port: int, path: str, *, rewrite: bool = True
+) -> None:
     accept = handler.headers.get("Accept", "")
     streaming = "text/event-stream" in accept or path.startswith("/api/events")
 
@@ -137,7 +147,7 @@ def _forward(handler: BaseHTTPRequestHandler, host: str, port: int, path: str) -
             fallback = (
                 b"<!DOCTYPE html><html><body style='font-family:sans-serif;padding:2rem'>"
                 b"<h1>Agents unavailable</h1>"
-                b"<p>Use webterm and run <code>astroai-lab agent list --ui</code>.</p>"
+                b"<p>Use webterm and run <code>astroai agent list --ui</code>.</p>"
                 b"</body></html>"
             )
             handler.send_response(503)
@@ -152,7 +162,7 @@ def _forward(handler: BaseHTTPRequestHandler, host: str, port: int, path: str) -
 
     content_type = upstream.getheader("Content-Type") or ""
     raw = b"" if streaming else upstream.read()
-    if not streaming:
+    if not streaming and rewrite:
         raw = rewrite_body(raw, content_type)
 
     handler.send_response(upstream.status, upstream.reason)
@@ -195,9 +205,11 @@ class OrxProxyHandler(BaseHTTPRequestHandler):
     def _proxy(self) -> None:
         path = self.path
         # Route AstroAI wizard under /astroai-agents (strip mount for sidecar).
+        # Do not rewrite wizard HTML: prefixing quoted `/astroai-agents` in the
+        # back-link script makes "Back" navigate to `/` and leave the session.
         if path == WIZARD_MOUNT or path.startswith(WIZARD_MOUNT + "/"):
             rest = path[len(WIZARD_MOUNT) :] or "/"
-            _forward(self, WIZARD_HOST, WIZARD_PORT, rest)
+            _forward(self, WIZARD_HOST, WIZARD_PORT, rest, rewrite=False)
             return
         _forward(self, ORX_HOST, ORX_PORT, path)
 

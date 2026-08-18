@@ -38,6 +38,8 @@ RUN ARCH=$(uname -m | sed 's/x86_64/x64/; s/aarch64/arm64/') \
 
 RUN mkdir -p /opt/openvscode-server/data/Machine
 COPY config/openvscode-settings.json /opt/openvscode-server/data/Machine/settings.json
+# Session user is not root; startup patches window.title to the CANFAR session name.
+RUN chmod a+w /opt/openvscode-server/data/Machine/settings.json
 
 COPY scripts/common-init.sh scripts/startup-vscode.sh /cadc/
 COPY scripts/skaha-startup-vscode.sh /skaha/startup.sh

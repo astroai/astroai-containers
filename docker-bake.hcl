@@ -34,10 +34,10 @@ group "improc" {
   targets = ["improc", "improc-webterm", "improc-notebook"]
 }
 
+# Untagged bake parent. Never a Harbor image.
 target "python" {
   context    = "./dockerfiles/python"
   dockerfile = "Dockerfile"
-  tags       = ["${REGISTRY}/${OWNER}/python:${PYTHON_VERSION}"]
   args = {
     PYTHON_VERSION = "${PYTHON_VERSION}"
   }
@@ -47,12 +47,10 @@ target "base" {
   context    = "."
   dockerfile = "dockerfiles/base/Dockerfile"
   contexts = {
-    "${REGISTRY}/${OWNER}/python:${PYTHON_VERSION}" = "target:python"
+    "astroai-python:${PYTHON_VERSION}" = "target:python"
   }
   tags = ["${REGISTRY}/${OWNER}/base:${TAG}"]
   args = {
-    REGISTRY       = "${REGISTRY}"
-    OWNER          = "${OWNER}"
     PYTHON_VERSION = "${PYTHON_VERSION}"
   }
 }
@@ -122,14 +120,11 @@ target "ray-base" {
   context    = "."
   dockerfile = "dockerfiles/ray-base/Dockerfile"
   contexts = {
-    "${REGISTRY}/${OWNER}/python:${PYTHON_VERSION}" = "target:python"
+    "astroai-python:${PYTHON_VERSION}" = "target:python"
   }
   tags = ["${REGISTRY}/${OWNER}/ray-base:${TAG}"]
   args = {
-    REGISTRY       = "${REGISTRY}"
-    OWNER          = "${OWNER}"
     PYTHON_VERSION = "${PYTHON_VERSION}"
-    TAG            = "${TAG}"
   }
 }
 

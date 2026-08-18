@@ -74,7 +74,7 @@ process_batch < <(batch_login <<'CHECK_BATCH'
 [[ ":${PATH}:" == *":/opt/astroai/venv/cadc/bin:"* ]] && echo "PASS:astroai-profile on PATH" || echo "FAIL:astroai-profile on PATH"
 
 # CADC + bundled CLIs
-for t in canfar cadcget cadcput cadc-tap vcp cadc-get-cert astroai-lab peek; do
+for t in canfar cadcget cadcput cadc-tap vcp cadc-get-cert astroai peek; do
     command -v "$t" >/dev/null 2>&1 && echo "PASS:login shell: ${t}" || echo "FAIL:login shell: ${t}"
 done
 
@@ -92,21 +92,21 @@ CHECK_BATCH
 fi
 
 # ================================================================
-# Batch 2 — astroai-lab subcommands + WORK overlay policy. Skipped
+# Batch 2 — astroai subcommands + WORK overlay policy. Skipped
 # in --agents mode (lightweight probe).
 # ================================================================
 if [[ "${AGENTS}" -eq 0 ]]; then
 process_batch < <(batch_login <<'CHECK_BATCH'
-astroai-lab status --json >/dev/null 2>&1 && echo "PASS:astroai-lab status" || echo "FAIL:astroai-lab status"
-astroai-lab env export --json | grep -q '"WORK"' && echo "PASS:astroai-lab env export" || echo "FAIL:astroai-lab env export"
-astroai-lab save --list --json >/dev/null 2>&1 && echo "PASS:astroai-lab save --list" || echo "FAIL:astroai-lab save --list"
-astroai-lab agent list >/dev/null 2>&1 && echo "PASS:astroai-lab agent list" || echo "FAIL:astroai-lab agent list"
+astroai status --json >/dev/null 2>&1 && echo "PASS:astroai status" || echo "FAIL:astroai status"
+astroai env export --json | grep -q '"WORK"' && echo "PASS:astroai env export" || echo "FAIL:astroai env export"
+astroai save --list --json >/dev/null 2>&1 && echo "PASS:astroai save --list" || echo "FAIL:astroai save --list"
+astroai agent list >/dev/null 2>&1 && echo "PASS:astroai agent list" || echo "FAIL:astroai agent list"
 
 # WORK relocate: /srcdir on the overlay (same device as /) + writable /scratch
 # on another volume → $SCRATCH/src. Bind-mounted /srcdir must stay put.
 # Mirrors astroai_lab.core.session_common.overlay_work_dir.
 flag="$(printf '%s' "${ASTROAI_LAB_WORK_ON_SCRATCH:-}" | tr '[:upper:]' '[:lower:]')"
-exported="$(astroai-lab env export --json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("WORK",""))' 2>/dev/null || true)"
+exported="$(astroai env export --json | python3 -c 'import json,sys; print(json.load(sys.stdin).get("WORK",""))' 2>/dev/null || true)"
 case "${flag}" in
     0|false|no|off)
         echo "PASS:WORK relocate disabled"
@@ -202,17 +202,19 @@ if [[ -d "${SCRATCH}" && -w "${SCRATCH}" ]]; then
     u="${USER:-$(id -un)}"
     root="${SCRATCH}/.cache-${u}"
     [[ "${UV_CACHE_DIR}" == "${root}/"* ]] && echo "PASS:session cache root layout" || echo "FAIL:session cache root layout"
-    for var in PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR MAMBA_PKGS_DIRS CONDA_PKGS_DIRS; do
-        [[ "${!var}" == "${root}/"* ]] && echo "PASS:${var} under session cache root" || echo "FAIL:${var} under session cache root"
+    for var in XDG_CACHE_HOME UV_CACHE_DIR PIXI_CACHE_DIR RATTLER_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE MAMBA_PKGS_DIRS CONDA_PKGS_DIRS; do
+        [[ "${!var}" == "${root}" || "${!var}" == "${root}/"* ]] && echo "PASS:${var} under session cache root" || echo "FAIL:${var} under session cache root"
+        [[ "${!var}" != "${HOME}" && "${!var}" != "${HOME}/"* ]] && echo "PASS:${var} off home" || echo "FAIL:${var} off home"
     done
     [[ "${ASTROAI_LAB_BIN_DIR}" == "${SCRATCH}/"* ]] && echo "PASS:ASTROAI_LAB_BIN_DIR on scratch" || echo "FAIL:ASTROAI_LAB_BIN_DIR on scratch"
     [[ "${ASTROAI_LAB_RUNTIME_ROOT}" == "${SCRATCH}/"* ]] && echo "PASS:ASTROAI_LAB_RUNTIME_ROOT on scratch" || echo "FAIL:ASTROAI_LAB_RUNTIME_ROOT on scratch"
     [[ "${UV_PYTHON_INSTALL_DIR}" != "${HOME}/"* ]] && echo "PASS:UV_PYTHON_INSTALL_DIR off home" || echo "FAIL:UV_PYTHON_INSTALL_DIR off home"
     [[ "${PIXI_HOME}" != "${HOME}/.pixi" ]] && echo "PASS:PIXI_HOME off home when scratch mounted" || echo "FAIL:PIXI_HOME off home when scratch mounted"
-    astroai-lab env export --no-ensure | grep -q ASTROAI_LAB_BIN_DIR && echo "PASS:astroai-lab env export" || echo "FAIL:astroai-lab env export"
+    astroai env export --no-ensure | grep -q ASTROAI_LAB_BIN_DIR && echo "PASS:astroai env export" || echo "FAIL:astroai env export"
 elif [[ -n "${WORK:-}" ]]; then
-    for var in UV_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE PIXI_CACHE_DIR MAMBA_PKGS_DIRS CONDA_PKGS_DIRS; do
-        [[ "${!var}" == "${WORK}/"* ]] && echo "PASS:${var} under WORK" || echo "FAIL:${var} under WORK"
+    for var in XDG_CACHE_HOME UV_CACHE_DIR PIXI_CACHE_DIR RATTLER_CACHE_DIR PIP_CACHE_DIR NPM_CONFIG_CACHE MAMBA_PKGS_DIRS CONDA_PKGS_DIRS; do
+        [[ "${!var}" == "${WORK}" || "${!var}" == "${WORK}/"* ]] && echo "PASS:${var} under WORK" || echo "FAIL:${var} under WORK"
+        [[ "${!var}" != "${HOME}" && "${!var}" != "${HOME}/"* ]] && echo "PASS:${var} off home" || echo "FAIL:${var} off home"
     done
 fi
 echo "BATCH_END"

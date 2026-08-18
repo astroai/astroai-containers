@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -98,14 +99,17 @@ def test_compute_ensure_idempotent_and_wires() -> None:
     wire.jobs_url_from_connect.return_value = "https://mgr/dashboard"
     wire.wire_orx.return_value = {"address": "https://mgr/dashboard"}
 
+    ensure_cmds: list[list[str]] = []
+
     def fake_cmd(cmd: list[str], *, timeout: int) -> tuple[int, str, str]:
-        if cmd[:2] == ["astroai-workload", "cluster"]:
+        if cmd[:2] == ["astroai", "cluster"]:
+            ensure_cmds.append(cmd)
             return (
                 0,
                 json.dumps(
                     {
                         "jobs_address": "https://mgr/dashboard",
-                        "joined_workers": 2,
+                        "joined_workers": 0,
                         "cluster_phase": "running",
                         "manager_url": "https://mgr/",
                     }
@@ -114,21 +118,30 @@ def test_compute_ensure_idempotent_and_wires() -> None:
             )
         return 0, "", ""
 
-    with (
-        patch.object(wiz, "_load_wire", return_value=wire),
-        patch.object(wiz, "WIRE_OPENRESEARCH", True),
-        patch.object(wiz, "shutil") as sh,
-        patch.object(wiz, "_run_cmd", side_effect=fake_cmd),
-    ):
-        sh.which.return_value = "/usr/bin/astroai-workload"
-        data = wiz._compute_ensure()
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        with (
+            patch.object(wiz, "_load_wire", return_value=wire),
+            patch.object(wiz, "WIRE_OPENRESEARCH", True),
+            patch.object(wiz, "shutil") as sh,
+            patch.object(wiz, "_run_cmd", side_effect=fake_cmd),
+            patch.object(wiz.Path, "home", return_value=home),
+        ):
+            sh.which.return_value = "/usr/bin/astroai"
+            data = wiz._compute_ensure()
+
+        env = (home / ".config" / "canfar" / "lab" / "ray-manager.env").read_text()
 
     assert data["ok"] is True
     assert data["jobs_address"] == "https://mgr/dashboard"
+    assert "autoscaling-env" in data["steps"]
     assert "wire-orx" in data["steps"]
     wire.wire_orx.assert_called_once()
-    # No canfar create when manager already Running
     assert "create" not in data["steps"]
+    assert "manager-exists" in data["steps"]
+    assert ensure_cmds == [["astroai", "cluster", "start", "--json"]]
+    assert "RAY_AUTOSCALING_ENABLED=1" in env
+    assert "do not add workers" in data["user_message"]
 
 
 def test_index_html_agent_table() -> None:
@@ -149,6 +162,8 @@ def test_index_html_agent_table() -> None:
     assert "cheat sheet" not in html.lower()
     assert "Install lean addons" not in html
     assert "api/catalog" not in html
+    assert "/astroai-' + 'agents" in html
+    assert "id=\"back-link\"" in html
 
 
 def test_agent_report_returns_full_list() -> None:

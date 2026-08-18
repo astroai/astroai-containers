@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# Local CANFAR-emulation E2E for the astroai-lab agent command surface.
+# Local CANFAR-emulation E2E for the astroai agent command surface.
 #
 # Proves, against each session image run like a CANFAR session (fresh MOUNTED
 # home, non-root user), that:
@@ -23,9 +23,9 @@
 # Env:
 #   OWNER / REGISTRY / TAG     image coordinates (defaults: astroai /
 #                               images.canfar.net / local)
-#   ASTROAI_LAB_SRC            optional path to an astroai-lab src/ overlay
+#   ASTROAI_LAB_SRC            optional path to an astroai src/ overlay
 #                              (mounted at /opt/astroai-lab-src + PYTHONPATH)
-#                              for testing uncommitted astroai-lab code.
+#                              for testing uncommitted astroai code.
 
 # Images under test: explicit args win; default = all session images (same set
 # as the Makefile SESSION_IMAGES / test-local loop).
@@ -63,7 +63,7 @@ cat > "${PROBE}" <<'PROBE_EOF'
 # Runs inside the container as a non-root user with a fresh mounted HOME.
 set -u
 # The image's PATH hook lives in /etc/profile.d/astroai.sh (login shells
-# only) — this probe runs via plain `bash`, so put astroai-lab on PATH here.
+# only) — this probe runs via plain `bash`, so put astroai on PATH here.
 export PATH="/opt/astroai/venv/cadc/bin:/opt/astroai/bin:${PATH}"
 HOME_DIR="$(pwd)"
 export HOME="${HOME_DIR}"
@@ -79,10 +79,10 @@ ok()   { echo "  ok: $*"; }
 # 0. bin dir resolution must never be under the user home (config files in
 #    home are fine; CLI binaries are not). With scratch the session bin dir is
 #    legitimately scratch/.local/bin — only a path under $HOME is a violation.
-#    The expected pattern keys off astroai-lab's RESOLVED SCRATCH (present in
+#    The expected pattern keys off astroai's RESOLVED SCRATCH (present in
 #    the env export only when a scratch dir was actually found), not the raw
 #    env placeholder the harness passes in.
-ENV_JSON="$(astroai-lab env export --json)"
+ENV_JSON="$(astroai env export --json)"
 BIN_DIR="$(printf '%s' "${ENV_JSON}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["ASTROAI_LAB_BIN_DIR"])')"
 RESOLVED_SCRATCH="$(printf '%s' "${ENV_JSON}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("SCRATCH",""))')"
 case "${BIN_DIR}" in
@@ -102,11 +102,11 @@ fi
 
 # 1. read commands work out of the box.
 # Rich Console writes tables to stderr; drop both streams so a pass stays quiet.
-astroai-lab agent list          >/dev/null 2>&1 || fail "agent list"
-astroai-lab agent plugins list  >/dev/null 2>&1 || fail "agent plugins list"
+astroai agent list          >/dev/null 2>&1 || fail "agent list"
+astroai agent plugins list  >/dev/null 2>&1 || fail "agent plugins list"
 
 # 2. install a curl-installer agent (honors XDG_BIN_DIR → session bin dir).
-astroai-lab agent install kilo  >/dev/null || fail "agent install kilo"
+astroai agent install kilo  >/dev/null || fail "agent install kilo"
 [[ -x "${BIN_DIR}/kilo" ]] || fail "kilo not in session bin dir ${BIN_DIR}"
 [[ ! -e "${HOME_DIR}/.local/bin/kilo" ]] || fail "kilo leaked into ~/.local/bin"
 
@@ -114,22 +114,22 @@ astroai-lab agent install kilo  >/dev/null || fail "agent install kilo"
 #    that's by design on a fresh home; the command must not crash). --json is
 #    a root-callback flag, so it precedes the agent subcommand.
 # Lean list: exit 1 when setup incomplete (ok:false) is intentional — JSON
-# must still emit with an "agents" array (see astroai-lab agent list contract).
-astroai-lab --json agent list | python3 -c '
+# must still emit with an "agents" array (see astroai agent list contract).
+astroai --json agent list | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert isinstance(d.get("agents"), list) and d["agents"], d
 ' || fail "--json agent list"
-astroai-lab --json agent verify >/dev/null 2>&1 || true
+astroai --json agent verify >/dev/null 2>&1 || true
 
 # 4. plugin install/remove round-trip (scoped to the installed agent).
-if astroai-lab agent plugins list 2>/dev/null | grep -q canfar-ray; then
-    astroai-lab agent plugins install canfar-ray --agent kilo >/dev/null 2>&1 || true
-    astroai-lab agent plugins remove canfar-ray --agent kilo >/dev/null 2>&1 || true
+if astroai agent plugins list 2>/dev/null | grep -q canfar-ray; then
+    astroai agent plugins install canfar-ray --agent kilo >/dev/null 2>&1 || true
+    astroai agent plugins remove canfar-ray --agent kilo >/dev/null 2>&1 || true
 fi
 
 # 5. remove leaves no trace and never creates ~/.local.
-astroai-lab agent remove kilo >/dev/null || fail "agent remove kilo"
+astroai agent remove kilo >/dev/null || fail "agent remove kilo"
 [[ ! -e "${BIN_DIR}/kilo" ]] || fail "kilo still in ${BIN_DIR} after remove"
 [[ ! -d "${HOME_DIR}/.local/bin" ]] || fail "~/.local/bin was created"
 
@@ -138,25 +138,25 @@ astroai-lab agent remove kilo >/dev/null || fail "agent remove kilo"
 #    a fake binary so the plugin re-apply (bundled skill copy + MCP merge)
 #    is exercised with zero network.
 mkdir -p "${BIN_DIR}"
-astroai-lab agent setup hermes >/dev/null || fail "agent setup hermes"
+astroai agent setup hermes >/dev/null || fail "agent setup hermes"
 [[ -f "${HOME_DIR}/.hermes/config.yaml" ]] || fail "setup hermes: config.yaml not scaffolded"
 [[ -d "${HOME_DIR}/.hermes/skills" ]] || fail "setup hermes: skills dir missing"
 
-astroai-lab agent config hermes model=hermes-test-model >/dev/null \
+astroai agent config hermes model=hermes-test-model >/dev/null \
     || fail "agent config hermes model=..."
 # Human output goes to stderr (rich Console(stderr=True)), so assert via the
 # stream-safe --json variant (print_json → stdout).
-astroai-lab --json agent config hermes --key model | python3 -c '
+astroai --json agent config hermes --key model | python3 -c '
 import json, sys
 assert json.load(sys.stdin)["value"] == "hermes-test-model"
 ' || fail "agent config hermes --key model"
-astroai-lab --json agent config hermes | python3 -c '
+astroai --json agent config hermes | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["format"] == "yaml", d
 assert d["data"].get("model") == "hermes-test-model", d
 ' || fail "--json agent config hermes"
-astroai-lab agent config hermes --unset model >/dev/null \
+astroai agent config hermes --unset model >/dev/null \
     || fail "agent config hermes --unset model"
 
 # Fake hermes binary → `agent update hermes` skips the network install and
@@ -166,13 +166,13 @@ chmod +x "${BIN_DIR}/hermes"
 # Precondition: update must see the fake binary via the SESSION bin dir (the
 # exact check update_registry_agent uses) — if this fails, `agent update
 # hermes` would attempt a real network install instead of the offline path.
-astroai-lab --json agent list | python3 -c '
+astroai --json agent list | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 hermes = next(r for r in d["agents"] if r["id"] == "hermes")
 assert hermes["binary_ok"], "fake hermes not detected in session bin dir"
 ' || fail "update hermes: fake binary not on session bin dir"
-astroai-lab agent update hermes >/dev/null || fail "agent update hermes"
+astroai agent update hermes >/dev/null || fail "agent update hermes"
 [[ -f "${HOME_DIR}/.hermes/skills/canfar-ray/SKILL.md" ]] \
     || fail "update hermes: canfar-ray skill not re-applied"
 [[ -f "${HOME_DIR}/.hermes/config.yaml" ]] \
@@ -181,7 +181,7 @@ astroai-lab agent update hermes >/dev/null || fail "agent update hermes"
 # 8. Phase 6 wipe verb: --dry-run previews the factory reset on the (now
 #    mostly clean) home and must NOT remove anything. --json --yes would wipe
 #    the whole agent layer, so only the safe preview path is exercised here.
-astroai-lab --json agent wipe --dry-run | python3 -c '
+astroai --json agent wipe --dry-run | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["ok"] and d["dry_run"] is True
@@ -198,25 +198,25 @@ assert d["counts"]["would_remove"] > 0, d["counts"]
 printf 'model: [unclosed\n' > "${HOME_DIR}/.hermes/config.yaml"
 # NOTE: the reset discards the plugin-written entries from the `agent update`
 # above (documented fix_registry_agent behavior) — nothing later needs them.
-astroai-lab --json agent verify --fix hermes | python3 -c '
+astroai --json agent verify --fix hermes | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["ok"] and d["agent"] == "hermes"
 assert any("repaired broken yaml config" in a for a in d["actions"]), d["actions"]
 ' || fail "verify --fix hermes: broken yaml not repaired"
-astroai-lab --json agent config hermes >/dev/null \
+astroai --json agent config hermes >/dev/null \
     || fail "verify --fix hermes: repaired config still unreadable"
 
 # Healthy no-op: a marker value must survive repair untouched.
-astroai-lab agent config hermes marker=keep-me >/dev/null \
+astroai agent config hermes marker=keep-me >/dev/null \
     || fail "agent config hermes marker=keep-me"
-astroai-lab --json agent verify --fix hermes | python3 -c '
+astroai --json agent verify --fix hermes | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 assert d["ok"]
 assert any("config healthy" in a for a in d["actions"]), d["actions"]
 ' || fail "verify --fix hermes: healthy run not reported"
-astroai-lab --json agent config hermes --key marker | python3 -c '
+astroai --json agent config hermes --key marker | python3 -c '
 import json, sys
 assert json.load(sys.stdin)["value"] == "keep-me"
 ' || fail "verify --fix hermes: healthy config clobbered"

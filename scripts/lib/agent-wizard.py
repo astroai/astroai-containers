@@ -6,8 +6,8 @@ Failures here must never affect the main UI process.
 
 Surface:
   1. Status — CANFAR auth, ray-manager, OpenResearch wire
-  2. Start batch compute — idempotent ensure + wire
-  3. Agent table — same columns as `astroai-lab agent list`, plus Install / Setup
+  2. Start batch compute — autoscaling manager + wire
+  3. Agent table — same columns as `astroai agent list`, plus Install / Setup
 """
 
 from __future__ import annotations
@@ -25,6 +25,11 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 from urllib.parse import parse_qs, urlparse
+
+_LIB = Path(__file__).resolve().parent
+if str(_LIB) not in sys.path:
+    sys.path.insert(0, str(_LIB))
+from session_title import session_tab_title  # noqa: E402
 
 PORT = int(os.environ.get("ASTROAI_AGENT_WIZARD_PORT", "4792"))
 CLI_TIMEOUT = int(os.environ.get("ASTROAI_AGENT_WIZARD_CLI_TIMEOUT", "600"))
@@ -62,7 +67,7 @@ def _run_cmd(cmd: list[str], *, timeout: int) -> tuple[int, str, str]:
 
 
 def _run_lab(args: list[str], *, timeout: int | None = None) -> tuple[int, str, str]:
-    lab = shutil.which("astroai-lab") or "/opt/astroai/venv/cadc/bin/astroai-lab"
+    lab = shutil.which("astroai") or "/opt/astroai/venv/cadc/bin/astroai"
     return _run_cmd([lab, *args], timeout=timeout or CLI_TIMEOUT)
 
 
@@ -240,7 +245,7 @@ def _safe_agent_id(raw: str | None) -> str | None:
 
 
 def _setup_payload(agent: str) -> dict[str, Any]:
-    """`astroai-lab agent setup <id>` — config/skills/default plugins, not the CLI."""
+    """`astroai agent setup <id>` — config/skills/default plugins, not the CLI."""
     rc, out, err = _run_lab(["--yes", "--json", "agent", "setup", agent])
     data = _parse_json_stdout(out) or {}
     if not isinstance(data, dict):
@@ -299,14 +304,34 @@ def _create_manager_if_needed(wire: ModuleType) -> tuple[bool, str, list[str]]:
     return False, (err or out or "canfar create failed")[:800], steps
 
 
+def _write_autoscaling_env() -> str:
+    """Skaha will not pass -e into a contributed manager; this file is sourced at start."""
+    path = Path.home() / ".config" / "canfar" / "lab" / "ray-manager.env"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "RAY_AUTOSCALING_ENABLED=1\n"
+        "RAY_AUTOSCALING_MIN_WORKERS=0\n"
+        "RAY_AUTOSCALING_MAX_WORKERS=8\n"
+        "RAY_AUTOSCALING_CORES=1\n"
+        "RAY_AUTOSCALING_RAM_GB=4\n"
+        "RAY_AUTOSCALING_GPUS=0\n"
+        "RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES=5\n",
+        encoding="utf-8",
+    )
+    return str(path)
+
+
 def _compute_ensure() -> dict[str, Any]:
-    """Ensure manager + workers, then wire OpenResearch when applicable."""
+    """Ensure an autoscaling ray-manager, then wire OpenResearch when applicable."""
     try:
         wire = _load_wire()
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "summary": f"wire helpers unavailable: {exc}", "steps": []}
 
-    ok, detail, steps = _create_manager_if_needed(wire)
+    steps: list[str] = ["autoscaling-env"]
+    _write_autoscaling_env()
+    ok, detail, created = _create_manager_if_needed(wire)
+    steps.extend(created)
     if not ok:
         return {
             "ok": False,
@@ -319,19 +344,12 @@ def _compute_ensure() -> dict[str, Any]:
     jobs = ""
     workers: dict[str, Any] = {}
     connect = ""
-    if shutil.which("astroai-workload"):
+    if shutil.which("astroai"):
         ensure_rc, ensure_out, ensure_err = _run_cmd(
-            [
-                "astroai-workload",
-                "cluster",
-                "ensure",
-                "--json",
-                "--workers",
-                "2",
-            ],
+            ["astroai", "cluster", "start", "--json"],
             timeout=COMPUTE_ENSURE_TIMEOUT,
         )
-        steps.append("cluster-ensure")
+        steps.append("cluster-start")
         payload = _parse_json_stdout(ensure_out) if ensure_rc == 0 else None
         if isinstance(payload, dict):
             jobs = str(payload.get("jobs_address") or "").rstrip("/")
@@ -343,9 +361,9 @@ def _compute_ensure() -> dict[str, Any]:
         elif ensure_rc != 0:
             return {
                 "ok": False,
-                "summary": "manager present but cluster ensure failed",
+                "summary": "manager present but cluster start failed",
                 "user_message": (
-                    f"astroai-workload cluster ensure failed: "
+                    f"astroai cluster start failed: "
                     f"{(ensure_err or ensure_out or 'unknown')[:600]}"
                 ),
                 "error": (ensure_err or ensure_out or "")[:800],
@@ -382,11 +400,13 @@ def _compute_ensure() -> dict[str, Any]:
 
     ready = bool(jobs) and (not WIRE_OPENRESEARCH or bool(wired))
     if ready:
-        msg = "Batch compute ready."
+        msg = "Batch compute ready. Jobs with --cpus will add workers."
         if WIRE_OPENRESEARCH:
             msg += " OpenResearch is wired — go back and run."
         elif connect:
             msg += f" Manager: {connect}"
+        if "manager-exists" in steps:
+            msg += " Stop the manager and click again if jobs do not add workers."
     elif jobs:
         msg = f"Jobs URL: {jobs} (wire skipped for this session kind)."
     else:
@@ -636,11 +656,11 @@ INDEX_HTML = """<!DOCTYPE html>
     <div id="msg"></div>
 
     <h2>Agents</h2>
-    <p class="lede-sm">Same columns as <code>astroai-lab agent list</code>. Install puts the CLI on PATH; Setup writes that agent's config, skills, and default plugins.</p>
+    <p class="lede-sm">Same columns as <code>astroai agent list</code>. Install puts the CLI on PATH; Setup writes that agent's config, skills, and default plugins.</p>
     <div id="agent-table">Loading…</div>
     <p class="foot">
       Need <code>canfar login</code>? Open <strong>webterm</strong> (same home), then come back.<br/>
-      Power users: <code>astroai-lab agent …</code> · <code>astroai-workload …</code>
+      Power users: <code>astroai agent …</code> · <code>astroai cluster …</code>
     </p>
   </div>
 <script>
@@ -648,7 +668,8 @@ const BACK_LABEL = __BACK_LABEL_JSON__;
 const base = (location.pathname.replace(/\\/?$/, '/') );
 function mainUiHref() {
   const p = location.pathname;
-  const i = p.indexOf('/astroai-agents');
+  const marker = '/astroai-' + 'agents';
+  const i = p.lastIndexOf(marker);
   if (i >= 0) return (p.slice(0, i) || '') + '/';
   return '../';
 }
@@ -848,7 +869,9 @@ class WizardHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         path, qs = self._path()
         if path in ("/", "/index.html"):
-            self._send(200, INDEX_HTML.encode("utf-8"), "text/html; charset=utf-8")
+            title = session_tab_title("AstroAI")
+            html = INDEX_HTML.replace("<title>AstroAI</title>", f"<title>{title}</title>", 1)
+            self._send(200, html.encode("utf-8"), "text/html; charset=utf-8")
             return
         if path == "/api/platform":
             try:

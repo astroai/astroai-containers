@@ -1,4 +1,4 @@
-# Ray stack (Python 3.12 venv — Ray has no cp313 wheels yet).
+# Ray stack (image Python 3.13 — Ray ships cp313 wheels).
 # Unpinned on purpose: the container TAG is the user-facing version, so the
 # image bakes the latest Ray at lock time (regenerate with `make lock-ray`).
 # Manager and worker share this same lockfile, so they stay aligned.

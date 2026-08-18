@@ -10,7 +10,7 @@ import subprocess
 def _apply() -> None:
     try:
         out = subprocess.check_output(
-            ["astroai-lab", "env", "export"],
+            ["astroai", "env", "export"],
             text=True,
             stderr=subprocess.DEVNULL,
         )

@@ -140,11 +140,11 @@ make test-canfar-session IMAGE=openworker TAG=26.08
 
 **OpenWorker notes:** Image tracks [openworker](https://github.com/andrewyng/openworker) `main` at build time (container TAG is the user-facing version). Browser UI + `openworker-server` only — no Tauri desktop shell. Desktop-only connectors may be limited on CANFAR. Agents wizard: `/astroai-agents/` (also on openresearch).
 
-**OpenResearch notes:** Image builds `orx` from the [sfabbro fork](https://github.com/sfabbro/openresearch-cli) `main` HEAD (`ORX_REPO` in `docker-bake.hcl`; includes `--backend ray`). Startup defaults compute to Ray when a manager Jobs URL is already known; the AstroAI hub **Start batch compute** button ensures a ray-manager + workers and wires OpenResearch. Switch back to alphaXiv release tarballs once a release includes [PR #138](https://github.com/alphaXiv/openresearch-cli/pull/138). See [USAGE.md](USAGE.md).
+**OpenResearch notes:** Image builds `orx` from the [sfabbro fork](https://github.com/sfabbro/openresearch-cli) `main` HEAD (`ORX_REPO` in `docker-bake.hcl`; includes `--backend ray`). Startup defaults compute to Ray when a manager Jobs URL is already known; the AstroAI hub **Start batch compute** button ensures an autoscaling ray-manager and wires OpenResearch. Switch back to alphaXiv release tarballs once a release includes [PR #138](https://github.com/alphaXiv/openresearch-cli/pull/138). See [USAGE.md](USAGE.md).
 
 **Agent auto-setup:** UI kinds (`openresearch`, `openworker`, `vscode`) default `ASTROAI_LAB_AGENT_SETUP=bg` when unset. **Marimo** stays opt-in for full setup (startup still runs `agent setup marimo` only). Webterm stays opt-in. Failures never block the main UI; see `~/.astroai/lab/agent-setup.log`.
 
-**Home quota readings:** Prefer CephFS xattrs over raw `df` (`astroai-lab` `disk_usage`). `ceph.dir.rbytes` can lag after writes — expected Ceph behavior.
+**Home quota readings:** Prefer CephFS xattrs over raw `df` (`astroai` `disk_usage`). `ceph.dir.rbytes` can lag after writes — expected Ceph behavior.
 
 **Headless in-image verify** (`canfar-verify.sh`):
 
@@ -209,13 +209,13 @@ While headless is unhealthy:
 
 | Command | Use |
 |---------|-----|
-| `astroai-lab status --json` | Quotas, projects, `canfar ps` |
+| `astroai status --json` | Quotas, projects, `canfar ps` |
 
 ## Agents and quota (operator view)
 
-- Agents install on demand via `astroai-lab agent install` into scratch/`ASTROAI_LAB_BIN_DIR` — prefer that over baking agent binaries into images.
-- Quota warnings fire at session start and via `astroai-lab status` (≈80 / 90 / 95%).
-- User data lifecycle (`astroai-lab save`, `canfar data`) is documented for users in [USAGE.md](USAGE.md).
+- Agents install on demand via `astroai agent install` into scratch/`ASTROAI_LAB_BIN_DIR` — prefer that over baking agent binaries into images.
+- Quota warnings fire at session start and via `astroai status` (≈80 / 90 / 95%).
+- User data lifecycle (`astroai save`, `canfar data`) is documented for users in [USAGE.md](USAGE.md).
 
 ## User-facing docs
 

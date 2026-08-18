@@ -1,5 +1,5 @@
 # Session path + quota helpers for AstroAI startup scripts.
-# Env save/resume/workspace logic lives in astroai-lab — do not duplicate here.
+# Env save/resume/workspace logic lives in astroai — do not duplicate here.
 
 ASTROAI_ENV_COMMON_LOADED=1
 set -o pipefail 2>/dev/null || true
@@ -12,10 +12,31 @@ elif [[ -f "${BASH_SOURCE[0]%/*}/astroai-ui.sh" ]]; then
     source "${BASH_SOURCE[0]%/*}/astroai-ui.sh"
 fi
 
+# Browser tab: Skaha sets the pod hostname to the session name (lowercase).
+# Docker-id / localhost hostnames keep the per-app fallback.
+astroai_session_title() {
+    local fallback="${1:-AstroAI}"
+    local name
+    name="$(hostname -s 2>/dev/null || hostname 2>/dev/null || true)"
+    name="${name%%.*}"
+    local lower="${name,,}"
+    case "${lower}" in
+        "" | localhost | astroai | unknown)
+            echo "${fallback}"
+            return
+            ;;
+    esac
+    if [[ "${lower}" =~ ^[0-9a-f]{12,}$ ]]; then
+        echo "${fallback}"
+        return
+    fi
+    echo "${name}"
+}
+
 # Runtime paths — WORK / SCRATCH (canonical; Skaha bridge in astroai-profile.sh
 # maps TMP_* → WORK/SCRATCH). Defaults come from image ENV only.
 astroai_default_src_dir() {
-    echo "${WORK:-/srcdir}"
+    echo "${WORK:-${SCRATCH:-/scratch}/src}"
 }
 
 astroai_default_scratch_dir() {
@@ -124,10 +145,10 @@ astroai_check_quota() {
         astroai_warn "  ⚠  ${label}: ${used_pct}% used — CRITICAL (near quota limit)"
         return 2
     elif [[ "${used_pct}" -ge 90 ]]; then
-        astroai_warn "  ⚠  ${label}: ${used_pct}% used — prune caches soon (check astroai-lab status)"
+        astroai_warn "  ⚠  ${label}: ${used_pct}% used — prune caches soon (check astroai status)"
         return 1
     elif [[ "${used_pct}" -ge 80 ]]; then
-        astroai_warn "  ⚠  ${label}: ${used_pct}% used — monitor (astroai-lab status)"
+        astroai_warn "  ⚠  ${label}: ${used_pct}% used — monitor (astroai status)"
         return 1
     fi
     return 0

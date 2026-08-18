@@ -1,4 +1,4 @@
-.PHONY: help build-all build/% build-ray build-improc push-all push/% push-ray push-improc test-local test-agent-local test-ray test-improc-local test-host test-canfar test-canfar-agents test-canfar-session test-canfar-ray test-canfar-ray-gpu test-canfar-ray-autoscale clean clean-all lock-ray lock-astroai-lab lock-workload lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
+.PHONY: help build-all build/% build-ray build-improc push-all push/% push-ray push-improc test-local test-agent-local test-ray test-improc-local test-host test-canfar test-canfar-agents test-canfar-session test-canfar-ray test-canfar-ray-gpu test-canfar-ray-autoscale clean clean-all lock-ray lock-astroai-lab lock-check lint lint-doc-quota sync-marimo-starter sync-notebook-starters
 
 SHELL := bash
 OWNER ?= astroai
@@ -19,7 +19,7 @@ IMAGE_PREFIX := $(REGISTRY)/$(OWNER)
 help:
 	@echo "AstroAI session images (CANFAR Harbor: images.canfar.net/astroai)"
 	@echo "========================="
-	@echo "  make build-all          build session images (python → base → sessions)"
+	@echo "  make build-all          build session images (base → sessions)"
 	@echo "  make build-ray          build ray-manager + ray-worker (+ base/slim chain)"
 	@echo "  make build-improc       build improc + improc-webterm + improc-notebook (+ base)"
 	@echo "  make build/vscode       build one image (+ parents)"
@@ -41,7 +41,6 @@ help:
 	@echo "  make clean-all          clean + prune buildx cache"
 	@echo "  make lock-ray           regenerate config/ray-deps.lock"
 	@echo "  make lock-astroai-lab   regenerate config/astroai-lab.lock"
-	@echo "  make lock-workload      regenerate config/astroai-workload.lock"
 	@echo "  make lock-check         fail if a lockfile drifts from its source"
 	@echo "  make lint-doc-quota     forbid false 'headless consumes quota' advice in test-canfar.sh"
 	@echo "  make test-host          docker-free: peek/osc52 selfchecks + agent-wizard tests"
@@ -124,9 +123,9 @@ push/%:
 	docker tag $(IMAGE_PREFIX)/$(notdir $@):$(BUILD_TAG) $(IMAGE_PREFIX)/$(notdir $@):latest
 	docker push $(IMAGE_PREFIX)/$(notdir $@):latest
 
-lock-ray: ## regenerate config/ray-deps.lock from config/ray-deps.txt (Python 3.12, Ray).
+lock-ray: ## regenerate config/ray-deps.lock from config/ray-deps.txt (Python 3.13, Ray).
 	@tmp=$$(mktemp); \
-	UV_NO_CACHE=1 uv pip compile --python-version 3.12 --output-file "$$tmp" config/ray-deps.txt >/dev/null; \
+	UV_NO_CACHE=1 uv pip compile --python-version 3.13 --output-file "$$tmp" config/ray-deps.txt >/dev/null; \
 	mv -f "$$tmp" config/ray-deps.lock
 
 lock-astroai-lab: ## regenerate config/astroai-lab.lock from unpinned main in config/astroai-lab.in.
@@ -134,16 +133,11 @@ lock-astroai-lab: ## regenerate config/astroai-lab.lock from unpinned main in co
 	uv pip compile --python-version 3.13 --output-file "$$tmp" config/astroai-lab.in >/dev/null; \
 	mv -f "$$tmp" config/astroai-lab.lock
 
-lock-workload: ## regenerate config/astroai-workload.lock from unpinned main in config/astroai-workload.in.
-	@tmp=$$(mktemp); \
-	uv pip compile --python-version 3.13 --output-file "$$tmp" config/astroai-workload.in >/dev/null; \
-	mv -f "$$tmp" config/astroai-workload.lock
-
-lock-check: ## fail CI if a lockfile's package body drifts from its source. The uv-generated header (3 lines) is stripped before comparison so output paths in the embedded command line don't cause false-positive drift. astroai-workload is gated on its lock existing (generated post-push via make lock-workload).
+lock-check: ## fail CI if a lockfile's package body drifts from its source. The uv-generated header (3 lines) is stripped before comparison so output paths in the embedded command line don't cause false-positive drift.
 	@# Compile into fresh mktemp paths — uv treats an existing --output-file as a
 	@# preference lock, so reusing /tmp/__ray.lock across runs hides real drift.
-	@tmp_ray=$$(mktemp); tmp_lab=$$(mktemp); tmp_wl=$$(mktemp); \
-	UV_NO_CACHE=1 uv pip compile --python-version 3.12 --output-file "$$tmp_ray" config/ray-deps.txt >/dev/null; \
+	@tmp_ray=$$(mktemp); tmp_lab=$$(mktemp); \
+	UV_NO_CACHE=1 uv pip compile --python-version 3.13 --output-file "$$tmp_ray" config/ray-deps.txt >/dev/null; \
 	tail -n +4 "$$tmp_ray" > /tmp/__ray.body; \
 	tail -n +4 config/ray-deps.lock > /tmp/__ray.committed.body; \
 	rm -f "$$tmp_ray"; \
@@ -153,15 +147,6 @@ lock-check: ## fail CI if a lockfile's package body drifts from its source. The 
 	tail -n +4 config/astroai-lab.lock > /tmp/__lab.committed.body; \
 	rm -f "$$tmp_lab"; \
 	cmp -s /tmp/__lab.body /tmp/__lab.committed.body || { echo "astroai-lab.lock drift — run make lock-astroai-lab" >&2; exit 1; }; \
-	if [[ -f config/astroai-workload.lock ]]; then \
-		uv pip compile --python-version 3.13 --output-file "$$tmp_wl" config/astroai-workload.in >/dev/null; \
-		tail -n +4 "$$tmp_wl" > /tmp/__wl.body; \
-		tail -n +4 config/astroai-workload.lock > /tmp/__wl.committed.body; \
-		rm -f "$$tmp_wl"; \
-		cmp -s /tmp/__wl.body /tmp/__wl.committed.body || { echo "astroai-workload.lock drift — run make lock-workload" >&2; exit 1; }; \
-	else \
-		echo "astroai-workload.lock not present (bump SHA in config/astroai-workload.in after push, then make lock-workload)"; \
-	fi; \
 	echo "lockfile package bodies match their source constraints"
 
 test-local: ## verify session images (parallel)
@@ -242,6 +227,8 @@ test-host: ## docker-free checks (selfchecks + agent-wizard unit tests)
 	./scripts/peek_selfcheck.sh
 	./scripts/osc52_copy_selfcheck.sh
 	python3 scripts/lib/test_agent_wizard_verbs.py
+	python3 scripts/lib/test_orx_canfar_proxy.py
+	python3 scripts/lib/test_session_title.py
 	@! grep -F '[AstroAI]' config/starship.toml
 	@! grep -E 'format = "in ' config/starship.toml
 	@grep -q 'disabled = true' config/starship.toml

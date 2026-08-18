@@ -1,5 +1,5 @@
 #!/bin/bash -e
-# astroai-lab cold-start → save → resume loop inside astroai/base image.
+# astroai cold-start → save → resume loop inside astroai/base image.
 #
 # Runs two layouts:
 #   bind    — host dir mounted at /srcdir (local docker). WORK stays /srcdir.
@@ -34,7 +34,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "astroai-lab save/resume loop (in ${IMAGE})"
+echo "astroai save/resume loop (in ${IMAGE})"
 [[ "${SMOKE}" -eq 1 ]] && echo "(smoke mode — status only, no pixi init)"
 echo "========================================"
 
@@ -72,19 +72,19 @@ fi
 cd "${WORK}"
 
 if [[ "'"${SMOKE}"'" -eq 1 ]]; then
-    astroai-lab status --json | head -1
+    astroai status --json | head -1
     echo "SMOKE_OK_${layout}"
 else
     pixi init "loopdemo-${layout}" --no-progress
     cd "loopdemo-${layout}"
-    astroai-lab save "loopdemo-${layout}"
+    astroai save "loopdemo-${layout}"
 
     # Fresh work tree (same HOME — simulates new session, same /arc/home)
     rm -rf "${WORK}/loopdemo-${layout}"
     cd "${WORK}"
-    astroai-lab resume "loopdemo-${layout}"
+    astroai resume "loopdemo-${layout}"
     test -f "loopdemo-${layout}/pixi.toml"
-    astroai-lab status --json | head -1
+    astroai status --json | head -1
     echo "LOOP_OK_${layout}"
 fi
 '
@@ -104,19 +104,19 @@ if [[ "${SMOKE}" -eq 1 ]]; then
     printf '%s\n' "${BIND_OUT}" | grep -q SMOKE_OK_bind || ok=0
     printf '%s\n' "${OVERLAY_OUT}" | grep -q SMOKE_OK_overlay || ok=0
     if [[ "${ok}" -eq 1 ]]; then
-        echo "astroai-lab smoke test passed (bind + overlay)."
+        echo "astroai smoke test passed (bind + overlay)."
         exit 0
     fi
-    echo "astroai-lab smoke test failed." >&2
+    echo "astroai smoke test failed." >&2
     exit 1
 fi
 
 printf '%s\n' "${BIND_OUT}" | grep -q LOOP_OK_bind || ok=0
 printf '%s\n' "${OVERLAY_OUT}" | grep -q LOOP_OK_overlay || ok=0
 if [[ "${ok}" -eq 1 ]]; then
-    echo "astroai-lab loop test passed (bind + overlay)."
+    echo "astroai loop test passed (bind + overlay)."
     exit 0
 fi
 
-echo "astroai-lab loop test failed." >&2
+echo "astroai loop test failed." >&2
 exit 1

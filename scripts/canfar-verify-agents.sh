@@ -95,7 +95,7 @@ check_install() {
         return 0
     fi
 
-    if ! login_shell "astroai-lab --yes agent install ${tool}"; then
+    if ! login_shell "astroai --yes agent install ${tool}"; then
         if [[ "${tool}" == "goose" || "${tool}" == "copilot" ]]; then
             skip "agent install ${tool}" "download failed (network)"
             return 0
@@ -118,30 +118,30 @@ echo "=================================="
 # Verb-surface probe: configs + CLI commands. Skip binary --version launch
 # probes — on CANFAR /arc/home (NFS) some installed agents hang forever on
 # --version (seen: pi); that is agent-health noise, not a verb-surface failure.
-# Operators can still run `astroai-lab agent verify` interactively with probes.
+# Operators can still run `astroai agent verify` interactively with probes.
 export ASTROAI_LAB_PROBE_VERSION="${ASTROAI_LAB_PROBE_VERSION:-0}"
 
-check "agent setup" login_shell 'astroai-lab --yes agent setup'
-check "agent verify" login_shell 'astroai-lab agent verify'
-check "agent verify --fix" login_shell 'astroai-lab agent verify --fix'
-check "agent verify --fix --all" login_shell 'astroai-lab agent verify --fix --all'
-check "agent verify --clean" login_shell 'astroai-lab agent verify --clean'
-# astroai-lab renders its tables via a rich console on stderr — pipe 2>&1 so
+check "agent setup" login_shell 'astroai --yes agent setup'
+check "agent verify" login_shell 'astroai agent verify'
+check "agent verify --fix" login_shell 'astroai agent verify --fix'
+check "agent verify --fix --all" login_shell 'astroai agent verify --fix --all'
+check "agent verify --clean" login_shell 'astroai agent verify --clean'
+# astroai renders its tables via a rich console on stderr — pipe 2>&1 so
 # the greps see the rows on a plain pipe (discovered by remote CANFAR smoke).
-check "agent list" login_shell 'astroai-lab agent list 2>&1 | grep -qE "kilo|Agent"'
-check "agent plugins list" login_shell 'astroai-lab agent plugins list 2>&1 | grep -q ponytail'
-check "agent list --ui" login_shell 'astroai-lab agent list --ui 2>&1 | grep -q Endpoints'
+check "agent list" login_shell 'astroai agent list 2>&1 | grep -qE "kilo|Agent"'
+check "agent plugins list" login_shell 'astroai agent plugins list 2>&1 | grep -q ponytail'
+check "agent list --ui" login_shell 'astroai agent list --ui 2>&1 | grep -q Endpoints'
 # Plugin registry surface (Phase 3): list must render the shipped plugins
 # (canfar-ray skill + ray-manager-mcp) whether or not they are installed yet.
-check "agent plugins list" login_shell 'astroai-lab agent plugins list 2>&1 | grep -q canfar-ray'
-check "agent plugins list --kind mcp" login_shell 'astroai-lab agent plugins list --kind mcp 2>&1 | grep -q ray-manager-mcp'
+check "agent plugins list" login_shell 'astroai agent plugins list 2>&1 | grep -q canfar-ray'
+check "agent plugins list --kind mcp" login_shell 'astroai agent plugins list --kind mcp 2>&1 | grep -q ray-manager-mcp'
 check "agent setup stamp" login_shell 'test -f "${HOME}/.astroai/lab/agent-setup-stamp"'
 check "cursor MCP" login_shell 'python3 -c "import json, pathlib; d=json.loads(pathlib.Path(\"${HOME}/.cursor/mcp.json\").read_text()); assert d.get(\"mcpServers\")"'
 check "astroai-lab-workflow skill" login_shell 'test -f "${HOME}/.cursor/skills/astroai-lab-workflow/SKILL.md"'
 check "kilo starter config" login_shell 'test -f "${HOME}/.config/kilo/kilo.jsonc"'
 check "agent-env hook" login_shell 'test -f "${HOME}/.astroai/lab/agent-env.sh"'
 
-check "agent install kilo" login_shell 'astroai-lab agent list 2>&1 | grep -q kilo'
+check "agent install kilo" login_shell 'astroai agent list 2>&1 | grep -q kilo'
 
 if [[ "${SETUP_ONLY}" -eq 1 ]]; then
     echo ""
@@ -196,12 +196,12 @@ done
 echo ""
 echo "Phase 2/3 registry surface after installs"
 echo "------------------------------------------"
-check "agent verify --fix --all (installed)" login_shell 'astroai-lab agent verify --fix --all'
+check "agent verify --fix --all (installed)" login_shell 'astroai agent verify --fix --all'
 # Coupled: if kilo's binary isn't detected by the registry check, verify
 # --fix --all no-ops (exit 0) and config kilo would fail with "config not found" —
 # assert the scaffold first so the failure is attributable.
 check "kilo config present" login_shell 'test -f "${HOME}/.config/kilo/kilo.jsonc"'
-check "agent config kilo" login_shell 'astroai-lab agent config kilo >/dev/null 2>&1'
+check "agent config kilo" login_shell 'astroai agent config kilo >/dev/null 2>&1'
 
 if [[ "${failures}" -eq 0 ]]; then
     echo "All agent checks passed (${skips} skipped)."

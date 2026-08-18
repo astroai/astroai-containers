@@ -143,15 +143,15 @@ def read_persisted_connect_url() -> str | None:
 
 
 def _ensure_cluster(workers: int = 0, timeout: int = 300) -> dict[str, Any] | None:
-    """Delegate cluster resolution/creation to astroai-workload (single code path).
+    """Delegate cluster resolution/creation to astroai (single code path).
 
-    Returns the ``cluster ensure --json`` payload when the CLI is available and
+    Returns the ``cluster start --json`` payload when the CLI is available and
     succeeds, else ``None`` so callers fall back to canfar-ps discovery.
     """
-    cli = shutil.which("astroai-workload")
+    cli = shutil.which("astroai")
     if not cli:
         return None
-    cmd = [cli, "cluster", "ensure", "--json"]
+    cmd = [cli, "cluster", "start", "--json"]
     if workers:
         cmd += ["--workers", str(workers)]
     rc, out, _err = _run(cmd, timeout=timeout)
@@ -194,7 +194,7 @@ def main() -> int:
     try:
         jobs = (os.environ.get("ASTROAI_RAY_JOBS_ADDRESS") or "").strip().rstrip("/")
         if not jobs:
-            # Single code path: let astroai-workload resolve/ensure the cluster
+            # Single code path: let astroai resolve/ensure the cluster
             # (env → persisted connect URL → canfar ps discovery + ready wait).
             ensured = _ensure_cluster(workers=0, timeout=180)
             if ensured and ensured.get("jobs_address"):

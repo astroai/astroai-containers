@@ -47,6 +47,17 @@ from ui import (
     workers_table_html,
 )
 
+
+def _tab_title() -> str:
+    lib = "/opt/astroai/lib"
+    if lib not in sys.path:
+        sys.path.insert(0, lib)
+    try:
+        from session_title import session_tab_title
+    except ImportError:
+        return "CANFAR Ray Manager"
+    return session_tab_title("CANFAR Ray Manager")
+
 _ray_head_proc: subprocess.Popen[str] | None = None
 _settings = ManagerSettings.from_env()
 _store = StateStore(_settings.cluster_id)
@@ -507,7 +518,7 @@ def index(request: Request) -> str:
     return f"""<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CANFAR Ray Manager</title>
+<title>{_tab_title()}</title>
 <style>{PAGE_STYLE}</style>
 </head>
 <body>

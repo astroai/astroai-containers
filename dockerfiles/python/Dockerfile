@@ -3,8 +3,8 @@
 # uv/pixi: official install scripts (latest at build time).
 
 ARG PYTHON_VERSION=3.13
-# Stay on 3.13 until CADC/clint is clean on 3.14. Ray workers stay on 3.12
-# (no cp313 wheels yet). uv/pixi/micromamba are latest-at-build below.
+# Stay on 3.13 until CADC/clint is clean on 3.14. Ray venvs use this same
+# image Python (Ray ships cp313 wheels). uv/pixi/micromamba are latest-at-build below.
 
 FROM python:${PYTHON_VERSION}-slim
 
@@ -27,12 +27,12 @@ ENV UV_PYTHON_INSTALL_DIR=/usr/local/share/uv/python \
     PIXI_BIN_DIR=/usr/local/bin \
     PIXI_CACHE_DIR=/usr/local/share/pixi/cache
 # ^ build-time paths for `uv pip install --system` only.
-# Session users: /etc/astroai-lab/profile.sh via astroai-lab env export overrides
+# Session users: /etc/astroai-lab/profile.sh via astroai env export overrides
 # runtime and cache dirs to scratch when /scratch is mounted.
 
 ENV MAMBA_ROOT_PREFIX=/usr/local/share/micromamba \
     MAMBA_PKGS_DIRS=/usr/local/share/micromamba/pkgs
-# ^ build-time paths only. Session users: astroai-lab env export sets MAMBA_ROOT_PREFIX
+# ^ build-time paths only. Session users: astroai env export sets MAMBA_ROOT_PREFIX
 # and MAMBA_PKGS_DIRS under scratch when /scratch is mounted.
 
 RUN curl -LsSf https://astral.sh/uv/install.sh \

@@ -64,11 +64,13 @@ ENV PATH="/opt/openworker/venv/bin:/opt/astroai/bin:${PATH}" \
 COPY scripts/lib/skaha-proxy.sh \
      scripts/lib/agent-wizard.py \
      scripts/lib/openworker-canfar-proxy.py \
+     scripts/lib/session_title.py \
      /opt/astroai/lib/
 COPY scripts/common-init.sh scripts/startup-openworker.sh /cadc/
 COPY scripts/skaha-startup-openworker.sh /skaha/startup.sh
 RUN chmod a+rx /opt/astroai/lib/openworker-canfar-proxy.py \
         /opt/astroai/lib/agent-wizard.py \
+        /opt/astroai/lib/session_title.py \
         /cadc/*.sh /skaha/startup.sh \
     && chmod a+r /opt/astroai/lib/skaha-proxy.sh \
     && test -f /opt/openworker/gui/index.html

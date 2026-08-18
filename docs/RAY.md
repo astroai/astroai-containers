@@ -14,16 +14,17 @@ flowchart TB
   Pref --> W2[ray-worker]
   Mgr --> Dash["/dashboard/ → Ray Dashboard :8265"]
   Mgr --> Jobs["ASTROAI_RAY_JOBS_ADDRESS → Jobs API"]
-  Jobs --> WL["astroai-workload RayExecutor"]
+  Jobs --> WL["astroai_workload RayExecutor"]
 ```
 
 ## Prefer
 
 | Path | Why |
 |------|-----|
-| AstroAI hub → **Start batch compute** | Creates the ray-manager (this CLI cannot) |
-| **`astroai-workload cluster ensure --workers N`** | Starts a fixed number of workers from any AstroAI session |
-| **`astroai-workload run train.py`** | Runs a program on that cluster and waits |
+| AstroAI hub → **Start batch compute** | Autoscaling manager + OpenResearch wire |
+| **`astroai cluster start --autoscaling`** | Same from a terminal |
+| **`astroai cluster start --workers N`** | Fixed pool. Do not mix with autoscaling |
+| **`astroai run train.py`** | Runs a program on that cluster and waits |
 | Ray Dashboard at `connectURL/dashboard/` | Watch jobs, nodes, logs. Not the submit command. |
 | Manager control panel at `/` | Auth, network check, fallback create/stop |
 | One `ray-worker` image | Request `gpus=N` per worker; CPU and GPU share the image |
@@ -40,10 +41,10 @@ every node. Persist cluster state under `/arc/home/<user>/` or
 |-------|------------|--------|--------|
 | `ray-manager` | Contributed | Register — users launch this | Fat `base` (compilers + shell tools) |
 | `ray-worker` | Headless | Manager launches workers | Slim `ray-base` (from `python`) |
-| `ray-base` | Build-only | — | Minimal apt + `astroai-lab` + Ray |
+| `ray-base` | Build-only | — | Minimal apt + `astroai` + Ray |
 
 Workers join with the image Ray venv. Env snapshots stay on `/arc`
-(`astroai-lab save` / `resume` in an interactive session). `/scratch` is
+(`astroai save` / `resume` in an interactive session). `/scratch` is
 **per-pod** — not shared with the manager or other sessions; put shared data
 on `/arc`.
 
@@ -147,18 +148,22 @@ Local UI smoke: `./scripts/test-ray-ui-local.sh` (part of `make test-ray`).
 
 ## Cluster workflow
 
-From a notebook or webterm, after the manager exists:
+Usual path: autoscaling. One click or one command, then a job with `--cpus`.
 
 ```bash
-astroai-workload cluster ensure --workers 2
-export ASTROAI_RAY_JOBS_ADDRESS=…    # printed by ensure
-astroai-workload run train.py --cpus 2
-astroai-workload cluster scale 0
+# AstroAI hub → Start batch compute
+# or:
+astroai cluster start --autoscaling
+export ASTROAI_RAY_JOBS_ADDRESS=…    # printed by start
+astroai run train.py --cpus 2
 ```
 
-`run` does not start workers. `cluster ensure` does not create the manager.
-Autoscaling (Ray starts and stops workers by itself) is below; it is not this
-path.
+`--autoscaling` writes `~/.config/canfar/lab/ray-manager.env` and creates the
+manager if needed. Ray adds `ray-as-*` workers when the job needs CPUs.
+
+`--workers N` starts a fixed pool instead. Do not mix that with autoscaling
+on the same manager. If a manager was already running when you turned
+autoscaling on, stop it and start a new one so it sources the env file.
 
 The manager UI still exists for auth, the network check, and fallback
 create/stop. Sequence when using the UI:
@@ -182,7 +187,7 @@ sequenceDiagram
 
 1. **Run network preflight**
 2. **Create cluster** — worker count, CPU/RAM, GPUs per worker, `min_joined`, partial-start policy
-3. **Use Ray** — Dashboard, `ray.init(address="auto")`, or `astroai-workload run train.py --cpus 2 --memory 8GiB`
+3. **Use Ray** — Dashboard, `ray.init(address="auto")`, or `astroai run train.py --cpus 2 --memory 8GiB`
 4. **Stop cluster** — destroys worker sessions
 
 Partial-start policies: `accept_partial`, `fail_and_cleanup`, `continue_waiting`.
@@ -196,37 +201,23 @@ state** refreshes membership for an active cluster after restart.
 
 ## Autoscaling (Ray-native, on demand)
 
-Ray's own autoscaler can launch/destroy `ray-worker` sessions on demand — no
-fixed worker count. The manager head starts with
+Ray's own autoscaler launches and destroys `ray-worker` sessions as jobs need
+CPUs. The manager head starts with
 `ray start --head --autoscaling-config=<yaml>` when enabled; a CANFAR
-`NodeProvider` (in `astroai-workload`, `ray-as-*` sessions) does the scaling.
+`NodeProvider` (in `astroai_workload`, `ray-as-*` sessions) does the scaling.
 
-Enable it per manager session via a file on `/arc/home` (Skaha rejects `-e`
-env on contributed sessions):
+Turn it on with the hub button or:
 
 ```bash
-# from a webterm / vscode / openresearch session before launching the manager
-mkdir -p ~/.config/canfar/lab
-cat > ~/.config/canfar/lab/ray-manager.env <<EOF
-RAY_AUTOSCALING_ENABLED=1
-RAY_AUTOSCALING_MIN_WORKERS=0
-RAY_AUTOSCALING_MAX_WORKERS=8
-RAY_AUTOSCALING_CORES=1
-RAY_AUTOSCALING_RAM_GB=4
-RAY_AUTOSCALING_GPUS=0
-RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES=5
-EOF
+astroai cluster start --autoscaling
 ```
 
-`startup-ray-manager.sh` sources that file (if present) before launching the
-head, so `ray-head-start.sh` writes the autoscaling YAML
-(`astroai-workload autoscaler write-config`) and passes
-`--autoscaling-config` to `ray start --head`. The autoscaler then:
-
-- **scales up**: a job that demands more CPUs than are scheduled triggers
-  `ray-as-*` worker sessions (head schedules 0 CPUs by default)
-- **scales down**: idle workers are terminated after `idle_timeout_minutes`
-  (default 5; env `RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES`)
+That writes `~/.config/canfar/lab/ray-manager.env` (Skaha rejects `-e` on
+contributed sessions). `startup-ray-manager.sh` sources the file before
+launching the head. Head advertises 0 CPUs, so a job with `--cpus ≥ 1`
+triggers workers. Idle workers stop after
+`RAY_AUTOSCALING_IDLE_TIMEOUT_MINUTES` (default 5). Delete the file to turn
+autoscaling off for the next manager.
 
 Verify end-to-end on CANFAR (manager UI + dynamic scale-up + idle scale-down):
 
@@ -261,5 +252,5 @@ examples/ray/                Container smokes
 
 - [USAGE.md](USAGE.md) — general sessions
 - [OPERATORS.md](OPERATORS.md) — publish and platform notes
-- [astroai-workload](https://github.com/astroai/astroai-workload) — `cluster ensure` + `run` (not `ray job submit`)
+- [astroai-lab](https://github.com/astroai/lab) — `astroai cluster start` + `run` (not `ray job submit`)
 - Starter notebook in-image: `/opt/astroai/notebooks/ray_train.ipynb`

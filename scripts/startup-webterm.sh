@@ -15,7 +15,7 @@ TTYD_ARGS=(
     --port 5000
     --index /cadc/index.html
     -w "${PWD}"
-    -t titleFixed="AstroAI Webterm"
+    -t "titleFixed=$(astroai_session_title "AstroAI Webterm")"
     -t 'theme={"background":"#1e1e2e","foreground":"#cdd6f4","cursor":"#f5e0dc","selectionBackground":"#585b70"}'
     -t fontSize=15
     -t fontFamily="Menlo, monospace"

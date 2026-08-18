@@ -50,6 +50,8 @@ if [[ ! -d "${ROOT_DIR}" ]]; then
     ROOT_DIR="${HOME}"
 fi
 
+TITLE="$(astroai_session_title "AstroAI Notebook")"
+
 exec jupyter lab \
     --ip 0.0.0.0 \
     --port "${PORT}" \
@@ -57,4 +59,5 @@ exec jupyter lab \
     --config /etc/jupyter/jupyter_server_config.py \
     --ServerApp.log_level=ERROR \
     --ServerApp.root_dir="${ROOT_DIR}" \
+    --LabApp.app_name="${TITLE}" \
     "${BASE_URL_ARGS[@]}"

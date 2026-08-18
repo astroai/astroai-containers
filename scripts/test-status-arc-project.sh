@@ -1,5 +1,5 @@
 #!/usr/bin/bash
-# Smoke test: astroai-lab status team project + quotas in astroai/base.
+# Smoke test: astroai status team project + quotas in astroai/base.
 set -euo pipefail
 
 REGISTRY="${REGISTRY:-images.canfar.net}"
@@ -16,7 +16,7 @@ trap 'rm -rf "${FAKE_HOME}" "${FAKE_ARC}" "${FAKE_SRC}" "${FAKE_SCRATCH}"' EXIT
 mkdir -p "${FAKE_HOME}" "${FAKE_ARC}/projects/mygroup/data" "${FAKE_SRC}" "${FAKE_SCRATCH}"
 chmod -R a+rwX "${FAKE_HOME}" "${FAKE_ARC}" "${FAKE_SRC}" "${FAKE_SCRATCH}"
 
-echo "astroai-lab status arc project test (${IMAGE})"
+echo "astroai status arc project test (${IMAGE})"
 echo "=============================================="
 
 docker run --rm \
@@ -32,7 +32,7 @@ docker run --rm \
 set -e
 source /etc/profile.d/astroai.sh
 cd /arc/projects/mygroup
-astroai-lab status --json | python3 -c "
+astroai status --json | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 ap = d.get(\"arc_project\")
@@ -46,10 +46,10 @@ assert \"vault\" in d
 assert any(q[\"label\"] == \"mygroup\" for q in d[\"quotas\"]), d[\"quotas\"]
 print(\"STATUS_JSON_OK\")
 "
-astroai-lab status 2>&1 | grep -F "Team project (cwd): /arc/projects/mygroup"
+astroai status 2>&1 | grep -F "Team project (cwd): /arc/projects/mygroup"
 upgrade-cadc-tools.sh list | grep -F astroai-lab
 test -w /opt/astroai/venv/cadc
 echo STATUS_HUMAN_OK
 '
 
-echo "astroai-lab status arc project test passed."
+echo "astroai status arc project test passed."

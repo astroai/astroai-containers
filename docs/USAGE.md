@@ -8,17 +8,17 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
 | You want… | Read |
 |-----------|------|
 | This page | First session, storage, Ray, troubleshooting |
-| `astroai-lab` command detail | [astroai-lab USAGE](https://github.com/astroai/astroai-lab/blob/main/docs/USAGE.md) · `astroai-lab help` |
+| `astroai` command detail | [astroai USAGE](https://github.com/astroai/lab/blob/main/docs/USAGE.md) · `astroai help` |
 | Ray operators | [RAY.md](RAY.md) |
 | Platform CLI | [opencadc.github.io/canfar](https://opencadc.github.io/canfar/) |
 
 ## Scientist card
 
 1. Portal → launch **openresearch** or **openworker** as your day-to-day home base (or webterm/vscode/notebook/marimo/ray-manager as needed).
-2. Inside: `astroai-lab` · `astroai-lab help` · `less /opt/astroai/USAGE.md`
+2. Inside: `astroai` · `astroai help` · `less /opt/astroai/USAGE.md`
 3. Work under `$WORK` (code; `/scratch/src` on CANFAR so container OOM does not wipe it) and `/scratch` (data/caches).
-4. Persist to `/arc/home` or `/arc/projects` before the session ends (`astroai-lab save` / `git push`).
-5. Env snapshots live in `~/.astroai/lab/saves/` on `/arc/home` — resume them in the next session with `astroai-lab resume NAME`.
+4. Persist to `/arc/home` or `/arc/projects` before the session ends (`astroai save` / `git push`).
+5. Env snapshots live in `~/.astroai/lab/saves/` on `/arc/home` — resume them in the next session with `astroai resume NAME`.
 
 ### Home base: AstroAI hub (openresearch / openworker)
 
@@ -27,12 +27,12 @@ This file ships inside images as `/opt/astroai/USAGE.md`.
    - click the blue **AstroAI** chip (top-right), or
    - append `/astroai-agents/` (e.g. `…/session/contrib/<id>/astroai-agents/`).
 3. In the hub (one screen):
-   - **Start batch compute** — ensures ray-manager + workers and wires OpenResearch (when on openresearch)
-   - Agent table — same columns as `astroai-lab agent list` (Agent, Bin, Cfg, Where, Ver). **Install** puts the CLI on PATH; **Setup** writes that agent's config, skills, and default plugins on `/arc/home`
+   - **Start batch compute** — autoscaling ray-manager, wires OpenResearch (when on openresearch)
+   - Agent table — same columns as `astroai agent list` (Agent, Bin, Cfg, Where, Ver). **Install** puts the CLI on PATH; **Setup** writes that agent's config, skills, and default plugins on `/arc/home`
    - Status shows CANFAR auth, manager Running/Pending, wire state, Jobs URL
    - **← Back** returns to the main UI
 4. Run experiments in OpenResearch — default compute is already CANFAR batch. Put shared I/O on `/arc` (`/scratch` is per-pod only).
-5. Power users: `astroai-lab agent …` in webterm; cluster ops on ray-manager.
+5. Power users: `astroai agent …` in webterm; cluster ops on ray-manager.
 
 ```bash
 canfar login   # once, from webterm — persists under /arc/home
@@ -54,10 +54,10 @@ canfar open <session-id>
 
 `/scratch` is fast and private to **this** session. Use `/arc/projects/…` (or home) when another session needs the same files live; move with `canfar data` (platform archive I/O).
 
-**Home quota %:** CANFAR homes use CephFS directory quotas (`ceph.quota.max_bytes`). `astroai-lab status` prefers those xattrs; `ceph.dir.rbytes` can lag a few seconds after large writes — that is Ceph MDS accounting, not a frozen UI cache. Refresh with `astroai-lab status`.
+**Home quota %:** CANFAR homes use CephFS directory quotas (`ceph.quota.max_bytes`). `astroai status` prefers those xattrs; `ceph.dir.rbytes` can lag a few seconds after large writes — that is Ceph MDS accounting, not a frozen UI cache. Refresh with `astroai status`.
 
 ```bash
-astroai-lab status
+astroai status
 canfar data stage /arc/projects/mygroup/raw
 canfar data sync /scratch/out /arc/projects/mygroup/out
 ```
@@ -67,17 +67,18 @@ canfar data sync /scratch/out /arc/projects/mygroup/out
 ## Ray (first-class)
 
 **Preferred:** from openresearch/openworker, AstroAI hub → **Start batch compute**.
-That launches **ray-manager**, starts workers, and wires OpenResearch.
+That launches an autoscaling **ray-manager** and wires OpenResearch. Jobs with
+`--cpus` add workers.
 
-Manual path: launch **ray-manager** from the portal (or CLI), open Connect URL,
-create a cluster from the UI. Workers are headless images the manager starts for you.
+Manual path: `astroai cluster start --autoscaling`, or launch
+**ray-manager** from the portal and open Connect URL.
 
 ```bash
 # AstroAI hub → Start batch compute
 # or:
 canfar create --name astroai-compute --cpu 2 --memory 8 contributed images.canfar.net/astroai/ray-manager:26.08
-# after workers join:
-astroai-workload run train.py --cpus 2 --memory 8GiB
+# or: astroai cluster start --autoscaling
+astroai run train.py --cpus 2 --memory 8GiB
 ```
 
 Dashboard: `connectURL/dashboard/`. Full detail: [RAY.md](RAY.md). Prefer manager memory **≥8 GiB**.
@@ -86,26 +87,26 @@ Dashboard: `connectURL/dashboard/`. Full detail: [RAY.md](RAY.md). Prefer manage
 
 `openresearch` defaults compute to CANFAR batch (Ray Jobs under the hood). Preferred path:
 
-1. AstroAI hub → **Start batch compute** — ensures manager + workers and wires Settings.
+1. AstroAI hub → **Start batch compute** — autoscaling manager, wires Settings.
 2. Set agent API keys in agent configs / OpenResearch settings (not in the hub).
 3. Run experiments in OpenResearch (no `--backend` needed once defaulted).
 
-Manual fallback: Settings → Compute → Ray with the manager Jobs URL (`connectURL/dashboard`). Cluster lifecycle stays on the hub / ray-manager — not a CANFAR card in upstream OpenResearch.
+Manual fallback: Settings → Compute → Ray, then **Start batch compute**. Cluster lifecycle stays on that button / the AstroAI hub, not a CANFAR card in upstream OpenResearch.
 
 Put env saves on `/arc` (`~/.astroai/lab/saves/` or `/arc/projects/<group>/env-saves/` via `save --to` / `resume --from`). Ray workers join with the image venv; restore a save in an interactive session if you need that stack on `$WORK`.
 
 ---
 
-## Everyday `astroai-lab`
+## Everyday `astroai`
 
 ```bash
-astroai-lab init mylab          # or clone owner/repo
-astroai-lab save mylab
-astroai-lab --yes resume mylab  # or: astroai-lab resume mylab --yes
-astroai-lab agent setup         # once (UI sessions auto-run in background; webterm opt-in)
-astroai-lab agent install claude
+astroai init mylab          # or clone owner/repo
+astroai save mylab
+astroai --yes resume mylab  # or: astroai resume mylab --yes
+astroai agent setup         # once (UI sessions auto-run in background; webterm opt-in)
+astroai agent install claude
 # Or open /astroai-agents/ for Start batch compute and per-agent Install / Setup
-astroai-lab kernel ensure       # notebook
+astroai kernel ensure       # notebook
 ```
 
 Compilers and editors are in interactive images; put CUDA/ML stacks in your pixi/uv project locks.
@@ -175,20 +176,19 @@ synthetic galaxy field, render it, extract sources) is in
 ## Diagnostics / troubleshooting
 
 ```bash
-astroai-lab status --json
+astroai status --json
 ```
 
 | Symptom | Action |
 |---------|--------|
 | Other session missing `/scratch` files | Expected — scratch is session-private; use `/arc/projects` or `canfar data` |
-| Lost files after session end | Persist to `/arc` next time (`astroai-lab save` / `git push` / `canfar data`) |
-| Home quota full | `astroai-lab status` (quota %) — prune caches under `/scratch` manually |
+| Lost files after session end | Persist to `/arc` next time (`astroai save` / `git push` / `canfar data`) |
+| Home quota full | `astroai status` (quota %) — prune caches under `/scratch` manually |
 | Session stuck **Pending** | `canfar ps` / events; contributed quota ≈3; headless Pending is often a Skaha flake ([OPERATORS](OPERATORS.md#platform-notes-headless-pending)) |
 
 ---
 
 ## Related
 
-- [astroai-lab](https://github.com/astroai/astroai-lab) — CLI detail
-- [astroai-workload](https://github.com/astroai/astroai-workload) — Ray Jobs CLI (`astroai-workload run`) on ray-manager
+- [astroai-lab](https://github.com/astroai/lab) — CLI detail (`astroai run` / `cluster`)
 - [OPERATORS.md](OPERATORS.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [RAY.md](RAY.md)

@@ -12,20 +12,22 @@ _cache_dirs=(
     "${ASTROAI_LAB_CONFIG_DIR:-${HOME}/.astroai/lab}"
     "${HOME}/.ssh"
     "${XDG_CONFIG_HOME:-${HOME}/.config}"
-    "${XDG_CACHE_HOME:-${HOME}/.cache}"
-    "${UV_CACHE_DIR:-${HOME}/.cache/uv}"
-    "${PIP_CACHE_DIR:-${HOME}/.cache/pip}"
+    ${XDG_CACHE_HOME:+"${XDG_CACHE_HOME}"}
+    ${UV_CACHE_DIR:+"${UV_CACHE_DIR}"}
+    ${PIP_CACHE_DIR:+"${PIP_CACHE_DIR}"}
     "${PIXI_HOME:-${HOME}/.pixi}"
-    "${PIXI_CACHE_DIR:-${HOME}/.pixi/cache}"
+    ${PIXI_CACHE_DIR:+"${PIXI_CACHE_DIR}"}
+    ${RATTLER_CACHE_DIR:+"${RATTLER_CACHE_DIR}"}
     "${MAMBA_ROOT_PREFIX:-${HOME}/.local/share/micromamba}"
-    "${MAMBA_PKGS_DIRS:-${HOME}/.cache/conda/pkgs}"
-    "${NPM_CONFIG_CACHE:-${HOME}/.cache/npm}"
-    "${HF_HOME:-${HOME}/.cache/huggingface}"
-    "${TORCH_HOME:-${HOME}/.cache/torch}"
-    "${MPLCONFIGDIR:-${HOME}/.cache/matplotlib}"
+    ${MAMBA_PKGS_DIRS:+"${MAMBA_PKGS_DIRS}"}
+    ${NPM_CONFIG_CACHE:+"${NPM_CONFIG_CACHE}"}
+    ${HF_HOME:+"${HF_HOME}"}
+    ${TORCH_HOME:+"${TORCH_HOME}"}
+    ${MPLCONFIGDIR:+"${MPLCONFIGDIR}"}
 )
 
 for d in "${_cache_dirs[@]}"; do
+    [[ -n "${d}" ]] || continue
     mkdir -p "${d}"
 done
 chmod 700 "${HOME}/.ssh" 2>/dev/null || true
@@ -50,7 +52,7 @@ git config --global --add safe.directory "${_src_root}" 2>/dev/null || true
 mkdir -p "${_src_root}"
 cd "${_src_root}"
 
-# Track session start time for astroai-lab status; reset per-session auto-archive markers
+# Track session start time for astroai status; reset per-session auto-archive markers
 _state="${ASTROAI_LAB_CONFIG_DIR:-${HOME}/.astroai/lab}"
 mkdir -p "${_state}"
 date -u +%s > "${_state}/session-started"
@@ -63,12 +65,12 @@ if [[ ! -f "${_state}/welcomed" ]]; then
 
   Welcome to AstroAI on CANFAR!
   ─────────────────────────────
-  astroai-lab init <name>     New project       astroai-lab help     Full command list
-  astroai-lab clone <repo>    Clone from GitHub  less /opt/astroai/USAGE.md  Full docs
+  astroai init <name>     New project       astroai help     Full command list
+  astroai clone <repo>    Clone from GitHub  less /opt/astroai/USAGE.md  Full docs
 
   Storage: $WORK (code)  $SCRATCH (data/caches)  /arc (shared across sessions)
-  Persist: astroai-lab save / git push  (session disks die with the session; $WORK survives container OOM)
-  Agents:  astroai-lab agent install claude|goose|opencode|codex
+  Persist: astroai save / git push  (session disks die with the session; $WORK survives container OOM)
+  Agents:  astroai agent install claude|goose|opencode|codex
 WELCOME
         if [[ "${ASTROAI_SESSION_KIND:-}" == "webterm" ]]; then
             printf '\n\033[1;36m%s\033[0m\n' "  Tmux: Ctrl-b c (new tab)  Ctrl-b n/p (switch)  Ctrl-b z (zoom)"
@@ -80,12 +82,12 @@ fi
 # children (bash -l in webterm tmux) re-source profile after /etc/profile.
 
 # Notebook-safe caches even when platform overrides Jupyter CMD.
-if command -v astroai-lab >/dev/null 2>&1; then
+if command -v astroai >/dev/null 2>&1; then
   # Apply cache redirects for this process tree.
-  eval "$(astroai-lab env export 2>/dev/null)" || true
+  eval "$(astroai env export 2>/dev/null)" || true
   # Scratch-safe default kernel — notebook sessions only (slow pip install).
   if [[ "${ASTROAI_SESSION_KIND:-}" == "notebook" || "${ASTROAI_LAB_ENSURE_KERNEL:-}" == "1" ]]; then
-    astroai-lab kernel ensure --name astroai >/dev/null 2>&1 || true
+    astroai kernel ensure --name astroai >/dev/null 2>&1 || true
   fi
   # Agent configs (MCP, rules, skills). UI sessions default to background setup;
   # webterm stays opt-in so terminal users are not surprised.
@@ -111,7 +113,7 @@ if command -v astroai-lab >/dev/null 2>&1; then
     touch "${_agent_state}/agent-setup-pending"
     {
       echo "---- $(date -u +%Y-%m-%dT%H:%M:%SZ) agent setup start kind=${ASTROAI_SESSION_KIND:-} ----"
-      astroai-lab --yes agent setup
+      astroai --yes agent setup
       _rc=$?
       echo "---- $(date -u +%Y-%m-%dT%H:%M:%SZ) agent setup end exit=${_rc} ----"
       rm -f "${_agent_state}/agent-setup-pending"
