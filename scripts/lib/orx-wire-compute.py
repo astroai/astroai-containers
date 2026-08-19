@@ -151,9 +151,11 @@ def _ensure_cluster(workers: int = 0, timeout: int = 300) -> dict[str, Any] | No
     cli = shutil.which("astroai")
     if not cli:
         return None
-    cmd = [cli, "cluster", "start", "--json"]
+    cmd = [cli, "cluster", "start", "--json", "--timeout", str(timeout)]
     if workers:
         cmd += ["--workers", str(workers)]
+    else:
+        cmd += ["--autoscaling"]
     rc, out, _err = _run(cmd, timeout=timeout)
     if rc != 0:
         return None
@@ -196,7 +198,7 @@ def main() -> int:
         if not jobs:
             # Single code path: let astroai resolve/ensure the cluster
             # (env → persisted connect URL → canfar ps discovery + ready wait).
-            ensured = _ensure_cluster(workers=0, timeout=180)
+            ensured = _ensure_cluster(workers=0, timeout=1200)
             if ensured and ensured.get("jobs_address"):
                 jobs = str(ensured["jobs_address"]).rstrip("/")
         if not jobs:

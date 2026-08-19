@@ -139,7 +139,8 @@ def test_compute_ensure_idempotent_and_wires() -> None:
     wire.wire_orx.assert_called_once()
     assert "create" not in data["steps"]
     assert "manager-exists" in data["steps"]
-    assert ensure_cmds == [["astroai", "cluster", "start", "--json"]]
+    assert "astroai" in ensure_cmds[0] and "cluster" in ensure_cmds[0]
+    assert "start" in ensure_cmds[0] and "--autoscaling" in ensure_cmds[0]
     assert "RAY_AUTOSCALING_ENABLED=1" in env
     assert "do not add workers" in data["user_message"]
 

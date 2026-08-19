@@ -225,8 +225,14 @@ RUN curl -fsSL -o /usr/local/bin/topcat-extra.jar \
 RUN apt-get update && apt-get install -y --no-install-recommends swig \
     && rm -rf /var/lib/apt/lists/*
 COPY config/improc-py.txt /opt/astroai/improc-py.txt
+# torch 2.13+cu129 so torchfits can read FITS into CUDA tensors on GPU nodes.
+# The wheel bundles the CUDA runtime; the host injects the driver (libcuda).
+# Do not assert torch.cuda.is_available() here — builds have no GPU.
 RUN uv venv /opt/astroai/venv/improc \
     && uv pip install --python /opt/astroai/venv/improc -r /opt/astroai/improc-py.txt \
+    && uv pip install --python /opt/astroai/venv/improc \
+         --extra-index-url https://download.pytorch.org/whl/cu129 \
+         "torch==2.13.0+cu129" "torchfits==1.0.0" \
     && uv pip install --python /opt/astroai/venv/improc numpy cython setuptools pybind11 peigen \
     && uv pip install --no-build-isolation --python /opt/astroai/venv/improc \
          "scarlet @ git+https://github.com/pmelchior/scarlet@${SCARLET_COMMIT}" \
@@ -284,7 +290,7 @@ RUN set -euo pipefail; \
       weightwatcher montage theli \
       galfit imfit pqrs topcat stilts fits2idia imcore \
       astconvertt astnoisechisel astscript-psf-stamp \
-      h5dump maximask maxitrack sky skymaker stuff; do \
+      h5dump maximask maxitrack sky skymaker stuff torchfits; do \
         command -v "$c" >/dev/null || { echo "MISSING: $c" >&2; exit 1; }; \
     done; \
     command -v sourcextractor++ >/dev/null \
@@ -292,7 +298,7 @@ RUN set -euo pipefail; \
       || { echo "MISSING: sourcextractor++" >&2; exit 1; }; \
     scamp -v 2>&1 | head -1 | grep -q '2\.15' \
       || { echo "SCAMP not 2.15" >&2; exit 1; }; \
-    /opt/astroai/venv/improc/bin/python -c "import ccdproc, photutils, galsim, piff, astroscrappy, lacosmic, sfft, zogyp, healpy, healsparse, astropy_healpix, mocpy, hpgeom, scarlet, scarlet2, twirl, skimage, astroquery, cv2, petrofit, montage_wrapper, galight, lenstronomy, tractor"; \
+    /opt/astroai/venv/improc/bin/python -c "import ccdproc, photutils, galsim, piff, astroscrappy, lacosmic, sfft, zogyp, healpy, healsparse, astropy_healpix, mocpy, hpgeom, scarlet, scarlet2, twirl, skimage, astroquery, cv2, petrofit, montage_wrapper, galight, lenstronomy, tractor, torch, torchfits; assert '+cu' in torch.__version__, torch.__version__"; \
     /opt/astroai/conda/ngmix/bin/python -c "import ngmix; print('PASS: ngmix')"; \
     /opt/astroai/venv/maximask/bin/python -c "import tensorflow; import maximask_and_maxitrack"; \
     if /opt/astroai/venv/improc/bin/python -c "import tensorflow" 2>/dev/null; then \

@@ -346,7 +346,15 @@ def _compute_ensure() -> dict[str, Any]:
     connect = ""
     if shutil.which("astroai"):
         ensure_rc, ensure_out, ensure_err = _run_cmd(
-            ["astroai", "cluster", "start", "--json"],
+            [
+                "astroai",
+                "cluster",
+                "start",
+                "--autoscaling",
+                "--json",
+                "--timeout",
+                str(COMPUTE_ENSURE_TIMEOUT),
+            ],
             timeout=COMPUTE_ENSURE_TIMEOUT,
         )
         steps.append("cluster-start")

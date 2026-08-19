@@ -36,7 +36,7 @@ RUN chmod a+r /etc/profile.d/astroai.sh
 RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${WORK}" \
     && chmod -R a+rX /opt/astroai \
     && chmod -R a+rwx /opt/astroai/cache \
-    && chmod 1777 "${WORK}"
+    && chmod 1777 "${WORK}"  # /srcdir stays writable (clone --dir /srcdir)
 
 # Minimal lab install (resume/save/paths) — no full CADC kitchen sink on workers.
 COPY config/astroai-lab.in config/astroai-lab.lock /tmp/

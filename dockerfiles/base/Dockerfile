@@ -125,7 +125,7 @@ RUN chmod a+r /etc/profile.d/astroai.sh
 RUN mkdir -p /opt/astroai/{bin,cache,lib,venv} /cadc "${WORK}" \
     && chmod -R a+rX /opt/astroai \
     && chmod -R a+rwx /opt/astroai/cache \
-    && chmod 1777 "${WORK}"
+    && chmod 1777 "${WORK}"  # /srcdir stays writable (clone --dir /srcdir)
 
 COPY config/cadc-tools.txt /opt/astroai/cadc-tools.txt
 COPY scripts/patch-clint-py313.sh /tmp/patch-clint-py313.sh

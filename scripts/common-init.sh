@@ -77,8 +77,8 @@ if [[ ! -f "${_state}/welcomed" ]]; then
   astroai clone <repo>    Clone from GitHub  astroai run train.py --cpus 2
   astroai help            Command list       less /opt/astroai/USAGE.md
 
-  Storage: $WORK (code)  $SCRATCH (data/caches)  /arc (shared across sessions)
-  Persist: astroai save / git push  (session disks die with the session; $WORK survives container OOM)
+  Storage: $SRCDIR (code)  $SCRATCH (data/caches)  /arc (shared across sessions)
+  Persist: astroai save / git push  (session disks die with the session; $SRCDIR survives container OOM)
   Agents:  astroai agent install claude|goose|opencode|codex
 WELCOME
         if [[ "${ASTROAI_SESSION_KIND:-}" == "webterm" ]]; then

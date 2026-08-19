@@ -36,6 +36,9 @@ zogyp>=1.6.3
 scarlet2>=0.5
 # scarlet2 pulls the JAX stack (jax, numpyro, optax, equinox) — acceptable; jaxlib has cp313 wheels.
 # tractor is built separately in the Dockerfile (git pin; needs swig+numpy+cython at build).
+# torchfits==1.0.0 (+ torch 2.13 CUDA 12.9) is installed in the Dockerfile
+# from the PyTorch cu129 index so GPU tensor reads work on CANFAR GPU nodes.
+# CPU sessions still run torch on CPU; the wheel is larger than +cpu.
 twirl>=0.5
 
 # Galaxy profile / morphology fitting
