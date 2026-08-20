@@ -12,7 +12,7 @@ export OPENWORKER_HEAD ?= $(shell git ls-remote https://github.com/andrewyng/ope
 
 export OWNER REGISTRY PYTHON_VERSION
 
-SESSION_IMAGES := base webterm notebook vscode marimo openresearch openworker
+SESSION_IMAGES := base webterm ghostty-web notebook vscode marimo openresearch openworker
 RAY_IMAGES := ray-manager ray-worker
 IMAGE_PREFIX := $(REGISTRY)/$(OWNER)
 
@@ -151,7 +151,7 @@ lock-check: ## fail CI if a lockfile's package body drifts from its source. The 
 
 test-local: ## verify session images (parallel)
 	@fails=0; pids=(); \
-	for img in webterm notebook vscode marimo openresearch openworker base; do \
+	for img in webterm ghostty-web notebook vscode marimo openresearch openworker base; do \
 		./scripts/test-local.sh "$$img" --verify-only & pids+=($$!); \
 	done; \
 	for pid in "$${pids[@]}"; do wait "$$pid" || fails=$$((fails + 1)); done; \

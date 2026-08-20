@@ -119,6 +119,7 @@ Compilers and editors are in interactive images; put CUDA/ML stacks in your pixi
 | Image | Notes |
 |-------|-------|
 | `webterm` | ttyd + tmux on `:5000` |
+| `ghostty-web` | ghostty-web + tmux on `:5000` |
 | `vscode` | OpenVSCode on `:5000` |
 | `marimo` | Reactive `.py` notebooks; starter seeded once under `$SRCDIR/notebooks` |
 | `notebook` | JupyterLab `:8888`. Stock Skaha may run platform Jupyter CMD — AstroAI `startup-notebook.sh` only with a platform override ([OPERATORS.md](OPERATORS.md)) |

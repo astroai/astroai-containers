@@ -27,7 +27,7 @@ variable "OPENWORKER_HEAD" {
 }
 
 group "default" {
-  targets = ["base", "webterm", "notebook", "vscode", "marimo", "openresearch", "openworker"]
+  targets = ["base", "webterm", "ghostty-web", "notebook", "vscode", "marimo", "openresearch", "openworker"]
 }
 
 group "improc" {
@@ -72,6 +72,12 @@ target "webterm" {
   inherits   = ["_interface"]
   dockerfile = "dockerfiles/webterm/Dockerfile"
   tags       = ["${REGISTRY}/${OWNER}/webterm:${TAG}"]
+}
+
+target "ghostty-web" {
+  inherits   = ["_interface"]
+  dockerfile = "dockerfiles/ghostty-web/Dockerfile"
+  tags       = ["${REGISTRY}/${OWNER}/ghostty-web:${TAG}"]
 }
 
 target "notebook" {

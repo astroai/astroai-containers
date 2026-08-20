@@ -6,6 +6,7 @@
 #
 # Usage:
 #   ./scripts/test-canfar-session.sh webterm 26.08
+#   ./scripts/test-canfar-session.sh ghostty-web 26.08
 #   ./scripts/test-canfar-session.sh notebook 26.08
 #   ./scripts/test-canfar-session.sh vscode 26.08
 #   ./scripts/test-canfar-session.sh marimo 26.08
@@ -15,7 +16,7 @@
 # Environment:
 #   REGISTRY, OWNER, CANFAR_TEST_TIMEOUT (default 900)
 
-IMAGE="${1:?image name required (webterm|notebook|vscode|marimo|openresearch|openworker|ray-manager|improc-webterm|improc-notebook)}"
+IMAGE="${1:?image name required (webterm|ghostty-web|notebook|vscode|marimo|openresearch|openworker|ray-manager|improc-webterm|improc-notebook)}"
 TAG="${2:-${TAG:-latest}}"
 OWNER="${OWNER:-astroai}"
 REGISTRY="${REGISTRY:-images.canfar.net}"

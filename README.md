@@ -38,6 +38,7 @@ flowchart TB
 | Image | Use for | Skaha type |
 |-------|---------|------------|
 | `webterm` | Browser terminal (ttyd + tmux) | Contributed |
+| `ghostty-web` | Browser terminal (ghostty-web + tmux) | Contributed |
 | `vscode` | Browser IDE (OpenVSCode Server) | Contributed |
 | `notebook` | JupyterLab | Notebook |
 | `marimo` | Reactive notebooks | Contributed |

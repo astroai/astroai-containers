@@ -81,7 +81,7 @@ if [[ ! -f "${_state}/welcomed" ]]; then
   Persist: astroai save / git push  (session disks die with the session; $SRCDIR survives container OOM)
   Agents:  astroai agent install claude|goose|opencode|codex
 WELCOME
-        if [[ "${ASTROAI_SESSION_KIND:-}" == "webterm" ]]; then
+        if [[ "${ASTROAI_SESSION_KIND:-}" == "webterm" || "${ASTROAI_SESSION_KIND:-}" == "ghostty-web" ]]; then
             printf '\n\033[1;36m%s\033[0m\n' "  Tmux: Ctrl-b c (new tab)  Ctrl-b n/p (switch)  Ctrl-b z (zoom)"
         fi
     fi

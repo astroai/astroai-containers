@@ -27,6 +27,7 @@ flowchart LR
 |-------|-------------|------------|------|---------|
 | `base` | `…/astroai/base:<tag>` | — | — | No (parent / headless verify) |
 | `webterm` | `…/astroai/webterm:<tag>` | Contributed | 5000 | Yes |
+| `ghostty-web` | `…/astroai/ghostty-web:<tag>` | Contributed | 5000 | Yes |
 | `vscode` | `…/astroai/vscode:<tag>` | Contributed | 5000 | Yes |
 | `notebook` | `…/astroai/notebook:<tag>` | Notebook | 8888 | Yes |
 | `marimo` | `…/astroai/marimo:<tag>` | Contributed | 5000 | Yes |
@@ -87,6 +88,7 @@ Session UIs listen at `/` on port **5000**.
 | Image | Proxy / listen notes |
 |-------|----------------------|
 | `webterm` | Listen `/` — no ttyd `--base-path` |
+| `ghostty-web` | Listen `/` — relative `./client.mjs`, `./dist/*`, WebSocket under session path |
 | `vscode` | `--server-base-path /session/contrib/<id>` for URL generation |
 | `marimo` | Listen `/` — **no** `--base-url` (stripped ingress; a base-url would 404) |
 | `notebook` | Ingress keeps path; Jupyter `base_url=session/notebook/<id>` |
@@ -100,11 +102,11 @@ entrypoint, ask the science-platform team for a per-image override that sets
 ## Science Portal checklist
 
 1. Push `images.canfar.net/astroai/*:<tag>` (sessions + Ray + improc stack).
-2. Register Contributed: `webterm`, `vscode`, `marimo`, `openresearch`, `openworker`, `ray-manager`, `improc-webterm` → port **5000**.
+2. Register Contributed: `webterm`, `ghostty-web`, `vscode`, `marimo`, `openresearch`, `openworker`, `ray-manager`, `improc-webterm` → port **5000**.
 3. Register Notebook: `notebook`, `improc-notebook` → port **8888**.
 4. Leave `base`, `ray-worker`, and `improc` (headless) off the interactive catalog (or list `improc` under headless only). `python` and `ray-base` are bake-only, never Harbor images.
 5. Document the published tag for users (`YY.MM`).
-6. Smoke: `make test-canfar-session IMAGE=webterm TAG=…`, `IMAGE=openresearch`, `IMAGE=openworker`, `IMAGE=improc-webterm`, and `make test-canfar-ray TAG=…`.
+6. Smoke: `make test-canfar-session IMAGE=webterm TAG=…`, `IMAGE=ghostty-web`, `IMAGE=openresearch`, `IMAGE=openworker`, `IMAGE=improc-webterm`, and `make test-canfar-ray TAG=…`.
 7. **Agent verbs:** `make test-canfar-agents TAG=…` (lightweight in-session probe of the full agent verb surface — required after every image push; see below).
 
 ## Local smoke
@@ -131,6 +133,7 @@ flowchart TD
 
 ```bash
 make test-canfar-session IMAGE=webterm TAG=26.08
+make test-canfar-session IMAGE=ghostty-web TAG=26.08
 make test-canfar-session IMAGE=vscode TAG=26.08
 make test-canfar-session IMAGE=marimo TAG=26.08
 make test-canfar-session IMAGE=notebook TAG=26.08
@@ -142,7 +145,7 @@ make test-canfar-session IMAGE=openworker TAG=26.08
 
 **OpenResearch notes:** Image builds `orx` from the [sfabbro fork](https://github.com/sfabbro/openresearch-cli) `main` HEAD (`ORX_REPO` in `docker-bake.hcl`; includes `--backend ray`). Startup defaults compute to Ray when a manager Jobs URL is already known; the AstroAI hub **Start batch compute** button ensures an autoscaling ray-manager and wires OpenResearch. Switch back to alphaXiv release tarballs once a release includes [PR #138](https://github.com/alphaXiv/openresearch-cli/pull/138). See [USAGE.md](USAGE.md).
 
-**Agent auto-setup:** UI kinds (`openresearch`, `openworker`, `vscode`) default `ASTROAI_LAB_AGENT_SETUP=bg` when unset. **Marimo** stays opt-in for full setup (startup still runs `agent setup marimo` only). Webterm stays opt-in. Failures never block the main UI; see `~/.astroai/lab/agent-setup.log`.
+**Agent auto-setup:** UI kinds (`openresearch`, `openworker`, `vscode`) default `ASTROAI_LAB_AGENT_SETUP=bg` when unset. **Marimo** stays opt-in for full setup (startup still runs `agent setup marimo` only). Webterm and ghostty-web stay opt-in. Failures never block the main UI; see `~/.astroai/lab/agent-setup.log`.
 
 **Home quota readings:** Prefer CephFS xattrs over raw `df` (`astroai` `disk_usage`). `ceph.dir.rbytes` can lag after writes — expected Ceph behavior.
 
